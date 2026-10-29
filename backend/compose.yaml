@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      INITIALIZE_DATABASE: "true"
+      DATABASE_URL: postgresql+psycopg://app:app@db:5432/app
+      STORAGE_ROOT: /data
+    ports:
+      - "8000:8000"
+    volumes:
+      - storage:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  storage:

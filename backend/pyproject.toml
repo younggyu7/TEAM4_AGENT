@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+# E/F: 기본 오류, I: import 정렬, UP: 최신 문법, B: 흔한 버그 패턴
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # 줄 길이는 ruff format이 맞춥니다(긴 문자열만 남음)

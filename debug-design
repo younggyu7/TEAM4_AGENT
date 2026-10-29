@@ -1,0 +1,9 @@
+#!/bin/sh
+# 저장소 루트의 실행 진입점. 가상환경 활성화 없이 백엔드 Python을 사용한다.
+set -eu
+cd "$(dirname "$0")/backend"
+if [ ! -x .venv/bin/python ]; then
+    printf '%s\n' 'backend/.venv/bin/python을 찾을 수 없습니다. README의 설치 안내로 가상환경을 준비하세요.' >&2
+    exit 1
+fi
+exec .venv/bin/python -m scripts.debug_design "$@"
