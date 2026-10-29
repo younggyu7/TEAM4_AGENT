@@ -11,6 +11,8 @@
 """
 from __future__ import annotations
 
+import shutil
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
@@ -99,9 +101,10 @@ async def create_run(
     name = guards.upload_name(file.filename)
     project = guards.project_name(project or Path(name).stem)
     _no_running_job(project)
-    folder = get_settings().data_dir.resolve() / "uploads"
-    folder.mkdir(parents=True, exist_ok=True)
-    target = folder / f"{datetime.now():%Y%m%d-%H%M%S}-{name}"
+    # 올린 시각별 폴더에 원래 파일 이름 그대로 둔다 (산출물의 문서 이름이 원본과 같게)
+    folder = get_settings().data_dir.resolve() / "uploads" / f"{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
+    folder.mkdir(parents=True)
+    target = folder / name
     size = 0
     with target.open("wb") as out:
         while chunk := await file.read(1024 * 1024):
@@ -110,12 +113,12 @@ async def create_run(
                 break
             out.write(chunk)
     if size > guards.MAX_UPLOAD:
-        target.unlink(missing_ok=True)
+        shutil.rmtree(folder, ignore_errors=True)
         raise PayloadTooLarge(f"문서가 너무 큽니다 (최대 {guards.MAX_UPLOAD // 1024 // 1024}MB).")
     try:
         check_supported(target)
     except UnsupportedFormatError as e:
-        target.unlink(missing_ok=True)
+        shutil.rmtree(folder, ignore_errors=True)
         raise BadRequest(str(e)) from e
     job = jobs.start_run(output_dir=output_store.output_root(), document=target, project=project,
                          title=title.strip(), validate_db=validate_db)

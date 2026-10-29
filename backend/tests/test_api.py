@@ -90,7 +90,7 @@ def test_run_rejects_unsupported_document(client, monkeypatch, tmp_path):
     config._settings = config.Settings(output_dir=tmp_path / "output", data_dir=tmp_path / "data", validation_db_url="")
     r = client.post("/api/v1/runs", files={"file": ("req.hwp", b"x", "application/octet-stream")})
     assert r.status_code == 400
-    assert not list((tmp_path / "data" / "uploads").iterdir())
+    assert not list((tmp_path / "data" / "uploads").iterdir()), "거부한 문서는 남기지 않는다"
 
 
 def test_rerun_args_follow_screen_request(monkeypatch, tmp_path):
