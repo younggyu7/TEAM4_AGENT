@@ -61,7 +61,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 | `GET·HEAD /file?project=&version=&name=` | 산출물 원문 (`schema.sql`, `erd.mmd`, `functions.md` …, 허용 목록만) |
 | `POST /projects/title` | 버전 제목 저장 (`output/<프로젝트>/titles.json`) |
 | `POST /projects/versions` | 화면의 새 버전 만들기 → `202 {job}` (아래 4.2) |
-| `POST /projects/review` | **신규.** ERD 최종 확정 → `review` (의미 검토 1회, 그 버전 폴더에 `semantic_review.md·json`) → `202 {job}`. ERD 없는 버전은 400 |
+| `POST /projects/review` | **신규.** ERD 최종 확정 → `review` → 최종본 v<ERD>.1 (추적·의미 검토) → `202 {job}`, 끝나면 `new_version`. ERD 없는 버전은 400 |
 | `POST /runs` | **신규.** 문서 업로드(multipart `file`, `project?`, `title?`, `validate_db?`) → `run --defer --until function_designer` → `202 {job}` |
 | `GET /jobs?id=` | 작업 진행 상황 `{status, message, log, new_version, warnings}` |
 | `GET /capabilities` | rerun이 기능 명세 수정본(`--design`·`--spec-md`)을 받는지 |
@@ -154,7 +154,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 | 업로드 | 문서 분석 → 요구사항 추출·검토 → 기능 명세 + 확인 질문 고르기 → 멈춤 | 기능 없는 요구사항은 빠진 기능만 추가 `FUNC_FIX_ATTEMPTS`라운드 |
 | '내보내기 → ERD 만들기' | `rerun data_modeler --design`: 화면에서 고친 functions·common으로 데이터 설계 → ERD·DDL(코드) | 모델 오류 수정·연결 보완 `MODEL_FIX_ATTEMPTS`번, DB 검증 `MAX_DB_ATTEMPTS`번. 기능 명세는 다시 설계하지 않고 누락은 이슈로만 |
 | ERD 수정·저장 | 고친 테이블만 반영 (수정만 있으면 LLM 없음) | 위와 같음 |
-| 'ERD 최종 확정' | `review`: ERD ↔ 기능 명세 의미 검토 1회 → `semantic_review.md·json` → 최종 산출물 화면 | 실패 시 `SEMANTIC_REVIEW_ATTEMPTS`번 |
+| 'ERD 최종 확정' | `review`: 확정한 ERD 아래 **최종본 v<ERD>.1**을 만든다 (산출물은 ERD 그대로 복사·재출력, 추적 검토(코드) + 의미 검토(ERD ↔ 기능 명세 1회), `semantic_review.md·json`, 최종본 보고서의 'LLM 사용량' = 최종 확정 단계 사용량) → 최종 산출물 화면 | 실패 시 `SEMANTIC_REVIEW_ATTEMPTS`번 |
 
 - `--design` 입력은 JSON이다. data_modeler는 기능의 ID·이름·행위자·데이터 객체·입출력 이름·업무 규칙을 구조로 읽기 때문이다 (MD는 기록용 `functions.submitted.md`). 기능 ID 중복·기준 버전에 없는 요구사항 ID는 거부한다.
 - 설정 (`backend/app/core/config.py` `Settings`, `.env`): `FUNC_FIX_ATTEMPTS`·`MODEL_FIX_ATTEMPTS`·`SEMANTIC_REVIEW_ATTEMPTS`(0·빈 값이면 `MAX_FIX_ATTEMPTS`), `MAX_DB_ATTEMPTS`, `SEMANTIC_REVIEW_MODE`(final·auto·off, 코드 기본값 auto), `SEMANTIC_REVIEW_SOURCE`. 단계별 한도는 `Settings.fix_attempts(agent)`가 정하고, 조정 Agent(`gave_up`·`stuck_stages`)와 이슈 시도 횟수(`reconcile_issues`)가 같이 쓴다.

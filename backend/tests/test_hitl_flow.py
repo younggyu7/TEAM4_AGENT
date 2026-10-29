@@ -5,6 +5,7 @@ from fake_llm import FakeLLM
 from app import cli
 from app.agents.flow.state import finding, reconcile_issues
 from app.agents.llm import client as llm_module
+from app.agents.tools.versions import find_version
 from app.core.config import Settings, get_settings, override_settings
 
 
@@ -107,16 +108,26 @@ def test_semantic_final_mode_reviews_only_when_confirmed(sample_doc):
     assert fake.calls["FunctionReviewOut"] == fake.calls["ModelReviewOut"] == 0, "실행 중에는 의미 검토를 하지 않는다"
     assert "'ERD 최종 확정' 때 한 번 검토" in (_folder("1") / "review_report.md").read_text(encoding="utf-8")
 
+    # ERD 최종 확정 → 그 ERD 아래 최종본 v1.1 (산출물은 그대로, 추적·의미 검토와 그 사용량만 새로)
     fake = _use(FakeLLM(broken_fk=False))
     assert cli.main(["review", "sample", "v1"]) == 0
     assert fake.calls["ModelReviewOut"] == 1 and fake.calls["FunctionReviewOut"] == 0, "기본은 ERD ↔ 기능 명세만"
-    data = json.loads((_folder("1") / "semantic_review.json").read_text(encoding="utf-8"))
+    record = find_version(get_settings().output_dir, "sample", "1.1")
+    assert (record["stage"], record["base"], record["parent"]) == ("final", "1", "1")
+    data = json.loads((_folder("1.1") / "semantic_review.json").read_text(encoding="utf-8"))
     assert data["parts"] == ["model"] and data["failed"] == [] and data["usage"]["calls"] == 1
-    assert (_folder("1") / "semantic_review.md").read_text(encoding="utf-8").startswith("# 의미 검토 (최종 확정)")
+    assert (_folder("1.1") / "semantic_review.md").read_text(encoding="utf-8").startswith("# 의미 검토 (최종 확정)")
+    report = (_folder("1.1") / "review_report.md").read_text(encoding="utf-8")
+    assert "호출 1회" in report, "최종본의 LLM 사용량은 최종 확정 단계에서 쓴 양 (화면 토큰 카드가 읽는 줄)"
+    model = lambda v: json.loads((_folder(v) / "data_model.json").read_text(encoding="utf-8"))   # noqa: E731
+    assert model("1.1") == model("1"), "ERD·DDL은 확정한 ERD 그대로 (DDL 머리의 버전 번호만 다름)"
+    assert _design("1.1")["functions"] == _design("1")["functions"]
 
+    # 최종본에서 다시 확정하면 같은 ERD 아래 다음 최종본
     fake = _use(FakeLLM(broken_fk=False))
-    assert cli.main(["review", "sample", "v1", "--source"]) == 0
+    assert cli.main(["review", "sample", "v1.1", "--source"]) == 0
     assert fake.calls["FunctionReviewOut"] == 1, "--source면 기능 명세 ↔ 요구사항도"
+    assert find_version(get_settings().output_dir, "sample", "1.2")["base"] == "1"
 
 
 def test_review_needs_data_model(sample_doc, capsys):

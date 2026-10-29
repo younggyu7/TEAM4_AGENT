@@ -102,7 +102,7 @@ def test_upload_run_stops_at_function_spec_and_review_runs_review(monkeypatch, t
     assert args[args.index("--until") + 1] == "function_designer"
     job = jobs.start_review(output_dir=tmp_path, project="team/p", version="1.1")
     assert job.source == "review" and seen["args"][:3] == ["review", "p", "v1.1"]
-    assert seen["runner"].result.name == "semantic_review.json"
+    assert seen["runner"].result == "semantic_review.json"
     jobs._jobs.clear()
 
 

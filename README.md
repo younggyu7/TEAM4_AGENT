@@ -31,7 +31,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 python -m app versions 고객요구사항4                                   # 설계 버전 목록
 python -m app rerun data_modeler 고객요구사항4 --from v1 --design confirmed.json   # 확정한 기능 명세로 ERD → v1.1
 python -m app rerun data_modeler 고객요구사항4 --from v2 --feedback "의견"   # 데이터 설계만 다시 → v2.1
-python -m app review 고객요구사항4 v1.1                                # ERD 최종 확정 때 의미 검토 1회 (새 버전 없음)
+python -m app review 고객요구사항4 v1.1                                # ERD 최종 확정 → 최종본 v1.1.1 (추적·의미 검토)
 python -m app resume <실행 ID> --defer                                  # 확인 질문에서 멈춘 실행 이어 가기
 ```
 
@@ -43,7 +43,7 @@ python -m app resume <실행 ID> --defer                                  # 확�
 2. **기능 명세 확인·수정**: `(가정)`·`(확인 필요)` 표시와 확인 질문을 보고 고친다.
 3. **'내보내기 → ERD 만들기'**: 화면이 고친 design.json을 보내고 `rerun data_modeler --design`이 그 기능 명세로 ERD·DDL을 만든다. 이 단계는 기능 명세를 다시 설계하지 않는다. 모델·DB 검증 오류는 `MODEL_FIX_ATTEMPTS`·`MAX_DB_ATTEMPTS`번 자동 수정한다.
 4. **ERD 수정·저장**: 고친 테이블만 넘기며, 수정만 있으면 LLM 없이 정리·검증한다.
-5. **'ERD 최종 확정'**: 의미 검토를 한 번 한다 (`review`, ERD ↔ 기능 명세). 결과는 그 버전의 `semantic_review.md·json`이고 최종 산출물 화면에 나온다.
+5. **'ERD 최종 확정'**: 최종본 v<ERD>.1을 만들고 추적 검토(코드)·의미 검토(ERD ↔ 기능 명세, LLM 1회)를 한다 (`review`). 결과·토큰 사용량은 최종본에 남고 최종 산출물 화면에 나온다.
 
 | 설정 (`backend/.env`) | 뜻 |
 | --- | --- |
@@ -66,7 +66,7 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET·HEAD /file?project=&version=&name=` | 산출물 원문 (`schema.sql`, `erd.mmd`, `functions.md` …) |
 | `POST /projects/title` | 버전 제목 저장 |
 | `POST /projects/versions` | 기능 명세 내보내기(`source: spec`) → ERD 새 버전, ERD 저장(`source: erd`) → 다음 ERD 버전, `answers`가 있으면 확인 질문 답을 반영한 기능 명세 새 버전 → `202 {job}` |
-| `POST /projects/review` | ERD 최종 확정 → 의미 검토 1회 (그 버전 폴더에 `semantic_review.md·json`) → `202 {job}` |
+| `POST /projects/review` | ERD 최종 확정 → 최종본 v<ERD>.1 (추적·의미 검토) → `202 {job}` |
 | `POST /runs` (multipart `file`, `project?`, `title?`, `validate_db?`) | 문서 업로드 → 기능 명세 초안까지 실행(`--defer --until function_designer`) → `202 {job}` |
 | `GET /jobs?id=` | 작업 진행 상황 `{status: running·done·failed, message, log, new_version, warnings}` |
 | `GET /capabilities` | rerun이 기능 명세 수정본(`--design`·`--spec-md`)을 받는지 |
