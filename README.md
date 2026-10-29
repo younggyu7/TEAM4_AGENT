@@ -7,15 +7,16 @@ FastAPI가 화면(`TEAM4_AGENT_FRONT`)에 산출물 조회와 새 버전 만들�
 ## 시작하기 (로컬)
 
 ```bash
-cd backend
+# 저장소 루트(TEAM4_AGENT)에서 가상환경을 만든다
 python3.12 -m venv .venv
 source .venv/bin/activate          # Windows: .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
+cd backend
 cp .env.example .env               # ANTHROPIC_API_KEY 또는 OPENAI_API_KEY 설정
 uvicorn app.main:app --reload      # http://127.0.0.1:8000/docs
 ```
 
-서버는 반드시 `backend/` 폴더에서 띄운다 (산출물 `output/`, 입력 `data/`, 설계 표준 `standards/`를 이 폴더 기준으로 찾는다).
+가상환경은 루트의 `.venv`를 쓰고, 서버는 반드시 `backend/` 폴더에서 띄운다 (산출물 `output/`, 입력 `data/`, 설계 표준 `standards/`를 이 폴더 기준으로 찾는다).
 
 프론트는 별도 폴더 `TEAM4_AGENT_FRONT`에서 `npm install && npm run dev` (http://localhost:5173). 개발 서버가 `/api`를 `http://127.0.0.1:8000`으로 넘긴다.
 
@@ -23,7 +24,7 @@ DDL을 PostgreSQL로 검증하려면 `docker compose up -d validation-db` (없�
 
 ## 문서 처리 (CLI)
 
-API와 같은 코드를 명령행으로도 실행한다. 화면 업로드가 생기기 전에는 여기서 첫 버전을 만든다.
+API와 같은 코드를 명령행으로도 실행한다. 첫 버전은 화면 홈의 '새 문서 분석'에서 올리거나 여기서 만든다.
 
 ```bash
 python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 지원 포털 구축" --defer --validate-db
@@ -78,7 +79,7 @@ backend/
 
 ```bash
 cd backend
-.venv/bin/pytest -q
+../.venv/bin/pytest -q
 ```
 
 테스트는 가짜 LLM으로 돈다. 실제 LLM 출력 품질과 PostgreSQL 검증은 따로 실행해 확인한다.

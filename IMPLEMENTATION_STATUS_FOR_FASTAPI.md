@@ -8,15 +8,15 @@
 - 기존 ITSM 백엔드 코드(에이전트 7개, PostgreSQL·Alembic 기반 `/api/v1/projects·runs`)는 **지금 코드로 교체**했다. 폴더 구조(`api`·`agents`·`services`·`schemas`·`core`)는 유지했다.
 - 프론트는 백엔드와 분리해 `TEAM4_AGENT_FRONT`에 두었다. Vite 개발 서버의 임시 API(`server/outputApi.ts`·`jobs.ts`)를 없애고, 같은 일을 FastAPI가 한다.
 - 동작 방식은 전환 전과 같다: 산출물은 DB 없이 `output/<프로젝트>/v<버전>/` 폴더에 저장하고, 오래 걸리는 LLM 실행은 CLI(`python -m app …`)를 하위 프로세스로 띄운다.
-- 검증: `pytest` 162 passed · 3 skipped (API 키 없이). 로컬에서 FastAPI + 프론트를 띄워 `고객요구사항4` 산출물이 화면에 나오는 것과, 화면 요청 → 작업(rerun) → 새 버전 생성까지 확인했다.
+- 검증: `pytest` 163 passed · 3 skipped (API 키 없이). 로컬에서 FastAPI + 프론트를 띄워 `고객요구사항4` 산출물이 화면(홈·기능 명세서·ERD·DDL·추적)에 나오는 것과, 화면 요청 → 작업(rerun) → 새 버전 생성까지 확인했다.
 
 ## 2. 실행 방법 (로컬)
 
 ```bash
-# 백엔드
-cd backend
+# 백엔드 — 가상환경은 저장소 루트(TEAM4_AGENT/.venv)에 하나 둔다
 python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
+cd backend
 cp .env.example .env                 # ANTHROPIC_API_KEY 또는 OPENAI_API_KEY
 uvicorn app.main:app --reload        # http://127.0.0.1:8000/docs
 
@@ -24,11 +24,11 @@ uvicorn app.main:app --reload        # http://127.0.0.1:8000/docs
 npm install
 npm run dev                          # http://localhost:5173 (/api → 127.0.0.1:8000 proxy)
 
-# 첫 버전 만들기 (화면 업로드 전까지 CLI)
+# 첫 버전 만들기: 화면 홈의 '새 문서 분석'에서 올리거나 CLI로
 python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 지원 포털 구축" --defer --validate-db
 ```
 
-- 서버·CLI는 `backend/` 폴더에서 실행한다 (`output/`·`data/`·`standards/`를 이 폴더 기준으로 찾는다).
+- 가상환경을 켠 뒤 서버·CLI는 `backend/` 폴더에서 실행한다 (`output/`·`data/`·`standards/`를 이 폴더 기준으로 찾는다). 작업(rerun·run)의 하위 프로세스는 서버와 같은 파이썬(`sys.executable`)을 쓴다.
 - CLI 명령은 `python -m req_agent …` → **`python -m app …`** 으로 바뀌었다. 하위 명령·옵션은 그대로다 (`run`·`resume`·`rerun`·`versions`·`confirm`·`diff`·`parse`·`standards`).
 - DDL PostgreSQL 검증: `docker compose up -d validation-db` (없으면 SQLite 대체 검증).
 
@@ -104,7 +104,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 - API 주소: `src/api.ts`의 `BASE = VITE_API_BASE || '/api/v1'`. 파일 링크(`/file`)도 같은 함수(`apiUrl`)를 쓴다.
 - `vite.config.ts`: `/api` → `VITE_API_PROXY` (기본 `http://127.0.0.1:8000`).
 - 배포 시: 프론트 빌드에 `VITE_API_BASE=https://<백엔드>/api/v1`, 백엔드 `.env`의 `CORS_ORIGINS`에 프론트 주소.
-- 화면 코드는 API 주소와 안내 문구(`python -m app …`)만 바꿨다. 타입 검사 통과.
+- 화면 코드는 API 주소와 안내 문구(`python -m app …`)를 바꾸고, 홈에 **문서 업로드('새 문서 분석')**를 추가했다: 파일·프로젝트 이름·사업 이름·DB 검증 여부 → `POST /runs` → 진행 상황(`JobPanel`) → 끝나면 기능 명세 첫 버전 열기. 타입 검사 통과.
 
 ## 6. 설정·배포 파일
 
@@ -122,7 +122,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 
 | 테스트 | 내용 |
 | --- | --- |
-| 기존 151개 (`tests/test_*.py`) | Agent·그래프·도구 (가짜 LLM). import만 바꿔 그대로 통과 |
+| 기존 155개 (`tests/test_*.py`, 3개 건너뜀) | Agent·그래프·도구 (가짜 LLM). import만 바꿔 그대로 통과 |
 | `tests/test_api.py` (7) | 프로젝트 목록·design 합치기·파일 GET/HEAD·경로 탈출 거부·제목 저장·새 버전 입력 검사·작업 409/404·지원 안 하는 문서 거부·rerun 인자 |
 | `tests/test_core.py` (4) | guards 경로·값 검사, 비밀 값 가리기, 오류 응답 형태 |
 
@@ -131,7 +131,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 
 ## 8. 아직 안 된 것 · 주의
 
-- **화면 업로드 없음**: `POST /runs`는 있지만 홈 화면 버튼은 없다 (지금은 CLI 또는 `/docs`).
+- **화면 업로드는 LLM 실행 미확인**: 업로드 화면과 `POST /runs` 입력 검사(지원 안 하는 형식 400)는 확인했지만, 실제 LLM으로 끝까지 도는 업로드 실행은 아직 확인하지 않았다.
 - **작업 기록은 메모리**: 서버를 다시 띄우면 `/jobs` 기록이 사라진다 (산출물 폴더는 남음). 서버는 작업자 1개로 띄운다.
 - **로그인·편집 초안·최종 확정**: 아직 브라우저(localStorage)에만 저장한다. 백엔드 저장은 미구현.
 - **ruff**: `pyproject.toml` 설정은 남았지만 옮긴 코드에 적용하지 않아 CI에서 뺐다.
