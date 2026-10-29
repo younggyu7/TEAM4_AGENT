@@ -1,0 +1,21 @@
+# 공공기관형 예시 프로필 (예시용 — 실제 고객 표준은 고객 문서로 채운다)
+name: 공공기관형
+description: 대문자 이름, 테이블 TB_ 접두어, 표준 단어 약어 조합, 기본키 일련번호(_SN), 등록·수정 감사 컬럼, 여부는 Y/N
+case: upper
+table_prefix: TB_
+# 엔티티 종류별 접두어를 따로 쓰는 회사는 이렇게 (MASTER·TRANSACTION·HISTORY·MAPPING·CODE)
+# table_prefix_by_kind: {CODE: TC_, HISTORY: TH_}
+suffixes:
+  자: R                       # 사람을 뜻하는 끝말: 응답자 = 응답(RSPNS) + R → RSPNSR (사전에 낱말이 없을 때만)
+max_length: 30
+primary_key: "{table}_SN"     # 예: TB_MBR → MBR_SN
+foreign_key: parent_pk        # 참조 테이블의 기본키 이름 그대로 (예: MBR_SN). 역할이 있는 외래키는 라벨로
+audit_columns:
+  rename:
+    created_at: REG_DT        # 등록 일시
+    updated_at: MDFCN_DT      # 수정 일시
+  add:
+    - {name: REG_ID, label: 등록자 아이디, type: varchar, length: 50, nullable: true}
+    - {name: MDFCN_ID, label: 수정자 아이디, type: varchar, length: 50, nullable: true}
+types:
+  boolean: {type: varchar, length: 1, values: [Y, N]}   # 여부(_YN)는 Y/N 문자 1자리

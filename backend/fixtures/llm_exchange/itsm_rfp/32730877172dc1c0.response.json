@@ -1,0 +1,941 @@
+{
+ "entities": [
+  {
+   "name": "department",
+   "label": "부서",
+   "description": "SSO 조직 정보와 동기화되는 부서(상위 부서 계층 포함)",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-002-01",
+    "FN-SFR-002-04"
+   ],
+   "parents": [
+    "department"
+   ]
+  },
+  {
+   "name": "app_user",
+   "label": "사용자 계정",
+   "description": "임직원·외주 인력의 ITSM 계정. SSO 동기화 계정과 로컬 계정을 구분",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-002-01",
+    "FN-SFR-002-02",
+    "FN-SFR-002-03",
+    "FN-SFR-002-06",
+    "FN-SIR-001-01"
+   ],
+   "parents": [
+    "department"
+   ]
+  },
+  {
+   "name": "role",
+   "label": "역할",
+   "description": "업무 Role 기반 접근권한 모델의 역할",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-002-04",
+    "FN-SFR-003.1-11"
+   ],
+   "parents": []
+  },
+  {
+   "name": "menu",
+   "label": "메뉴",
+   "description": "포털 메뉴(상위 메뉴 계층)",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-004-01",
+    "FN-SFR-004-06"
+   ],
+   "parents": [
+    "menu"
+   ]
+  },
+  {
+   "name": "permission",
+   "label": "권한",
+   "description": "메뉴·기능 단위 권한과 설명",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-003.1-11",
+    "FN-SFR-004-06"
+   ],
+   "parents": [
+    "menu"
+   ]
+  },
+  {
+   "name": "role_permission",
+   "label": "역할 권한",
+   "description": "역할에 부여된 권한(사업장·부서 적용 범위 포함)",
+   "kind": "MAPPING",
+   "function_ids": [
+    "FN-SFR-003.1-11",
+    "FN-SFR-004-06"
+   ],
+   "parents": [
+    "role",
+    "permission"
+   ]
+  },
+  {
+   "name": "user_role",
+   "label": "사용자 역할",
+   "description": "사용자에게 부여된 역할과 부여 이력",
+   "kind": "MAPPING",
+   "function_ids": [
+    "FN-SFR-002-04",
+    "FN-SFR-003.2-02",
+    "FN-SIR-001-01"
+   ],
+   "parents": [
+    "app_user",
+    "role"
+   ]
+  },
+  {
+   "name": "department_role_mapping",
+   "label": "부서 역할 매핑",
+   "description": "부서·직무별 기본 역할 매핑",
+   "kind": "MAPPING",
+   "function_ids": [
+    "FN-SIR-001-01"
+   ],
+   "parents": [
+    "department",
+    "role"
+   ]
+  },
+  {
+   "name": "permission_request",
+   "label": "권한 신청",
+   "description": "일반 사용자의 역할 신청과 승인 결과",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-003.2-01",
+    "FN-SFR-003.2-02"
+   ],
+   "parents": [
+    "app_user",
+    "role"
+   ]
+  },
+  {
+   "name": "security_policy",
+   "label": "보안 정책 설정",
+   "description": "중복 로그인·암호 규칙·계정 잠금 정책",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-002-05"
+   ],
+   "parents": []
+  },
+  {
+   "name": "login_history",
+   "label": "접속 이력",
+   "description": "로그인 성공·실패 이력",
+   "kind": "HISTORY",
+   "function_ids": [
+    "FN-SFR-002-03",
+    "FN-SFR-002-06"
+   ],
+   "parents": [
+    "app_user"
+   ]
+  },
+  {
+   "name": "account_sync_history",
+   "label": "계정 동기화 이력",
+   "description": "SSO 계정·조직 동기화 실행 결과",
+   "kind": "HISTORY",
+   "function_ids": [
+    "FN-SFR-002-01"
+   ],
+   "parents": []
+  },
+  {
+   "name": "absence_delegation",
+   "label": "부재·대리 설정",
+   "description": "부재 기간과 대리인(대결자)",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-001-03",
+    "FN-SFR-007-06"
+   ],
+   "parents": [
+    "app_user"
+   ]
+  },
+  {
+   "name": "common_code",
+   "label": "공통 코드",
+   "description": "요청 유형·처리 유형 등 관리자가 바꾸는 코드(행정표준코드 수용)",
+   "kind": "CODE",
+   "function_ids": [
+    "FN-SFR-003.1-01",
+    "FN-SFR-003.1-04"
+   ],
+   "parents": [
+    "common_code"
+   ]
+  },
+  {
+   "name": "process_definition",
+   "label": "프로세스 정의",
+   "description": "요청·장애·변경 등 업무 프로세스와 버전",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-001-01",
+    "FN-SFR-006-01",
+    "FN-SFR-007-03"
+   ],
+   "parents": []
+  },
+  {
+   "name": "process_step",
+   "label": "프로세스 단계",
+   "description": "프로세스 단계·순서·담당 역할·전이 조건",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-001-01",
+    "FN-SFR-001-02",
+    "FN-SFR-006-01"
+   ],
+   "parents": [
+    "process_definition",
+    "role"
+   ]
+  },
+  {
+   "name": "screen_form",
+   "label": "화면 양식",
+   "description": "절차별 화면 양식과 버전",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-001-02",
+    "FN-SFR-006-02"
+   ],
+   "parents": [
+    "process_definition"
+   ]
+  },
+  {
+   "name": "custom_field_group",
+   "label": "커스텀 필드 그룹",
+   "description": "커스텀 필드 묶음",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-007-05"
+   ],
+   "parents": []
+  },
+  {
+   "name": "custom_field",
+   "label": "커스텀 필드",
+   "description": "절차별 입력 항목 정의와 공개 범위",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-006-02",
+    "FN-SFR-007-05"
+   ],
+   "parents": [
+    "screen_form",
+    "custom_field_group"
+   ]
+  },
+  {
+   "name": "automation_rule",
+   "label": "자동화 규칙",
+   "description": "조건·동작 기반 자동화 규칙(자동승인 포함)",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-001-03",
+    "FN-SFR-007-07"
+   ],
+   "parents": [
+    "process_definition"
+   ]
+  },
+  {
+   "name": "service_request",
+   "label": "서비스 요청",
+   "description": "IT서비스 요청(티켓)",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-001-05",
+    "FN-SFR-001-06",
+    "FN-SFR-003.1-01",
+    "FN-SFR-003.1-02",
+    "FN-SFR-003.1-03",
+    "FN-SFR-003.1-04",
+    "FN-SFR-003.1-05",
+    "FN-SFR-003.1-06",
+    "FN-SFR-003.1-07",
+    "FN-SFR-003.1-09",
+    "FN-SFR-005-01",
+    "FN-SFR-005-03",
+    "FN-SFR-005-05",
+    "FN-SFR-007-01",
+    "FN-SFR-007-02",
+    "FN-SFR-007-09",
+    "FN-SFR-007-10",
+    "FN-SFR-011-01",
+    "FN-SFR-011-02"
+   ],
+   "parents": [
+    "app_user",
+    "common_code",
+    "process_definition",
+    "it_service",
+    "configuration_item"
+   ]
+  },
+  {
+   "name": "request_history",
+   "label": "요청 처리 단계 이력",
+   "description": "요청의 상태·단계 전이 이력(접수·반려·배정 포함)",
+   "kind": "HISTORY",
+   "function_ids": [
+    "FN-SFR-001-05",
+    "FN-SFR-003.1-03",
+    "FN-SFR-003.1-04",
+    "FN-SFR-007-01",
+    "FN-SFR-007-03"
+   ],
+   "parents": [
+    "service_request",
+    "process_step",
+    "app_user"
+   ]
+  },
+  {
+   "name": "assignment",
+   "label": "담당자 배정",
+   "description": "요청별 1·2·3순위 담당자 배정",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-003.1-04"
+   ],
+   "parents": [
+    "service_request",
+    "app_user"
+   ]
+  },
+  {
+   "name": "work_log",
+   "label": "처리 이력",
+   "description": "담당자별 처리 내용과 결과",
+   "kind": "HISTORY",
+   "function_ids": [
+    "FN-SFR-003.1-05"
+   ],
+   "parents": [
+    "service_request",
+    "app_user"
+   ]
+  },
+  {
+   "name": "sub_task",
+   "label": "하위 작업",
+   "description": "요청을 병렬 분할한 하위 작업",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-007-09"
+   ],
+   "parents": [
+    "service_request",
+    "department",
+    "app_user"
+   ]
+  },
+  {
+   "name": "due_date_change",
+   "label": "완료일 변경 이력",
+   "description": "희망 완료일 변경 전·후 값과 사유",
+   "kind": "HISTORY",
+   "function_ids": [
+    "FN-SFR-007-10"
+   ],
+   "parents": [
+    "service_request",
+    "app_user"
+   ]
+  },
+  {
+   "name": "process_error_log",
+   "label": "프로세스 오류 로그",
+   "description": "워크플로우 실행 오류",
+   "kind": "HISTORY",
+   "function_ids": [
+    "FN-SFR-007-04"
+   ],
+   "parents": [
+    "service_request",
+    "process_step"
+   ]
+  },
+  {
+   "name": "notification",
+   "label": "알림",
+   "description": "화면·메일·메신저 알림과 발송 결과",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-001-04",
+    "FN-SFR-003.1-06"
+   ],
+   "parents": [
+    "app_user",
+    "service_request"
+   ]
+  },
+  {
+   "name": "attachment",
+   "label": "첨부파일",
+   "description": "요청·지식·프로젝트 등에 붙는 파일(소유 대상 유형·ID로 연결)",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-001-06",
+    "FN-SFR-003.1-01",
+    "FN-SFR-003.1-05",
+    "FN-SFR-003.2-03",
+    "FN-SFR-003.2-05",
+    "FN-SFR-004-05"
+   ],
+   "parents": [
+    "app_user"
+   ]
+  },
+  {
+   "name": "problem",
+   "label": "문제",
+   "description": "근본 원인 분석이 필요한 문제 건",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-003.1-07"
+   ],
+   "parents": [
+    "service_request",
+    "app_user"
+   ]
+  },
+  {
+   "name": "change_request",
+   "label": "변경 요청",
+   "description": "구성 변경 요청과 승인·실행 상태",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-003.1-07",
+    "FN-SFR-003.1-09",
+    "FN-SFR-008-03"
+   ],
+   "parents": [
+    "service_request",
+    "app_user"
+   ]
+  },
+  {
+   "name": "request_ci",
+   "label": "요청 구성항목 연결",
+   "description": "요청에 연결된 구성항목",
+   "kind": "MAPPING",
+   "function_ids": [
+    "FN-SFR-003.1-09"
+   ],
+   "parents": [
+    "service_request",
+    "configuration_item"
+   ]
+  },
+  {
+   "name": "change_ci",
+   "label": "변경 대상 구성항목",
+   "description": "변경 요청의 대상 구성항목",
+   "kind": "MAPPING",
+   "function_ids": [
+    "FN-SFR-003.1-07",
+    "FN-SFR-003.1-09",
+    "FN-SFR-008-03"
+   ],
+   "parents": [
+    "change_request",
+    "configuration_item"
+   ]
+  },
+  {
+   "name": "approval_category",
+   "label": "결재 분류",
+   "description": "서비스 요청·변경·권한 신청 등 결재 분류",
+   "kind": "CODE",
+   "function_ids": [
+    "FN-SFR-004-07"
+   ],
+   "parents": []
+  },
+  {
+   "name": "approval_line",
+   "label": "결재선",
+   "description": "결재 분류별 결재선(단계 묶음)",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-001-03",
+    "FN-SFR-004-07",
+    "FN-SFR-004-08"
+   ],
+   "parents": [
+    "approval_category"
+   ]
+  },
+  {
+   "name": "approval_line_step",
+   "label": "결재선 단계",
+   "description": "결재선의 단계 순서와 결재자(역할 또는 사용자)",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-001-03",
+    "FN-SFR-004-07"
+   ],
+   "parents": [
+    "approval_line",
+    "role",
+    "app_user"
+   ]
+  },
+  {
+   "name": "approval",
+   "label": "결재",
+   "description": "결재 요청 건과 최종 결과(대상 건 유형·ID)",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-004-08"
+   ],
+   "parents": [
+    "approval_line",
+    "app_user"
+   ]
+  },
+  {
+   "name": "approval_history",
+   "label": "결재 이력",
+   "description": "단계별 승인·반려 기록(대결·2차인증 여부)",
+   "kind": "HISTORY",
+   "function_ids": [
+    "FN-SFR-004-08"
+   ],
+   "parents": [
+    "approval",
+    "approval_line_step",
+    "app_user"
+   ]
+  },
+  {
+   "name": "knowledge_article",
+   "label": "지식 문서",
+   "description": "KDB 지식 문서와 공개 범위",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-003.1-10",
+    "FN-SFR-004-04",
+    "FN-SFR-004-05"
+   ],
+   "parents": [
+    "app_user",
+    "service_request"
+   ]
+  },
+  {
+   "name": "faq",
+   "label": "FAQ",
+   "description": "자주 묻는 질문",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-004-02",
+    "FN-SFR-004-04"
+   ],
+   "parents": [
+    "app_user"
+   ]
+  },
+  {
+   "name": "qna_post",
+   "label": "Q&A 글",
+   "description": "질문과 답변",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-004-03",
+    "FN-SFR-004-04"
+   ],
+   "parents": [
+    "app_user"
+   ]
+  },
+  {
+   "name": "dashboard",
+   "label": "대시보드",
+   "description": "대시보드 구성과 공개 역할",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-005-01",
+    "FN-SFR-005-04"
+   ],
+   "parents": [
+    "app_user"
+   ]
+  },
+  {
+   "name": "dashboard_widget",
+   "label": "대시보드 위젯",
+   "description": "위젯 종류·데이터·배치",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-005-02",
+    "FN-SFR-005-04"
+   ],
+   "parents": [
+    "dashboard",
+    "sla_indicator"
+   ]
+  },
+  {
+   "name": "monitoring_event",
+   "label": "관제 이벤트",
+   "description": "관제시스템 수신 이벤트",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-005-05"
+   ],
+   "parents": [
+    "configuration_item",
+    "service_request"
+   ]
+  },
+  {
+   "name": "ci_type",
+   "label": "CI 유형",
+   "description": "구성항목 유형(서버·네트워크·보안장비·SW 등)",
+   "kind": "CODE",
+   "function_ids": [
+    "FN-SFR-008-02"
+   ],
+   "parents": [
+    "ci_type"
+   ]
+  },
+  {
+   "name": "configuration_item",
+   "label": "구성항목",
+   "description": "CMDB 구성항목(CI)",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-003.1-08",
+    "FN-SFR-003.1-09",
+    "FN-SFR-008-01",
+    "FN-SFR-008-03",
+    "FN-SFR-008-04",
+    "FN-SFR-008-05",
+    "FN-SFR-009-01",
+    "FN-SFR-011-01"
+   ],
+   "parents": [
+    "ci_type",
+    "department",
+    "app_user"
+   ]
+  },
+  {
+   "name": "ci_relation",
+   "label": "CI 관계",
+   "description": "CI 간 설치·의존 관계",
+   "kind": "MAPPING",
+   "function_ids": [
+    "FN-SFR-008-01"
+   ],
+   "parents": [
+    "configuration_item"
+   ]
+  },
+  {
+   "name": "ci_attribute_definition",
+   "label": "CI 속성 정의",
+   "description": "CI 유형별 관리 속성 메타데이터",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-008-02"
+   ],
+   "parents": [
+    "ci_type"
+   ]
+  },
+  {
+   "name": "ci_attribute_value",
+   "label": "CI 속성 값",
+   "description": "CI별 관리 속성 값",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-008-02"
+   ],
+   "parents": [
+    "configuration_item",
+    "ci_attribute_definition"
+   ]
+  },
+  {
+   "name": "ci_change_history",
+   "label": "CI 변경 이력",
+   "description": "CI 변경 전·후 값과 근거 변경 요청",
+   "kind": "HISTORY",
+   "function_ids": [
+    "FN-SFR-008-03"
+   ],
+   "parents": [
+    "configuration_item",
+    "change_request",
+    "app_user"
+   ]
+  },
+  {
+   "name": "ci_collection_history",
+   "label": "구성정보 수집 이력",
+   "description": "관제 연동 수집 결과와 CMDB 차이",
+   "kind": "HISTORY",
+   "function_ids": [
+    "FN-SFR-008-04"
+   ],
+   "parents": [
+    "configuration_item"
+   ]
+  },
+  {
+   "name": "it_asset",
+   "label": "IT 자산",
+   "description": "IT 자산 정보(CI와 연결)",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-008-05",
+    "FN-SFR-011-03"
+   ],
+   "parents": [
+    "configuration_item",
+    "department"
+   ]
+  },
+  {
+   "name": "capacity_metric",
+   "label": "가용성·용량 지표",
+   "description": "자원별 가용성·용량 측정값과 임계값",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-003.1-08"
+   ],
+   "parents": [
+    "configuration_item"
+   ]
+  },
+  {
+   "name": "inspection_form",
+   "label": "점검 서식",
+   "description": "장비 유형별 정기점검 서식",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-009-02"
+   ],
+   "parents": [
+    "ci_type"
+   ]
+  },
+  {
+   "name": "inspection_item",
+   "label": "점검 항목",
+   "description": "서식의 점검 항목과 판정 기준",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-009-02"
+   ],
+   "parents": [
+    "inspection_form"
+   ]
+  },
+  {
+   "name": "inspection_plan",
+   "label": "정기점검 계획",
+   "description": "장비별 점검 주기·예정일",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-009-01",
+    "FN-SFR-009-05"
+   ],
+   "parents": [
+    "configuration_item",
+    "inspection_form",
+    "app_user"
+   ]
+  },
+  {
+   "name": "inspection_result",
+   "label": "정기점검 결과",
+   "description": "점검 수행 결과",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-009-03",
+    "FN-SFR-009-04",
+    "FN-SFR-009-05"
+   ],
+   "parents": [
+    "inspection_plan",
+    "app_user"
+   ]
+  },
+  {
+   "name": "inspection_item_result",
+   "label": "점검 항목 결과",
+   "description": "항목별 결과와 담당자 확인",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-007-08",
+    "FN-SFR-009-03"
+   ],
+   "parents": [
+    "inspection_result",
+    "inspection_item",
+    "app_user"
+   ]
+  },
+  {
+   "name": "it_service",
+   "label": "IT 서비스",
+   "description": "SLA 관리 대상 IT서비스",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-010-02"
+   ],
+   "parents": [
+    "department"
+   ]
+  },
+  {
+   "name": "sla_indicator",
+   "label": "SLA 지표",
+   "description": "지표 Pool의 지표와 측정 방법",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-010-01"
+   ],
+   "parents": []
+  },
+  {
+   "name": "service_indicator",
+   "label": "서비스 지표",
+   "description": "서비스별 적용 지표와 가중치",
+   "kind": "MAPPING",
+   "function_ids": [
+    "FN-SFR-010-02"
+   ],
+   "parents": [
+    "it_service",
+    "sla_indicator"
+   ]
+  },
+  {
+   "name": "indicator_target",
+   "label": "지표 목표",
+   "description": "기간별 목표값",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-010-03"
+   ],
+   "parents": [
+    "service_indicator"
+   ]
+  },
+  {
+   "name": "indicator_result",
+   "label": "지표 실적",
+   "description": "기간별 실적값과 달성 여부",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-005-02",
+    "FN-SFR-010-04",
+    "FN-SFR-010-05",
+    "FN-SFR-011-01",
+    "FN-SFR-011-02"
+   ],
+   "parents": [
+    "service_indicator"
+   ]
+  },
+  {
+   "name": "sla_report",
+   "label": "SLA 평가 보고서",
+   "description": "서비스·기간별 SLA 평가 결과",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-010-05"
+   ],
+   "parents": [
+    "it_service",
+    "app_user"
+   ]
+  },
+  {
+   "name": "business_category",
+   "label": "사업 분류",
+   "description": "사업 분류",
+   "kind": "CODE",
+   "function_ids": [
+    "FN-SFR-003.2-03"
+   ],
+   "parents": []
+  },
+  {
+   "name": "project",
+   "label": "프로젝트",
+   "description": "사업 분류별 프로젝트",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-003.2-03"
+   ],
+   "parents": [
+    "business_category",
+    "app_user"
+   ]
+  },
+  {
+   "name": "work_item",
+   "label": "단위업무",
+   "description": "프로젝트 단위업무와 진척률",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-003.2-04"
+   ],
+   "parents": [
+    "project",
+    "app_user"
+   ]
+  },
+  {
+   "name": "report_template",
+   "label": "보고서 양식",
+   "description": "장애·기술지원·정기점검 등 보고서 양식",
+   "kind": "MASTER",
+   "function_ids": [
+    "FN-SFR-003.2-06"
+   ],
+   "parents": []
+  },
+  {
+   "name": "stage_report",
+   "label": "단계 보고서",
+   "description": "사업 단계별 보고서",
+   "kind": "TRANSACTION",
+   "function_ids": [
+    "FN-SFR-003.2-05"
+   ],
+   "parents": [
+    "project",
+    "report_template",
+    "app_user"
+   ]
+  }
+ ]
+}

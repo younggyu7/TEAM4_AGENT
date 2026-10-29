@@ -1,0 +1,418 @@
+{
+ "functions": [
+  {
+   "name": "통합 포털 메인",
+   "description": "서비스데스크, SLA, Workflow, IT자산관리 메뉴를 한 화면에서 진입하는 포털 메인을 제공한다.",
+   "requirement_ids": [
+    "SFR-004-01"
+   ],
+   "nfr_ids": [
+    "SFR-004-02",
+    "SFR-001-04"
+   ],
+   "actors": [
+    "사용자"
+   ],
+   "preconditions": [
+    "로그인"
+   ],
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "포털 메인",
+     "description": "권한에 맞는 메뉴와 내 업무 요약",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "사용자 권한에 허용된 메뉴만 표시한다"
+   ],
+   "normal_flow": [
+    "사용자가 로그인한다",
+    "권한별 메뉴를 구성한다",
+    "내 요청·내 업무 요약을 표시한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "허용 메뉴 없음",
+     "handling": "관리자 문의 안내"
+    }
+   ],
+   "data_objects": [
+    "메뉴"
+   ]
+  },
+  {
+   "name": "FAQ 관리",
+   "description": "운영자가 FAQ를 분류별로 등록·수정하고 사용자가 조회한다.",
+   "requirement_ids": [
+    "SFR-004-03"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "운영 관리자",
+    "사용자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "분류",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "질문·답변",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "FAQ",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "게시 여부가 '게시'인 FAQ만 사용자에게 보인다"
+   ],
+   "normal_flow": [
+    "운영자가 FAQ를 등록한다",
+    "사용자가 분류별로 조회한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "필수값 누락",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "FAQ"
+   ]
+  },
+  {
+   "name": "Q&A 게시판",
+   "description": "사용자가 질문을 올리고 운영자가 답변한다.",
+   "requirement_ids": [
+    "SFR-004-03"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "사용자",
+    "운영 관리자"
+   ],
+   "preconditions": [
+    "로그인"
+   ],
+   "inputs": [
+    {
+     "name": "질문",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "답변",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "Q&A 글",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) 반복되는 질문은 FAQ나 지식 문서로 전환할 수 있다"
+   ],
+   "normal_flow": [
+    "사용자가 질문을 등록한다",
+    "운영자가 답변한다",
+    "질문자에게 알린다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "부적절한 글",
+     "handling": "운영자가 비공개 처리"
+    }
+   ],
+   "data_objects": [
+    "Q&A 글"
+   ]
+  },
+  {
+   "name": "통합 검색·공유",
+   "description": "FAQ, Q&A, 지식 문서를 한 번에 검색하고 링크로 공유한다.",
+   "requirement_ids": [
+    "SFR-004-03"
+   ],
+   "nfr_ids": [
+    "PER-002-02"
+   ],
+   "actors": [
+    "사용자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "검색어",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "검색 결과",
+     "description": "유형별 결과와 공유 링크",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "열람 권한이 있는 결과만 보여준다"
+   ],
+   "normal_flow": [
+    "사용자가 검색어를 입력한다",
+    "유형별로 결과를 보여준다",
+    "선택한 글의 공유 링크를 복사한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "결과 없음",
+     "handling": "요청 등록 안내"
+    }
+   ],
+   "data_objects": [
+    "지식 문서",
+    "FAQ",
+    "Q&A 글"
+   ]
+  },
+  {
+   "name": "지식 문서(KDB) 관리",
+   "description": "운영자가 처리 사례·해결 방법을 지식 문서로 등록·수정·조회한다.",
+   "requirement_ids": [
+    "SFR-004-04"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "운영 관리자",
+    "처리 담당자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "제목·본문",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "분류",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "공개 범위",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "첨부파일",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "지식 문서",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) 처리 완료된 요청에서 지식 문서를 만들 수 있다"
+   ],
+   "normal_flow": [
+    "작성자가 지식 문서를 작성한다",
+    "공개 범위를 지정한다",
+    "게시한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "필수값 누락",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "지식 문서",
+    "첨부파일"
+   ]
+  },
+  {
+   "name": "사용자 유형별 메뉴 접근 권한 관리",
+   "description": "관리자가 사용자 유형(역할)별로 포털 메뉴 접근 허용 여부를 설정한다.",
+   "requirement_ids": [
+    "SFR-004-05"
+   ],
+   "nfr_ids": [
+    "SER-008-03"
+   ],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [
+    "역할이 정의됨"
+   ],
+   "inputs": [
+    {
+     "name": "역할",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "메뉴별 허용 여부",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "메뉴 권한",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "허용되지 않은 메뉴는 화면과 URL 접근 모두 차단한다"
+   ],
+   "normal_flow": [
+    "관리자가 역할을 선택한다",
+    "메뉴별 허용 여부를 지정한다",
+    "저장한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "관리 메뉴를 모든 역할에서 제거",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "메뉴",
+    "역할 메뉴 권한"
+   ]
+  },
+  {
+   "name": "결재선 설정",
+   "description": "관리자가 결재 분류별로 결재 단계 수와 단계별 결재자(역할 또는 사용자)를 설정한다.",
+   "requirement_ids": [
+    "SFR-004-06"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "결재 분류",
+     "description": "서비스 요청·변경·권한 신청 등",
+     "required": true
+    },
+    {
+     "name": "결재 단계",
+     "description": "단계 순서와 결재자",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "결재선",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) 결재선은 결재 분류별로 관리자가 설정한다 (질문 대기)",
+    "결재선은 최소 1단계를 가진다"
+   ],
+   "normal_flow": [
+    "관리자가 결재 분류를 선택한다",
+    "단계를 추가하고 결재자를 지정한다",
+    "저장하면 이후 결재 요청에 적용된다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "결재자 미지정 단계",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "결재 분류",
+    "결재선"
+   ]
+  },
+  {
+   "name": "결재 요청·처리",
+   "description": "요청자가 결재를 올리면 결재선 순서대로 결재자가 승인·반려하고, 분류별 상세와 결재 이력을 조회한다.",
+   "requirement_ids": [
+    "SFR-004-06"
+   ],
+   "nfr_ids": [
+    "SER-008-04"
+   ],
+   "actors": [
+    "요청자",
+    "결재자"
+   ],
+   "preconditions": [
+    "해당 분류의 결재선이 설정됨"
+   ],
+   "inputs": [
+    {
+     "name": "결재 대상 건",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "결재 의견",
+     "description": "반려 시 필수",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "결재 결과",
+     "description": "단계별 승인·반려와 최종 결과",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "결재자는 결재 전 2차 인증을 수행한다",
+    "한 단계라도 반려하면 결재는 반려로 끝난다",
+    "부재 시 대결자가 결재한다"
+   ],
+   "normal_flow": [
+    "요청자가 결재를 요청한다",
+    "결재선의 첫 단계 결재자에게 알린다",
+    "결재자가 2차 인증 후 승인한다",
+    "다음 단계로 넘어가고 마지막 단계 승인 시 최종 승인된다",
+    "결과를 요청자에게 알린다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "반려",
+     "handling": "사유를 기록하고 요청자에게 반환"
+    },
+    {
+     "condition": "2차 인증 실패",
+     "handling": "결재 처리 중단"
+    }
+   ],
+   "data_objects": [
+    "결재",
+    "결재 이력",
+    "결재선"
+   ]
+  }
+ ]
+}

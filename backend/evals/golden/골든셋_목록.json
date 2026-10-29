@@ -1,0 +1,224 @@
+{
+  "name": "요구사항 분석 Agent 튜닝용 골든셋",
+  "generated_at": "2026-10-28",
+  "generated_by": "python -m evals.build_golden_docs",
+  "documents": [
+    {
+      "folder": "doc1",
+      "document_id": "PDF1",
+      "file": "data/고객요구사항1.pdf",
+      "format": "PDF",
+      "sha256": "55ad2f6db371e93a271db389d6e1b53b203569df434bcf135362d25442f90921",
+      "original_source": "1-2. 제안요청서 1부.pdf",
+      "project": "한국관세무역개발원 정보시스템 통합유지보수",
+      "split": "tuning",
+      "status": "draft_pending_domain_review",
+      "document_analyst": {
+        "file": "doc1/document_analyst.json",
+        "version": "0.1",
+        "reference_units": 30,
+        "cases": 46,
+        "case_counts": {
+          "전체 추출 목록": 1,
+          "요구사항 추출 및 내용 보존": 30,
+          "청킹 완결성": 5,
+          "정상 인용": 1,
+          "표 안 조건의 정상 인용": 1,
+          "다른 블록의 원문 복구": 2,
+          "숫자 변조": 1,
+          "허용/불가 변조": 1,
+          "대상 변조": 1,
+          "다른 문서 숫자의 오염 방지": 1,
+          "문서 품질 검사": 2
+        }
+      },
+      "requirements_analyst": {
+        "answers": "doc1/requirements_analyst.yaml",
+        "inputs": "doc1/ra_inputs.json",
+        "version": "0.1",
+        "units": 30,
+        "statements": 187,
+        "questions_needed": 1,
+        "questions_optional": 2
+      }
+    },
+    {
+      "folder": "doc2",
+      "document_id": "HWPX2",
+      "file": "data/고객요구사항2.hwpx",
+      "format": "HWPX",
+      "sha256": "a937f9336f16ab13f41f246e0a72dd6893a2e9097eb74d7242c22d12ec645a85",
+      "original_source": "2. 제안요청서_KOBACO 정보시스템 통합유지운영.hwpx",
+      "project": "KOBACO 정보시스템 통합유지운영",
+      "split": "tuning",
+      "status": "draft_pending_domain_review",
+      "document_analyst": {
+        "file": "doc2/document_analyst.json",
+        "version": "0.1",
+        "reference_units": 80,
+        "cases": 102,
+        "case_counts": {
+          "전체 추출 목록": 1,
+          "요구사항 추출 및 내용 보존": 80,
+          "청킹 완결성": 6,
+          "예외 조건의 정상 인용": 1,
+          "여러 요구사항에 있는 같은 문장": 1,
+          "다른 블록의 원문 복구": 1,
+          "중첩 표의 원문 복구": 1,
+          "여러 위치에 있는 원문 복구": 1,
+          "숫자 변조": 2,
+          "허용/불허 변조": 1,
+          "대상 변조": 1,
+          "문서에 없는 근거": 1,
+          "줄바꿈 정규화": 1,
+          "문서 품질 검사": 4
+        }
+      },
+      "requirements_analyst": {
+        "answers": "doc2/requirements_analyst.yaml",
+        "inputs": "doc2/ra_inputs.json",
+        "version": "0.1",
+        "units": 80,
+        "statements": 720,
+        "questions_needed": 1,
+        "questions_optional": 3
+      }
+    },
+    {
+      "folder": "doc3",
+      "document_id": "HWPX3",
+      "file": "data/고객요구사항3.hwpx",
+      "format": "HWPX",
+      "sha256": "e2e577d8433de8a3994c3c04f359c169acc485408f4da74eb82522c0e2654675",
+      "original_source": "붙임 2. 제안요청서(ITSM 구축).hwpx",
+      "project": "대한적십자사 ITSM 구축",
+      "split": "tuning",
+      "status": "draft_pending_domain_review",
+      "document_analyst": {
+        "file": "doc3/document_analyst.json",
+        "version": "0.1",
+        "reference_units": 38,
+        "cases": 61,
+        "case_counts": {
+          "전체 추출 목록": 1,
+          "요구사항 추출 및 내용 보존": 38,
+          "청킹 완결성": 5,
+          "정상 인용": 1,
+          "예외 조건의 정상 인용": 1,
+          "부정 표현 보존": 1,
+          "다른 블록의 원문 복구": 1,
+          "동일 ID의 다른 요구사항 구분": 1,
+          "테스트/보안 동일 ID 충돌 구분": 1,
+          "다른 문서 숫자의 오염 방지": 1,
+          "금지/허용 변조": 1,
+          "숫자 변조": 1,
+          "문서에 없는 근거": 1,
+          "이어지는 표의 근거 복구": 1,
+          "문서 품질 검사": 6
+        }
+      },
+      "requirements_analyst": {
+        "answers": "doc3/requirements_analyst.yaml",
+        "inputs": "doc3/ra_inputs.json",
+        "version": "0.3",
+        "units": 38,
+        "statements": 237,
+        "questions_needed": 1,
+        "questions_optional": 2
+      }
+    },
+    {
+      "folder": "doc5",
+      "document_id": "PDF5",
+      "file": "data/고객요구사항5.pdf",
+      "format": "PDF",
+      "sha256": "67f54f3d71b1e1682e8f4bbc01e5bfc459531c3fce07e3482852b41546c792de",
+      "original_source": "제안요청서_화물자동차 디지털 일상점검 및 차량관리 통합 플랫폼 구축 용역.pdf",
+      "project": "화물차 디지털 운행관리 플랫폼 구축",
+      "split": "tuning",
+      "status": "draft_pending_domain_review",
+      "document_analyst": {
+        "file": "doc5/document_analyst.json",
+        "version": "0.1",
+        "reference_units": 36,
+        "cases": 55,
+        "case_counts": {
+          "전체 추출 목록": 1,
+          "요구사항 추출 및 내용 보존": 36,
+          "청킹 완결성": 5,
+          "정상 인용": 1,
+          "원문 ID 이상이 있는 정상 인용": 1,
+          "이용 조건": 1,
+          "다른 블록의 원문 복구": 1,
+          "비슷한 시간 기준 블록에서 복구": 1,
+          "접두어 이상 블록 검색": 1,
+          "숫자 변조": 1,
+          "버전 변조": 1,
+          "대상 제한 변조": 1,
+          "문서에 없는 근거": 1,
+          "줄바꿈 정규화": 1,
+          "문서 품질 검사": 2
+        }
+      },
+      "requirements_analyst": {
+        "answers": "doc5/requirements_analyst.yaml",
+        "inputs": "doc5/ra_inputs.json",
+        "version": "0.3",
+        "units": 36,
+        "statements": 210,
+        "questions_needed": 2,
+        "questions_optional": 2
+      }
+    },
+    {
+      "folder": "doc6",
+      "document_id": "PDF6",
+      "file": "data/고객요구사항6.pdf",
+      "format": "PDF",
+      "sha256": "c2af88581c5b86f33159d43600c1d9f9f071f7a418c0dfda6f2c14acb56bfdbc",
+      "original_source": "인천공항_요구사항.xlsx",
+      "project": "인천국제공항공사 시설관리시스템 구축",
+      "split": "tuning",
+      "status": "draft_pending_domain_review",
+      "document_analyst": {
+        "file": "doc6/document_analyst.json",
+        "version": "0.1",
+        "reference_units": 73,
+        "cases": 93,
+        "case_counts": {
+          "전체 추출 목록": 1,
+          "요구사항 추출 및 내용 보존": 73,
+          "청킹 완결성": 4,
+          "예외 조건의 정상 인용": 1,
+          "부정 표현의 정상 인용": 1,
+          "여러 요구사항에 있는 같은 문장": 1,
+          "가려진 원문의 정상 인용": 1,
+          "다른 블록의 원문 복구": 2,
+          "여러 위치에 있는 원문 복구": 1,
+          "제외/포함 변조": 1,
+          "부정 표현 변조": 1,
+          "대상 변조": 1,
+          "조건 변조": 1,
+          "문서에 없는 근거": 1,
+          "문서 품질 검사": 3
+        }
+      },
+      "requirements_analyst": {
+        "answers": "doc6/requirements_analyst.yaml",
+        "inputs": "doc6/ra_inputs.json",
+        "version": "0.1",
+        "units": 73,
+        "statements": 377,
+        "questions_needed": 0,
+        "questions_optional": 3
+      }
+    }
+  ],
+  "totals": {
+    "documents": 5,
+    "reference_units": 257,
+    "document_analyst_cases": 357,
+    "requirements_analyst_statements": 1731
+  },
+  "note": "모든 문서가 튜닝용이다. 튜닝에 쓰지 않은 문서(예: 고객요구사항4, 7~12)로 만든 평가용 골든셋이 따로 필요하다."
+}

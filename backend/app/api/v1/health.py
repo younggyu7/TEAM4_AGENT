@@ -1,10 +1,8 @@
 from fastapi import APIRouter
 
-from app.schemas.common import HealthResponse
-
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health", response_model=HealthResponse, summary="서버 상태 확인")
-def health() -> HealthResponse:
-    return HealthResponse()
+@router.get("/health", summary="서버 상태 확인")
+def health() -> dict:
+    return {"status": "ok"}

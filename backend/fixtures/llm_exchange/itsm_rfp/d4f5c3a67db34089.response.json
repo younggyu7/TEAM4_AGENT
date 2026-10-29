@@ -1,0 +1,631 @@
+{
+ "entities": [
+  {
+   "name": "due_date_change",
+   "attributes": [
+    {
+     "name": "due_date_change_id",
+     "label": "due_date_change ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "service_request_id",
+     "label": "서비스 요청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "service_request",
+     "allowed_values": [],
+     "description": "서비스 요청"
+    },
+    {
+     "name": "before_due_at",
+     "label": "변경 전 기한",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "변경 전 기한"
+    },
+    {
+     "name": "after_due_at",
+     "label": "변경 후 기한",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "변경 후 기한"
+    },
+    {
+     "name": "change_reason",
+     "label": "변경 사유",
+     "data_type": "varchar",
+     "length": 300,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "변경 사유"
+    },
+    {
+     "name": "changed_by_id",
+     "label": "변경자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "자동 재계산이면 비움"
+    },
+    {
+     "name": "changed_at",
+     "label": "변경 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "변경 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    }
+   ]
+  },
+  {
+   "name": "process_error_log",
+   "attributes": [
+    {
+     "name": "process_error_log_id",
+     "label": "process_error_log ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "service_request_id",
+     "label": "서비스 요청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "service_request",
+     "allowed_values": [],
+     "description": "서비스 요청"
+    },
+    {
+     "name": "process_step_id",
+     "label": "단계",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "process_step",
+     "allowed_values": [],
+     "description": "단계"
+    },
+    {
+     "name": "error_code",
+     "label": "오류 코드",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "오류 코드"
+    },
+    {
+     "name": "error_message",
+     "label": "오류 내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "오류 내용"
+    },
+    {
+     "name": "occurred_at",
+     "label": "발생 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "발생 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    }
+   ]
+  },
+  {
+   "name": "notification",
+   "attributes": [
+    {
+     "name": "notification_id",
+     "label": "notification ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "recipient_id",
+     "label": "수신자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "수신자"
+    },
+    {
+     "name": "service_request_id",
+     "label": "관련 요청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "service_request",
+     "allowed_values": [],
+     "description": "관련 요청"
+    },
+    {
+     "name": "event_type",
+     "label": "이벤트 유형",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "이벤트 유형"
+    },
+    {
+     "name": "channel",
+     "label": "채널",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "SCREEN",
+      "EMAIL",
+      "MESSENGER"
+     ],
+     "description": "채널"
+    },
+    {
+     "name": "title",
+     "label": "제목",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "제목"
+    },
+    {
+     "name": "message",
+     "label": "내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "내용"
+    },
+    {
+     "name": "send_status",
+     "label": "발송 상태",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "PENDING",
+      "SENT",
+      "FAILED"
+     ],
+     "description": "발송 상태"
+    },
+    {
+     "name": "sent_at",
+     "label": "발송 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "발송 일시"
+    },
+    {
+     "name": "read_at",
+     "label": "확인 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "확인 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "attachment",
+   "attributes": [
+    {
+     "name": "attachment_id",
+     "label": "attachment ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "owner_type",
+     "label": "소유 대상 유형",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "SERVICE_REQUEST, KNOWLEDGE, PROJECT 등"
+    },
+    {
+     "name": "owner_id",
+     "label": "소유 대상 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "소유 대상 ID"
+    },
+    {
+     "name": "file_name",
+     "label": "파일명",
+     "data_type": "varchar",
+     "length": 255,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "파일명"
+    },
+    {
+     "name": "stored_path",
+     "label": "저장 경로",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "저장 경로"
+    },
+    {
+     "name": "file_size",
+     "label": "파일 크기",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "파일 크기"
+    },
+    {
+     "name": "content_type",
+     "label": "콘텐츠 유형",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "콘텐츠 유형"
+    },
+    {
+     "name": "uploaded_by_id",
+     "label": "등록자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "등록자"
+    },
+    {
+     "name": "uploaded_at",
+     "label": "등록 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "등록 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "problem",
+   "attributes": [
+    {
+     "name": "problem_id",
+     "label": "problem ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "problem_no",
+     "label": "문제 번호",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "문제 번호"
+    },
+    {
+     "name": "source_request_id",
+     "label": "발생 요청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "service_request",
+     "allowed_values": [],
+     "description": "발생 요청"
+    },
+    {
+     "name": "title",
+     "label": "제목",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "제목"
+    },
+    {
+     "name": "description",
+     "label": "내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "내용"
+    },
+    {
+     "name": "root_cause",
+     "label": "근본 원인",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "근본 원인"
+    },
+    {
+     "name": "status",
+     "label": "상태",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "OPEN",
+      "ANALYZING",
+      "KNOWN_ERROR",
+      "RESOLVED",
+      "CLOSED"
+     ],
+     "description": "상태"
+    },
+    {
+     "name": "owner_id",
+     "label": "담당자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "담당자"
+    },
+    {
+     "name": "resolved_at",
+     "label": "해결 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "해결 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  }
+ ]
+}

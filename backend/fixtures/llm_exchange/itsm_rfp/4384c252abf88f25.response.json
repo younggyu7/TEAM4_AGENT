@@ -1,0 +1,654 @@
+{
+ "entities": [
+  {
+   "name": "inspection_plan",
+   "attributes": [
+    {
+     "name": "inspection_plan_id",
+     "label": "inspection_plan ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "configuration_item_id",
+     "label": "점검 장비",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "configuration_item",
+     "allowed_values": [],
+     "description": "점검 장비"
+    },
+    {
+     "name": "inspection_form_id",
+     "label": "점검 서식",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "inspection_form",
+     "allowed_values": [],
+     "description": "점검 서식"
+    },
+    {
+     "name": "cycle",
+     "label": "점검 주기",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "MONTHLY",
+      "QUARTERLY",
+      "HALF_YEARLY",
+      "YEARLY"
+     ],
+     "description": "점검 주기"
+    },
+    {
+     "name": "vendor_name",
+     "label": "점검 업체",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "점검 업체"
+    },
+    {
+     "name": "engineer_id",
+     "label": "담당 엔지니어",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "담당 엔지니어"
+    },
+    {
+     "name": "next_due_date",
+     "label": "다음 예정일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "다음 예정일"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "inspection_result",
+   "attributes": [
+    {
+     "name": "inspection_result_id",
+     "label": "inspection_result ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "inspection_plan_id",
+     "label": "점검 계획",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "inspection_plan",
+     "allowed_values": [],
+     "description": "점검 계획"
+    },
+    {
+     "name": "inspected_on",
+     "label": "점검일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "점검일"
+    },
+    {
+     "name": "inspector_id",
+     "label": "점검자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "점검자"
+    },
+    {
+     "name": "overall_result",
+     "label": "종합 결과",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "NORMAL",
+      "ABNORMAL"
+     ],
+     "description": "종합 결과"
+    },
+    {
+     "name": "remarks",
+     "label": "비고",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "비고"
+    },
+    {
+     "name": "status",
+     "label": "상태",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "SUBMITTED",
+      "CONFIRMED"
+     ],
+     "description": "상태"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "inspection_item_result",
+   "attributes": [
+    {
+     "name": "inspection_item_result_id",
+     "label": "inspection_item_result ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "inspection_result_id",
+     "label": "점검 결과",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "inspection_result",
+     "allowed_values": [],
+     "description": "점검 결과"
+    },
+    {
+     "name": "inspection_item_id",
+     "label": "점검 항목",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "inspection_item",
+     "allowed_values": [],
+     "description": "점검 항목"
+    },
+    {
+     "name": "result",
+     "label": "항목 결과",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "NORMAL",
+      "ABNORMAL",
+      "NA"
+     ],
+     "description": "항목 결과"
+    },
+    {
+     "name": "remark",
+     "label": "비고",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "비고"
+    },
+    {
+     "name": "confirmed_by_id",
+     "label": "확인 담당자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "확인 담당자"
+    },
+    {
+     "name": "confirmed_at",
+     "label": "확인 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "확인 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "it_service",
+   "attributes": [
+    {
+     "name": "it_service_id",
+     "label": "it_service ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "service_code",
+     "label": "서비스 코드",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "서비스 코드"
+    },
+    {
+     "name": "service_name",
+     "label": "서비스명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "서비스명"
+    },
+    {
+     "name": "owner_department_id",
+     "label": "주관 부서",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "department",
+     "allowed_values": [],
+     "description": "주관 부서"
+    },
+    {
+     "name": "description",
+     "label": "설명",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "설명"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "sla_indicator",
+   "attributes": [
+    {
+     "name": "sla_indicator_id",
+     "label": "sla_indicator ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "indicator_code",
+     "label": "지표 코드",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "지표 코드"
+    },
+    {
+     "name": "indicator_name",
+     "label": "지표명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "지표명"
+    },
+    {
+     "name": "definition",
+     "label": "정의",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "정의"
+    },
+    {
+     "name": "formula",
+     "label": "산식",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "산식"
+    },
+    {
+     "name": "unit",
+     "label": "단위",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "단위"
+    },
+    {
+     "name": "measure_method",
+     "label": "측정 방법",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "QUERY",
+      "PROCEDURE",
+      "ETL",
+      "MANUAL"
+     ],
+     "description": "측정 방법"
+    },
+    {
+     "name": "measure_script",
+     "label": "측정 스크립트",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "측정 스크립트"
+    },
+    {
+     "name": "measure_cycle",
+     "label": "측정 주기",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "DAILY",
+      "WEEKLY",
+      "MONTHLY",
+      "QUARTERLY"
+     ],
+     "description": "측정 주기"
+    },
+    {
+     "name": "higher_is_better",
+     "label": "높을수록 좋음",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "높을수록 좋음"
+    },
+    {
+     "name": "core_yn",
+     "label": "핵심 지표 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "자동 실적 집계 대상 (협의 후 선정)"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  }
+ ]
+}

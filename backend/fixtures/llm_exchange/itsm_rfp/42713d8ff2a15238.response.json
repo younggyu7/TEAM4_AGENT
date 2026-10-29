@@ -1,0 +1,40 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SFR-004", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "IT 운영관리 통합 포털", "description": "IT서비스데스크, 서비스 수준관리(SLA), Workflow 연동, IT자산관리 등 IT서비스 운영과 자산관리를 위한 통합 창구(포털)를 제공한다.", "priority": "MUST",
+     "acceptance_criteria": ["포털 첫 화면에서 서비스데스크·SLA·자산관리 메뉴로 이동"],
+     "evidence": [{"source_block_id": "B0081", "quote": "IT서비스데스크, 서비스 수준관리(SLA), Workflow 연동, IT자산관리 등 IT서비스 운영 및 자산관리를 위한 통합 창구 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SFR-004", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "품질",
+     "title": "사용자 편의 중심 포털 UI", "description": "포털 인터페이스는 사용자 편의 중심으로 구성한다.", "priority": "MUST",
+     "acceptance_criteria": ["사용성 점검 결과 주요 업무가 3단계 이내 메뉴 이동으로 접근 가능"],
+     "evidence": [{"source_block_id": "B0081", "quote": "사용자 편의 중심의 포털 인터페이스 구현"}],
+     "status": "ASSUMED"},
+    {"key": "R3", "source_key": "SFR-004", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "FAQ·Q&A·검색·공유", "description": "FAQ, Q&A, 검색 및 공유 등 IT 운영관리 부가 서비스를 제공한다.", "priority": "MUST",
+     "acceptance_criteria": ["FAQ 등록·조회", "Q&A 질문·답변", "통합 검색"],
+     "evidence": [{"source_block_id": "B0081", "quote": "FAQ, Q&A, 검색 및 공유 등 부가 서비스 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SFR-004", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "KDB 등록·조회·관리", "description": "지식 데이터베이스(KDB) 문서를 등록·조회·관리한다.", "priority": "MUST",
+     "acceptance_criteria": ["지식 문서 등록·수정·조회"],
+     "evidence": [{"source_block_id": "B0081", "quote": "KDB(Knowledge Database) 등록, 조회, 관리 기능 제공"}],
+     "status": "CONFIRMED"},
+    {"key": "R5", "source_key": "SFR-004", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "사용자 유형별 접근 권한", "description": "사용자 유형별로 포털 서비스 접근 권한을 관리한다.", "priority": "MUST",
+     "acceptance_criteria": ["사용자 유형별 메뉴 접근 허용·차단"],
+     "evidence": [{"source_block_id": "B0081", "quote": "사용자 유형별 서비스 접근 권한관리 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R6", "source_key": "SFR-004", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "결재 관리", "description": "결재 관리 기능을 제공하고 결재 분류별 상세 정보를 제공한다.", "priority": "MUST",
+     "acceptance_criteria": ["결재 요청·승인·반려", "결재 분류별 상세 정보 조회", "결재 이력 조회"],
+     "evidence": [{"source_block_id": "B0081", "quote": "결재 관리기능을 제공하여야 하며 분류별로 상세정보 기능 제공"}],
+     "status": "ASSUMED"}
+  ],
+  "questions": [
+    {"kind": "AMBIGUITY", "question": "결재 대상과 결재 단계(결재선)는 어떻게 정합니까?",
+     "context": "원문은 '결재 관리기능'과 '분류별 상세정보'만 요구한다. 어떤 요청이 결재 대상인지, 몇 단계 결재인지에 따라 결재 흐름과 결재선·결재 이력 구조가 달라진다.",
+     "options": ["모든 서비스 요청은 요청 부서장 1단계 결재", "요청 분류별로 결재선(단계 수·결재자)을 관리자가 설정", "변경·권한 신청 등 특정 분류만 결재"],
+     "requirement_keys": ["R6"], "evidence_block_ids": ["B0081"], "blocking": true}
+  ]
+}

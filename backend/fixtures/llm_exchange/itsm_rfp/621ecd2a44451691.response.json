@@ -1,0 +1,20 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "QUR-002", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "품질",
+     "title": "안정화 기간 운영", "description": "일정 기간 안정화 기간을 운영한다.", "priority": "MUST",
+     "acceptance_criteria": ["시험운영 계획서·결과서 제출"],
+     "evidence": [{"source_block_id": "B0115", "quote": "일정기간 안정화 기간 운영 실시"}],
+     "status": "ASSUMED"},
+    {"key": "R2", "source_key": "QUR-002", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "품질",
+     "title": "안정화 기간 오류 결함 처리", "description": "안정화 기간 중 발생한 오류는 결함으로 취급해 보완·적용 후 테스트한다.", "priority": "MUST",
+     "acceptance_criteria": ["안정화 기간 결함 조치·재테스트 기록"],
+     "evidence": [{"source_block_id": "B0115", "quote": "안정화 기간 중 발생하는 오류는 결함으로 취급"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": [
+    {"kind": "MISSING", "question": "안정화(시험운영) 기간은 얼마입니까?",
+     "context": "원문은 '일정기간'으로만 적고 있다. 사업 기간(4개월) 안에서 일정 계획에 영향을 준다.",
+     "options": ["개통 후 1개월", "착수 후 협의"],
+     "requirement_keys": ["R1"], "evidence_block_ids": ["B0115"], "blocking": false}
+  ]
+}

@@ -1,0 +1,608 @@
+{
+ "entities": [
+  {
+   "name": "ci_collection_history",
+   "attributes": [
+    {
+     "name": "ci_collection_history_id",
+     "label": "ci_collection_history ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "source_system",
+     "label": "수집 시스템",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "EMS",
+      "NMS",
+      "SIEM"
+     ],
+     "description": "수집 시스템"
+    },
+    {
+     "name": "configuration_item_id",
+     "label": "대상 구성항목",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "configuration_item",
+     "allowed_values": [],
+     "description": "대상 구성항목"
+    },
+    {
+     "name": "collected_at",
+     "label": "수집 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수집 일시"
+    },
+    {
+     "name": "collected_data",
+     "label": "수집 데이터",
+     "data_type": "jsonb",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수집 데이터"
+    },
+    {
+     "name": "diff_status",
+     "label": "비교 결과",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "NEW",
+      "CHANGED",
+      "SAME",
+      "MISSING"
+     ],
+     "description": "비교 결과"
+    },
+    {
+     "name": "review_status",
+     "label": "반영 상태",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "PENDING",
+      "APPLIED",
+      "IGNORED"
+     ],
+     "description": "반영 상태"
+    },
+    {
+     "name": "reviewed_by_id",
+     "label": "확인자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "확인자"
+    },
+    {
+     "name": "reviewed_at",
+     "label": "확인 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "확인 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    }
+   ]
+  },
+  {
+   "name": "it_asset",
+   "attributes": [
+    {
+     "name": "it_asset_id",
+     "label": "it_asset ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "asset_no",
+     "label": "자산 번호",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "자산 번호"
+    },
+    {
+     "name": "asset_name",
+     "label": "자산명",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "자산명"
+    },
+    {
+     "name": "asset_category",
+     "label": "자산 분류",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "자산 분류"
+    },
+    {
+     "name": "model_name",
+     "label": "모델명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "모델명"
+    },
+    {
+     "name": "serial_no",
+     "label": "시리얼 번호",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "시리얼 번호"
+    },
+    {
+     "name": "acquired_date",
+     "label": "도입일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "도입일"
+    },
+    {
+     "name": "department_id",
+     "label": "관리 부서",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "department",
+     "allowed_values": [],
+     "description": "관리 부서"
+    },
+    {
+     "name": "location",
+     "label": "위치",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "위치"
+    },
+    {
+     "name": "status",
+     "label": "상태",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "IN_USE",
+      "STOCK",
+      "REPAIR",
+      "DISPOSED"
+     ],
+     "description": "상태"
+    },
+    {
+     "name": "configuration_item_id",
+     "label": "연결 CI",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": true,
+     "references": "configuration_item",
+     "allowed_values": [],
+     "description": "CI와 1:1 연결"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "capacity_metric",
+   "attributes": [
+    {
+     "name": "capacity_metric_id",
+     "label": "capacity_metric ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "configuration_item_id",
+     "label": "대상 구성항목",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "configuration_item",
+     "allowed_values": [],
+     "description": "대상 구성항목"
+    },
+    {
+     "name": "metric_type",
+     "label": "지표 유형",
+     "data_type": "varchar",
+     "length": 14,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "AVAILABILITY",
+      "CPU",
+      "MEMORY",
+      "DISK",
+      "NETWORK"
+     ],
+     "description": "지표 유형"
+    },
+    {
+     "name": "threshold_value",
+     "label": "임계값",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "임계값"
+    },
+    {
+     "name": "measured_value",
+     "label": "측정값",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "측정값"
+    },
+    {
+     "name": "measured_at",
+     "label": "측정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "측정 일시"
+    },
+    {
+     "name": "source",
+     "label": "측정 경로",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "COLLECTED",
+      "MANUAL"
+     ],
+     "description": "측정 경로"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "inspection_form",
+   "attributes": [
+    {
+     "name": "inspection_form_id",
+     "label": "inspection_form ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "form_name",
+     "label": "서식명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "서식명"
+    },
+    {
+     "name": "ci_type_id",
+     "label": "대상 장비 유형",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "ci_type",
+     "allowed_values": [],
+     "description": "대상 장비 유형"
+    },
+    {
+     "name": "version_no",
+     "label": "버전",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "버전"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "inspection_item",
+   "attributes": [
+    {
+     "name": "inspection_item_id",
+     "label": "inspection_item ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "inspection_form_id",
+     "label": "점검 서식",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "inspection_form",
+     "allowed_values": [],
+     "description": "점검 서식"
+    },
+    {
+     "name": "item_name",
+     "label": "점검 항목",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "점검 항목"
+    },
+    {
+     "name": "criteria",
+     "label": "판정 기준",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "판정 기준"
+    },
+    {
+     "name": "sort_order",
+     "label": "순서",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "순서"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  }
+ ]
+}

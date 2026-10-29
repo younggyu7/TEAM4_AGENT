@@ -1,0 +1,30 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SER-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "용역업체 전산망 분리", "description": "용역업체가 쓰는 전산망은 방화벽 등으로 공사 업무망과 분리하고, 업무상 필요한 서버에만 제한적으로 접근한다.", "priority": "MUST",
+     "acceptance_criteria": ["용역업체망과 업무망 분리 구성 확인", "접근 허용 서버 목록 관리"],
+     "evidence": [{"source_block_id": "B0218", "quote": "용역업체 사용 전산망은 방화벽, 네트워크 등을 활용하여 공사 업무망과 분리 구성하고 업무상 필요한 서버에만 제한적 접근 허용하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SER-004", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "보안",
+     "title": "참여인원 계정 그룹·권한 차등", "description": "사업참여 인원의 계정은 하나의 그룹으로 등록하고 계정별로 접근권한을 차등 부여한다.", "priority": "MUST",
+     "acceptance_criteria": ["용역 인원 계정 그룹 등록", "계정별 접근권한 차등 부여"],
+     "evidence": [{"source_block_id": "B0218", "quote": "사업참여 인원에 대한 계정은 하나의 그룹으로 등록하고 계정별 접근권한 차등 부여하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SER-004", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "보안",
+     "title": "불필요 계정 즉시 해지·파기", "description": "계정별 접근권한이 불필요해지면 즉시 해지하고 계정을 파기한다.", "priority": "MUST",
+     "acceptance_criteria": ["철수·역할 변경 인원의 권한 해지와 계정 파기 기록"],
+     "evidence": [{"source_block_id": "B0218", "quote": "계정별 접근권한은 불필요시 즉시 해지후 계정 파기하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SER-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "공사 인터넷 사용 제한", "description": "제안사는 공사 인터넷 연결을 쓰지 않는다. 업무상 필요하면 공사 승인 하에 보안 조치된 허용 기기로만 쓰고, 업무와 무관한 사이트·파일 공유 사이트 접속은 금지한다.", "priority": "MUST",
+     "acceptance_criteria": ["인터넷 사용 승인 기록", "허용 기기 목록"],
+     "evidence": [{"source_block_id": "B0218", "quote": "제안사는 공사에서 사용하는 인터넷 연결을 금지"}, {"source_block_id": "B0218", "quote": "인터넷 이용 시 업무와 관계없는 사이트 및 파일 공유사이트 접속 금지"}],
+     "status": "CONFIRMED"},
+    {"key": "R5", "source_key": "SER-004", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "보안",
+     "title": "관리자 경로 IP·MAC 제한", "description": "정보시스템 관리자 페이지 등 주요 접근 경로는 허가된 IP와 MAC이 지정된 PC에서만 접근할 수 있다.", "priority": "MUST",
+     "acceptance_criteria": ["허가되지 않은 IP·MAC에서 관리자 페이지 접근 차단"],
+     "evidence": [{"source_block_id": "B0218", "quote": "정보시스템의 관리자 페이지 등 주요 접근 경로는 허가된 IP와 MAC이 지정된 PC에서만 접근 가능하여야 함"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

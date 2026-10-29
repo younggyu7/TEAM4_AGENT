@@ -1,0 +1,20 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SFR-011", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "IT 운영관리 현황 조회", "description": "IT 자원, 운영 수준 등 IT 운영관리 현황을 조회한다.", "priority": "MUST",
+     "acceptance_criteria": ["자원·운영수준 현황 화면 제공"],
+     "evidence": [{"source_block_id": "B0088", "quote": "IT 자원, 운영수준 등 현황조회 서비스 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SFR-011", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "운영현황 엑셀 다운로드", "description": "IT 운영수준, 서비스 요청 및 처리 결과 등 IT서비스 운영 현황을 엑셀로 다운로드한다.", "priority": "MUST",
+     "acceptance_criteria": ["운영수준·요청·처리결과 현황 Excel 다운로드"],
+     "evidence": [{"source_block_id": "B0088", "quote": "IT 운영수준, 서비스 요청 및 처리결과 등 운영현황 관련 엑셀 다운로드 기능 구현"}, {"source_block_id": "B0088", "quote": "IT서비스 운영 관련 엑셀 다운로드 기능 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SFR-011", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "IT 자산정보 엑셀 다운로드", "description": "IT 자산 정보를 엑셀로 다운로드한다.", "priority": "MUST",
+     "acceptance_criteria": ["자산 목록 Excel 다운로드"],
+     "evidence": [{"source_block_id": "B0088", "quote": "IT 자산정보 관련 엑셀 다운로드 기능 구현"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

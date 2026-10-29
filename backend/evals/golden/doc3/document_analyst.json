@@ -1,0 +1,2658 @@
+{
+  "meta": {
+    "name": "document_analyst 튜닝용 골든셋 (고객요구사항3)",
+    "version": "0.1",
+    "split": "tuning",
+    "created_date": "2026-10-26",
+    "status": "draft_pending_domain_review",
+    "expected_outputs_reviewed_by_human": false,
+    "purpose": "파싱·논리 요구사항 단위·원문 품질·인용문 검증/복구 규칙 튜닝",
+    "total_cases": 61,
+    "total_reference_units": 38,
+    "case_counts": {
+      "전체 추출 목록": 1,
+      "요구사항 추출 및 내용 보존": 38,
+      "청킹 완결성": 5,
+      "정상 인용": 1,
+      "예외 조건의 정상 인용": 1,
+      "부정 표현 보존": 1,
+      "다른 블록의 원문 복구": 1,
+      "동일 ID의 다른 요구사항 구분": 1,
+      "테스트/보안 동일 ID 충돌 구분": 1,
+      "다른 문서 숫자의 오염 방지": 1,
+      "금지/허용 변조": 1,
+      "숫자 변조": 1,
+      "문서에 없는 근거": 1,
+      "이어지는 표의 근거 복구": 1,
+      "문서 품질 검사": 6
+    },
+    "no_agent_execution_performed": true,
+    "evaluation_policy": "strict_quote_integrity_v1",
+    "policy_note": "숫자/버전/부정 표현/대상이 변조된 인용문은 유사 원문을 찾아도 자동 verified하지 않음. 현행 0.6 재연결 동작보다 엄격한 개선 목표. 후보 제시+미확인 유지 허용.",
+    "provenance": "AI가 원문 PDF 텍스트·페이지 이미지 및 HWPX XML을 확인해 작성. HWPX 전체 페이지 렌더링은 수행하지 않음. 담당자의 정답 검수 후 v1.0 확정 권장.",
+    "split_from": "golden_tuning_v0.1.json (처음 받은 문서 3·5 묶음 파일. 지금은 지움. 내용은 그대로, 이 문서의 정답 단위와 사례만 옮김)"
+  },
+  "documents": [
+    {
+      "document_id": "HWPX3",
+      "file_name": "고객요구사항3.hwpx",
+      "source_path": "data/고객요구사항3.hwpx",
+      "sha256": "e2e577d8433de8a3994c3c04f359c169acc485408f4da74eb82522c0e2654675",
+      "format": "HWPX",
+      "xml_table_count": 40,
+      "requirement_table_count": 39,
+      "expected_logical_units": 38,
+      "unique_original_ids": 35,
+      "locator_note": "페이지 번호는 추정하지 않음. XML section 및 표 순번/ID 사용."
+    }
+  ],
+  "normalization": {
+    "unicode": "NFC",
+    "ignore_whitespace": true,
+    "preserve": [
+      "숫자",
+      "단위",
+      "부정 표현",
+      "예외 조건",
+      "원문 ID",
+      "날짜/버전"
+    ],
+    "note": "문자 포함 검사는 보조 검사. 표 행/열 대응과 완결성은 별도로 검수."
+  },
+  "adapter_contract": {
+    "note": "document_analyst.py 미제공. 아래 키는 평가 전용 스키마이며 실행 옵션/실제 반환 필드가 아님.",
+    "unit_matching": "문서 + 원문 ID + 제목 + 원문 위치. ID 단독 매칭 금지.",
+    "locations": "PDF pdf_page_1based=파일 기준 1부터; printed_page=인쇄 번호. HWPX table_index_0based=section의 .//hp:tbl 순서 0부터(중첩 표 포함).",
+    "state_mapping": {
+      "verified": "기존 위치에서 확인",
+      "relinked": "다른 올바른 위치에 재연결",
+      "unconfirmed": "검증 불가 또는 후보 검토 필요, ⚠미확인 유지"
+    },
+    "chunk_policy": "reference_unit은 논리 단위. 물리 블록은 여러 개여도 source가 통합 참조하고 함께 전달하면 허용. 서로 다른 요구사항은 분리.",
+    "restricted_options": "전체 목록 시험은 --only/--max-sources 미사용. 필터/상한 순서는 코드 확인 전 평가 대상에서 제외."
+  },
+  "coverage_limits": [
+    "두 문서 모두 튜닝용. 최종 평가 성능을 주장할 수 없음.",
+    "TXT/DOCX, 텍스트층 없는 PDF 양성 사례, 실제 번호 누락 확정 사례는 미포함.",
+    "HWPX 연속 표는 (1/2)(2/2) 표식으로 확인. 페이지를 넘는지 여부는 확인하지 않음.",
+    "실제 DOC_* 코드와 반환 형식 미확인. issue_type은 평가용 의미 라벨.",
+    "LLM 토큰/호출/재시도/시간/메모리 실측은 별도 실행 필요.",
+    "원문 내 법령/기술 요건은 추출 대상 데이터이며 현실의 유효성이나 적합성을 검증한 것이 아님."
+  ],
+  "reference_units": [
+    {
+      "unit_key": "HWPX3:ECR-001:T0",
+      "document_id": "HWPX3",
+      "requirement_id": "ECR-001",
+      "title": "시스템 도입",
+      "category_original": "시스템 장비 구성 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 0,
+          "xml_table_id": "1791226976",
+          "anchor": "ECR-001 시스템 도입"
+        }
+      ],
+      "reference_text": "시스템 도입 개념 정의\n○  도입품목 : 운영/중계 서버 ○  도입수량 : 2식(이중화) ○  기본규격   - CPU : Xeon 8 Core 이상   - Memory : 16GB 이상   - HDD :  960GB * 2 (Raid5) 이상   - NIC : 10G SFP 2port, 1G 4port 이상 ○  요구사항   -  상용OS 및 운영에 필요한 SW(OS보안 포함) 설치 및 연동 지원     * 관제솔루션(Sysview), 백업솔루션(Tina), OS보안(Redcastle), 2차인증(mSABOR)   - 시스템 구축에 필요한 개발 도구 및 솔루션 구성     * 비용 및 환경은 제안사에서 준비하여야 함 ※ 제조사 정책에 따르며 License 수량 부족, 저작권 등의 문제가 없어야 함 ※ 현 구성 및 서비스 현황 등의 확인은 담당자를 통해 별도 확인\n산출정보: 서버 설치확인서, 라이센스 증서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:ECR-002:T1",
+      "document_id": "HWPX3",
+      "requirement_id": "ECR-002",
+      "title": "시스템 설치",
+      "category_original": "시스템 장비 구성 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 1,
+          "xml_table_id": "1791226979",
+          "anchor": "ECR-002 시스템 설치"
+        }
+      ],
+      "reference_text": "시스템 설치\n○ 도입 시스템은 우리 사가 지정한 장소에 설치하여 구성 ○ 시스템 구성에 따른 서비스 중단시간을 최소화 할 수 있는 방안 제시 ○ 시스템을 설치하기 위한 제반사항(전력, 통신, 패치 등)과 장비를 설치하기 위한 랙 가이드 등을 지원하여야 하며, 전원 및 네트워크 이중화로 구성 ○ 시스템 구성을 위해 별도장비(설비)가 필요한 경우 제안에 포함하여야 함 ○ 납품 소프트웨어에 대한 최신버전 납품 ○ 납품된 물품 또는 설치공사 등의 하자로 인하여 기존의 전산 자원(HW, SW, DATA 등)이나 부대설비를 훼손 및 파손할 시에는 사업자의 비용으로 원상복구해야함 ○ 기술 및 기능향상에 의거 변경된 사양은 대한적십자사의 사업자의 합의하에 추가 또는 대체하며, 계약금액의 변동 없이 사업자가 책임지고 공급해야 함\n산출정보: 서버 설치확인서, 라이센스 증서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-001:T2",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-001",
+      "title": "ITSM 공통사항",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 2,
+          "xml_table_id": "1489469444",
+          "anchor": "SFR-001 ITSM 공통사항"
+        }
+      ],
+      "reference_text": "시스템 전반의 공통적으로 적용하여야 할 사항\n○ MS Edge, Chrome 등의 다양한 웹브라우저 및 최신버전 지원 ○ POP3, SMTP 등 표준기술을 지원 ○ Non-ActiveX 지원, 비표준 Flash 사용 배제 ○ 시공간 제한 없이 Web Browser 만으로 시스템 접속 ○ 프로세스 관리   - 향후 프로세스 변경이 유연하도록 설계/구축되어야 하며, 프로세스 관리기능 및 설정, 모니터링 기능 제공   - No-Code 기반의 소스코딩 없이 Drag & Drop으로 화면을 구성하고 Workflow를 수정할 수 있어야 함   - 인사발령, 부재, 대결, 자동승인, 복수담당자지정 등의 변경상황에 유연하게 대처 가능한 Workflow를 구성하여야 함   - 메신저, 화면 알람 등을 활용하여 업무 및 이벤트 내용 자동 통지   - 진행중인 프로세스의 처리단계를 실시간으로 직관적인 화면으로 조회(티켓 소유자, Next 처리자 등)   - 기본적인 증빙자료 및 절차서 등을 프로세스/레포트 및 통계출력 기능 제공   - 조회된 데이터는 Excel 또는 문서 형태로 저장 및 출력기능 제공\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-002:T3",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-002",
+      "title": "계정 및 로그인",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 3,
+          "xml_table_id": "1489469445",
+          "anchor": "SFR-002 계정 및 로그인"
+        }
+      ],
+      "reference_text": "계정 및 로그인 서비스 구현\n○ 개인계정은 직원 1인당 1개 부여 (유지보수 및 외주 직원 포함) ○  개인계정 및 부서 조직정보는 통합인증(SSO)와 연계하여 자동으로 생성, 변경, 삭제 기능 제공 ○  통합인증(SSO)과 연계하여 사용자 편의를 위한 단일 로그인 기능 및 권한관리 구현 ○ 대한적십자사 2차 인증 라이선스 및 연동설치 지원 ○  각 계정은 업무담당에 따른 권한을 설계하고 부서별, 담당별 업무에 따라 권한을 부여받을 수 있어야 함 ○  중복 로그인에 대한 허용 여부 설정 기능 제공 ○  사용자 보안관리기능 제공(암호조합, 계정잠금, 접속 이력 등)\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-003:T4",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-003",
+      "title": "ITSM 테스크 서비스",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 4,
+          "xml_table_id": "1489469446",
+          "anchor": "SFR-003 ITSM 테스크 서비스"
+        }
+      ],
+      "reference_text": "IT서비스 테스크 서비스 구현\n○  IT서비스 요청 서비스 구현   -  IT서비스 문제접수 및 수정 요구사항 등 사용자 요청 구현   - 정보시스템 관련 문제 및 수정 요구사항을 대상으로 헬프데스크와 연동 접수관리 ○  IT서비스 요청처리 서비스 구현    - IT서비스 요청사항 접수 또는 반려 구현   - 요청접수 시 처리유형 및 담당자 배정 구현 ○  IT서비스 요청 결과 회신 서비스 구현    - 요청사항 처리결과에 대한 요청자에게 결과회신 구현 ○  IT서비스 처리 서비스 구현    - 요구사항 접수 및 기타 문제발생에 따른 서비스 처리 구현   -  배정된 1, 2, 3순위 담당자가 처리 후 처리결과 등록관리 구현 ○  문제, 구성, 변경관리 서비스 구현    -  서비스 요청 또는 문제발생 등 이벤트 처리에 따른 문제관리, 구성관리, 변경관련 서비스 구현 ○  가용성, 용량 관리 서비스 구현    - IT서비스 설계관리를 위한 가용성, 용량 관리 서비스 구현  ○  IT서비스 운영처리 서비스는 CMDB와 연계 구현 ○  KDB(Knowledge DB) 검색을 통해 직접 문제해결 기능 제공 ○  역할 및 권한 설정 관리    - 연계된 역할 및 권한 설정 기능 제공   - 사업장 및 부서에 따른 권한 관리 및 권한 설명 제공   - 권한신청을 위한 일반사용자 인터페이스 기능 제공   - 신청된 권한의 편집 및 권한신청/승인이력 확인 기능 제공 ○  사업관리 기능 구현(첨부파일 포함)   - 사업분류 관리 기능, 멀티 프로젝트 관리 기능   - 단위업무 진행현황 관리 기능   - 단계별 보고서 관리(증빙 첨부 등) 기능   - 모든 점검보고서(장애/기술지원/정기점검)에 대한 양식 등록 기능 제공\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-004:T5",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-004",
+      "title": "ITSM 포털",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 5,
+          "xml_table_id": "1767072953",
+          "anchor": "SFR-004 ITSM 포털"
+        }
+      ],
+      "reference_text": "IT운영관리 포털 구현\n○ IT 운영관리 포털 구현   -  IT서비스데스크, 서비스 수준관리(SLA), Workflow 연동, IT자산관리 등 IT서비스 운영 및 자산관리를 위한 통합 창구 구현   - 사용자 편의 중심의 포털 인터페이스 구현 ○ IT 운영관리를 위한 부가 서비스 구현   - FAQ, Q&A, 검색 및 공유 등 부가 서비스 구현   - KDB(Knowledge Database) 등록, 조회, 관리 기능 제공 ○ 포털 서비스 접근 권한관리 구현   - 사용자 유형별 서비스 접근 권한관리 구현 ○ 결재 관리기능을 제공하여야 하며 분류별로 상세정보 기능 제공\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-005:T6",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-005",
+      "title": "ITSM 대시보드 제공",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 6,
+          "xml_table_id": "1489469448",
+          "anchor": "SFR-005 ITSM 대시보드 제공"
+        }
+      ],
+      "reference_text": "IT운영관리 대시보드 구현\n○ 서비스별, 업무별, 프로세스별 현황 정보 ○ 실시간 IT서비스에 대한 현황 제공 ○ 통계 및 기타 현황에 대한 화면 제공 ○ 다양한 위젯을 통한 주요 성과지표 모니터링 ○ 다양한 해상도에서 관제할 수 있는 화면 자동 맞춤 기능 제공 ○ 서비스 데스크 접수 및 처리 현황 분석 기능 제공 ○  대시보드 변경 시 소스코딩 없이 추가/변경 가능한 지원 도구 제공 ○ 이벤트에 대한 실시간 모니터링 기능\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-006:T7",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-006",
+      "title": "ITSM Workflow 서비스",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 7,
+          "xml_table_id": "1489469449",
+          "anchor": "SFR-006 ITSM Workflow 서비스"
+        }
+      ],
+      "reference_text": "IT운영관리 Workflow 서비스 구현\n○ IT운영관리 절차 적용을 위한 Workflow 서비스 구현    - 관리자가 시스템상에서 절차 변경 적용이 가능한 Workflow 서비스 구현    - 절차별 활용 화면의 정보관리 항목을 관리자가 변경 가능하도록 구현 ○ ITSM 적용을 위한 프로세스 정비   -  ITSM 시스템 적용을 위하여 대한적십자사 IT운영환경 및 조직 특성을 반영한 운영관리 프로세스 정비   - ITIL v4 기반 프로세스 정비하여 시스템에 적용\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-007:T8",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-007",
+      "title": "ITSM 프로세스 관리",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 8,
+          "xml_table_id": "1489469450",
+          "anchor": "SFR-007 ITSM 프로세스 관리"
+        }
+      ],
+      "reference_text": "IT서비스 프로세스 관리 구현\n○ 프로세스 공통   - 워크플로우 엔진 기반의 프로세스 관리 기능    - 요청일 또는 처리일 기준으로 확인할 수 있는 하이라이트 기능 제공    - 프로세스 진행 상황에 대해 플로우차트 보기 기능 제공    - 오류 로그 확인 기능을 통한 프로세스에 대한 문제 진단 기능 제공   - 커스텀 필드에 대한 그룹화 기능 제공   - 사용자 부재 시 대리 처리할 수 있는 기능 제공   - 프로세스 진행 시 특정 조건을 설정하여 자동화 기능 제공   - 보안 관리를 위한 커스텀 필드에 대한 공개 범위 지정 기능 제공   -  각 점검 항목 결과를 입력하고 담당자가 확인 할 수 있는 기능 제공   -  요청받은 업무를 병렬적(N개로)으로 분할되어 각 부문별 담당자에게 할당할 수 있는 기능 제공 ○ 프로세스 변경   - 변경 내용에 따라 자동으로 희망 처리 완료 날짜 변경 기능 제공\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-008:T9",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-008",
+      "title": "CMDB 구축",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 9,
+          "xml_table_id": "1489469451",
+          "anchor": "SFR-008 CMDB 구축"
+        }
+      ],
+      "reference_text": "IT운영관리 CMDB 구축\n○ 정보시스템 및 IT자원 환경정보를 관리하는 CMDB* 구축       * CMDB : Configration Management DataBase   - 솔루션에서 제공하는 표준 CMDB 모델에 대한적십자사 특성 및 요구사항을 반영한 관리정보 항목 조정   - 구성관리, 변경관리 업무처리 관리 ○ 관제시스템(EMS, NMS, SIEM) 연동 구축   - CMDB는 IT자산관리시스템와 연동 될 수 있도록 구축   - 대한적십자사의 관제시스템(EMS, NMS, SIEM 등)과 연동하여 서버, 네트워크, 보안장비의 구성정보를 자동수집 및 관리 ○  관련 시스템과 연계 구현   - IT자산관리서비스와 CMDB와 연동 구축\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-009:T10",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-009",
+      "title": "정기점검 관리 서비스",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 10,
+          "xml_table_id": "1772230236",
+          "anchor": "SFR-009 정기점검 관리 서비스"
+        }
+      ],
+      "reference_text": "정기점검 관리 서비스 구현\n○ 정기점검  등록 서비스 구현   - 장비별로 월/분기/반기/연 정기점검을 등록하고, 월별 방문 엔지니어가 정기점검을 진행할 수 있도록 서식을 등록/관리하는 기능 구현 ○ 정기점검  결과 및 현황조회 서비스 구현   - 장비별 정기점검 결과 조회 서비스 구현   - 월별 정기점검 현황(진행사항) 조회 및 결과서 출력 서비스 구현 ○  정기점검 결과 및 현황 엑셀 다운로드 및 출력 기능 구현   - 월별 정기점검 결과서 및 현황 엑셀 다운로드 및 출력 기능 구현\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-010:T11",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-010",
+      "title": "IT서비스 수준관리 서비스",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 11,
+          "xml_table_id": "1489469452",
+          "anchor": "SFR-010 IT서비스 수준관리 서비스"
+        }
+      ],
+      "reference_text": "IT서비스 수준관리 서비스 구현\n○ IT서비스 수준의 지표 등록관리 구현   - IT서비스 수준 지표, 지표별 측정방법 등 등록관리 구현   - IT서비스 지표 Pool 관리 구현 ○ IT서비스 수준의 목표, 실적 관리 구현   - IT서비스 수준 지표별 목표, 실적 관리 구현   - 핵심 지표 실적집계 자동화 구현    ※ 자동실적 집계 핵심지표는 발주사와 협의를 통하여 선정  ○ 쿼리, 프로시저, ETL 등의 다양한 수집 방법으로 측정하여 결과값 출력기능 제공 ○ 서비스별 SLA평가 보고서 생성 및 조회, 엑셀 다운로드, 출력 기능 제공\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SFR-011:T12",
+      "document_id": "HWPX3",
+      "requirement_id": "SFR-011",
+      "title": "IT 운영관리 현황 서비스",
+      "category_original": "기능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 12,
+          "xml_table_id": "1489469453",
+          "anchor": "SFR-011 IT 운영관리 현황 서비스"
+        }
+      ],
+      "reference_text": "IT 운영관리 현황 서비스 구현\n○  IT 운영관리 현황조회 서비스 구현   - IT 자원, 운영수준 등 현황조회 서비스 구현 ○  IT 운영관리 현황 엑셀 다운로드 기능 구현   - IT 운영수준, 서비스 요청 및 처리결과 등 운영현황 관련 엑셀 다운로드 기능 구현 ○  IT 자산관리 및 운영관리 현황 엑셀 다운로드 기능 구현   - IT 자산정보 관련 엑셀 다운로드 기능 구현   - IT서비스 운영 관련 엑셀 다운로드 기능 구현\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:PER-001:T13",
+      "document_id": "HWPX3",
+      "requirement_id": "PER-001",
+      "title": "성능 일반 요구사항",
+      "category_original": "성능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 13,
+          "xml_table_id": "1489469455",
+          "anchor": "PER-001 성능 일반 요구사항"
+        }
+      ],
+      "reference_text": "성능 일반\n○ 대한적십자사의 구성 및 사업대상  시스템의 성능을 고려한 구축방안을 제시하여야 함 ○ 대상 시스템의 안정적 운영 지원 및 사용자 지원 방안 제시 ○  서버의 높은 가용성과 운용의 안전성을 확보할 수 있도록 시스템을 구성하여야 함 ○  부하 분산 및 시스템 자원의 고 효율성을 확보하여야 함 ○  피크타임 및 과부하에 따른 시스템 안정성 점검   - 시스템 개발 중 로그 또는 툴(도구)을 이용하여 시스템 성능상태를 모니터링 하도록 하여, 성능 상 문제를 미리 파악하여 조치한 후 시스템을 오픈하여야 함     - CPU 평균 사용률은 어느 조건 하에서도 80% 이하 유지   - 메모리 평균 사용률은 어느 조건 하에서도 80% 이하 유지\n산출정보: 성능진단 결과보고서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:PER-002:T14",
+      "document_id": "HWPX3",
+      "requirement_id": "PER-002",
+      "title": "시스템 성능",
+      "category_original": "성능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 14,
+          "xml_table_id": "1767072960",
+          "anchor": "PER-002 시스템 성능"
+        }
+      ],
+      "reference_text": "시스템 성능 수준 보장\n○  목표성능에 대한 시스템 테스트 계획서를 발주자와 협의하여 확정하고 목표성능을 최대한 보장할 수 있도록 구축 ○  응답속도 및 DB 성능 최적화 수행    -  사용자가 응답을 요청한 시각으로부터 3초 내에 요청결과 조회   - 처리속도가 느린 작업의 경우, 사용자에게 사전 알림 ○  성능진단 도구를 활용한 정확한 성능을 진단하고 결과에 따른 DB튜닝, 프로그램구조개선 등을 통해 시스템을 최적화 실시\n산출정보: 성능진단 결과보고서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:PER-003:T15",
+      "document_id": "HWPX3",
+      "requirement_id": "PER-003",
+      "title": "데이터 형식오류 응답시간",
+      "category_original": "성능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 15,
+          "xml_table_id": "1767072962",
+          "anchor": "PER-003 데이터 형식오류 응답시간"
+        }
+      ],
+      "reference_text": "데이터 형식오류 응답시간 요건\n○  사용자가 입력한 데이터 형식의 모든 오류는 사용자가 시스템에 그 정보를 입력한지 3초 이하에 적당한 오류 메시지를 사용자에게 제시해야 함   -  오류 메시지는 사용자가 인지하여 즉시 조치할 수 있도록     작성되어야 함 ○  대량 데이터에 대한 통계 기능은 3초 이상(100Mbps 인터넷 접속을 사용 시) 걸릴 수 있으므로 연산 작업을 시작하는 시점에 이런 영향에 대해서 사용자에게 메시지로 알려야 함 (예. 응답 이전까지 처리 중 메시지 또는 팝업 등) \n산출정보: 성능진단 결과보고서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:PER-004:T16",
+      "document_id": "HWPX3",
+      "requirement_id": "PER-004",
+      "title": "성능 지연에 보안대책 및 기술지원 요구사항",
+      "category_original": "성능 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 16,
+          "xml_table_id": "1767072963",
+          "anchor": "PER-004 성능 지연에 보안대책 및 기술지원 요구사항"
+        }
+      ],
+      "reference_text": "성능 지연에 대한 보완대책 및 기술지원\n○  테스트 및 시범운영 결과가 낮을경우 개선 대책을 수립하여 반영하여야 함 ○  하자보수기간(1년) 내 발생할 수 있는 성능 저하/지연 현상에 대해 발주처의 개선요청 시 수락해야 함\n산출정보: 보완계획서/결과보고서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:ECR-001:T17",
+      "document_id": "HWPX3",
+      "requirement_id": "ECR-001",
+      "title": "하드웨어 및 소프트웨어 공통 요구사항",
+      "category_original": "시스템 장비구성 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 17,
+          "xml_table_id": "1767072964",
+          "anchor": "ECR-001 하드웨어 및 소프트웨어 공통 요구사항"
+        },
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 18,
+          "xml_table_id": "1767072967",
+          "anchor": "ECR-001 하드웨어 및 소프트웨어 공통 요구사항"
+        }
+      ],
+      "reference_text": "하드웨어 및 소프트웨어 공통 (1/2)\n〇 제안되는 하드웨어 및 소프트웨어는 입찰등록 마감일 기준으로 제조사가 단종하는 물품을 납품할 수 없음   -  제안되는 하드웨어 및 소프트웨어는 최신의 정품이어야 하며(OEM불가), 제조사의 정품공급확약서, 제조사의 기술지원확약서를 제안서에 포함하여 제출하여야 함   -  제안되는 하드웨어 및 소프트웨어는 납품일 기준으로 5년 이상 기술지원 및 유지보수가 지원되어야 함   -  제안되는 하드웨어는 5년 이상 안정적으로 부품 및 예비품 공급이 가능하여야 함 〇 제안되는 하드웨어 및 소프트웨어의 하자보수기간을 1년/하자보수보증금율을 3%로 포함하여 제안하여야 하며, 제조사의 정책상 불가피할 경우, 무상 하자보수기간을 명시하여 제안하여야 함 〇 제안되는 하드웨어 및 소프트웨어의 하자보수기간(1년)이 만료된 후 유상 유지보수 요율을 제안하고 상호 협의하여 결정하여야 함 〇 제안되는 하드웨어 및 소프트웨어의 사용 증가에 대비한 호환성과 확장성을 제공하도록 구성하여 제안하여야 함 〇 제안되는 하드웨어 및 소프트웨어의 시스템 안정성을 위한 백업 및 복구방안을 제안하여야 함 〇 요구사항에 명시되지 않은 장비 또는 부속품은 제안하는 시스템의 구성상 정상적인 동작을 위해 필수적인 장비 또는 부속품이 있을 경우 이를 포함하여 제안하여야 함 〇 도입되는 하드웨어 및 소프트웨어에 대한 모든 라이선스는 영구 라이선스로 제공해야 하며, 원본을 제출하여야 함 〇 검수완료 이전에 설치 또는 시험운영 중 하드웨어가 손상되거나 장애가 발생하는 경우, 동일 사양 이상의 신규 제품으로 즉시 교체하여야 함 〇 제안되는 하드웨어 및 소프트웨어는 불가피한 경우를 제외하고 운영 및 유지관리 시 서비스 중단을 최소화하여야 하며, 무중단 작업이 가능한 제품으로 제안하여야 함\n산출정보: 사업수행계획서, 기술지원확약서, 정품공급확약서, GS인증 및 보안적합성 검증자료, 하자보수증권 1년, 하자보수보증금율 3%\n[계속: 2/2]\n하드웨어 및 소프트웨어 공통 (2/2)\n〇 제안되는 하드웨어는 설치면적 최소화를 위하여 고효율, 저전력 등 고밀도 아키텍처 설계 및 구현이 가능한 제품으로 42U이하 서버랙 설치 면적으로 구성하여야 함 〇 제안되는 하드웨어는 시스템 구성에 설치비, 공사비 등 소요되는 경비 일체를 포함하여 제안하여야 함 〇 도입되는 하드웨어(펌웨어) 및 소프트웨어는 도입일 기준으로 최신 버전으로 탑재하여 제공하여야 함 〇 제안되는 하드웨어 및 소프트웨어는 국가정보원의 보안성 검토와 보안적합성 검증 시 제반 사항을 지원하여야 하며, 검토 결과를 통보받은 경우 검토 결과의 보안대책을 보완하여야 함 〇 GS인증 및 보안적합성 검증을 위해 요구되는 인증을 취득한 제품으로 제안할 것 (※국가정보원 「국가․공공기관 보안적합성 검증 가이드」 준수) 〇 제안요청서의 요구사항을 충족하지 못한 제품을 제안하였으나, 기술평가를 통과하여 선정되는 경우라도 발주기관의 요구에 충족되는 제품으로 즉시 교체하여야 하며, 이에 대하여 발생되는 소요 비용은 제안사가 부담하여야 함 〇 제안되는 하드웨어 및 소프트웨어가 제안요청서의 요구사항을 충족하지 못할 경우 발주기관의 요구에 충족되는 제품으로 즉시 교체하여야 하며, 이에 대하여 발생 되는 소요 비용은 제안사가 부담하여야 함 〇 도입되는 하드웨어 및 소프트웨어의 상세 배치도 및 상세 제원, 설치계획, 장비 시험계획 등을 사업수행계획서에 포함하여 작성하여 계약 후 14일 이내에 제출하여야 함 〇 도입되는 하드웨어 및 소프트웨어는 계약 후 14일 이내에 제조사 정품공급확인서, 제조사 기술지원확약서를 제출하여야 함   ※ 제안시스템은 제안하는 솔루션의 특성에 맞추어 시스템 사양, 수량 등을 산정하여 제안하여야 함\n산출정보: 사업수행계획서, 기술지원확약서, 정품공급확약서, GS인증 및 보안적합성 검증자료",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:ECR-002:T19",
+      "document_id": "HWPX3",
+      "requirement_id": "ECR-002",
+      "title": "하드웨어 및 소프트웨어 구성 요구사항",
+      "category_original": "시스템 장비구성 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 19,
+          "xml_table_id": "1767072969",
+          "anchor": "ECR-002 하드웨어 및 소프트웨어 구성 요구사항"
+        }
+      ],
+      "reference_text": "서버 하드웨어 및 소프트웨어 구성\n〇 제안하는 모든 소프트웨어는 사업종료 기준으로 제안사 임·직원 모두 사용가능한 수량으로 라이선스를 제공해야 한다.(관리자, 동시접속자 등)    ※ 운영(결재자) 예정인원: 45명(정보관리국 및 유지관리업체)   사용(사용자) 인원 : 5,000명(대한적십자사 임직원)        * 인원수가 변경될 수 있음 〇 제안하는 모든 소프트웨어는 운영 및 제안 장비 규격(모델, CPU, Core 등) 및 수량에 적절한 라이선스를 제공해야 한다. 〇 모든 서버는 운영체제(OS)를 포함하여 제공하여야 한다. 〇 서버 구성은 최대한 안정적인 방식으로 구현하고 이에 필요한 자원 (솔루션 포함)은 제안사에서 제공하여야 한다. 〇 제안하는 모든 S/W는 운용 및 보안에 문제가 없도록 구성하여 제시되어야 함\n산출정보: 설치확인서, 라이선스 증서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SIR-001:T20",
+      "document_id": "HWPX3",
+      "requirement_id": "SIR-001",
+      "title": "기존 시스템 연계",
+      "category_original": "인터페이스 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 20,
+          "xml_table_id": "1489469459",
+          "anchor": "SIR-001 기존 시스템 연계"
+        }
+      ],
+      "reference_text": "기존 시스템 연계 요건\n〇 사용자별 접근권한은 현행 대한적십자사 접근권한을 분석하여 접근권한 특성을 반영하고 업무 Role 기반의 접근권한 모델을 수립하여 적용하여야 함 〇 접근권한 적용을 위하여 SSO 연계 구현 〇 기존 시스템 연계에 필요한 모든 비용은 제안사의 비용으로 진행하여야 한다. ※ 내부 연계대상 범위 [4p. 내부업무연계] 참조 \n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:DAR-001:T21",
+      "document_id": "HWPX3",
+      "requirement_id": "DAR-001",
+      "title": "데이터 공통사항",
+      "category_original": "데이터 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 21,
+          "xml_table_id": "1489469460",
+          "anchor": "DAR-001 데이터 공통사항"
+        }
+      ],
+      "reference_text": "데이터 관리 정책\n○ 행정안전부 의 데이터 관리 정책을 준수하여야 함   - ”공공기관의 데이터베이스 표준화 지침“(행정안전부 고시) 등 관련 지침을 준수해야 함. ○  관리자(운영자) 및 사용자의 비밀번호는 반드시 암호화 처리하여 저장하여야 하며, 일방향 암호화 처리로 복호화되지 않아야 함\n산출정보: 솔루션 구축 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SER-001:T22",
+      "document_id": "HWPX3",
+      "requirement_id": "SER-001",
+      "title": "테스트 방안",
+      "category_original": "테스트 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 22,
+          "xml_table_id": "1489469465",
+          "anchor": "SER-001 테스트 방안"
+        }
+      ],
+      "reference_text": "테스트 방안 요건\n○  테스트에 필요한 조직구성과 시험데이터 구축 및 테스트 시나리오에 의한 테스트 방안 제시 ○  초기 협의한 요구사항에서 변경관리 절차를 통해 승인을 획득한 요구사항을 최종 베이스라인으로 간주함 ○  제안 요구사항 충족 여부는 각 기능 요구사항의 검증(테스트) 활동을 통해 예상된 결과가 도출되었을 경우를 기준으로 평가함\n산출정보: 테스트 계획/결과보고서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SER-001:T23",
+      "document_id": "HWPX3",
+      "requirement_id": "SER-001",
+      "title": "관리적 보안",
+      "category_original": "보안 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 23,
+          "xml_table_id": "1489469466",
+          "anchor": "SER-001 관리적 보안"
+        }
+      ],
+      "reference_text": "관리적 보안 요건\n○  인적, 물적 자원에 대한 보안정책 및 지침을 수립하여 적용하고, 수시로 보안 진단을 실시 ○  외부 인력을 포함한 사업 수행 인력을 대상으로 보안교육 실시 및 보안서약서 작성 등 보안관리 철저 ○  본 사업 수행 중 취득한 지식에 대하여 과업 수행중은 물론 사업이 완료된 후에라도 비밀 보안을 준수 ○  사업자는 사업 수행 과정에서 취득한 자료와 정보에 관해서는 사업 수행의 전후를 막론하고 발주기관의 승인 없이 외부에 유출 또는 누설하여서는 안 되며, 이를 위반 시 향후 법적책임이 있음을 포함한 \"보안확약서\"를 작성하여 제출\n산출정보: 보안관리 계획서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SER-002:T24",
+      "document_id": "HWPX3",
+      "requirement_id": "SER-002",
+      "title": "물리적 보안",
+      "category_original": "보안 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 24,
+          "xml_table_id": "1767072977",
+          "anchor": "SER-002 물리적 보안"
+        }
+      ],
+      "reference_text": "물리적 보안 요건\n○  사무실, 주요장비 설치장소에 대한 출입보안 실시 ○  개인소유의 PC 및 보조기억장치 반입·반출 통제 실시 ○  개발공간의 인터넷 연결 일부 제한  ○  생성된 문서는 별도 시건장치가 된 곳에 안전하게 보관 ○  폐기되는 문서는 안전한 방법으로 폐기되도록 함  ○  문서에 보안등급을 부여하고 등급에 따라 차별화된 권한관리 실시\n산출정보: 보안관리 결과서(자료반출입대장, 문서폐기대장 등)",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SER-003:T25",
+      "document_id": "HWPX3",
+      "requirement_id": "SER-003",
+      "title": "기술적 보안",
+      "category_original": "보안 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 25,
+          "xml_table_id": "1767072981",
+          "anchor": "SER-003 기술적 보안"
+        }
+      ],
+      "reference_text": "기술적 보안 요건\n○  공유자원에 대한 접근제어가 사용자 권한에 따라 이루어져야 함 ○  관리자 접속용 계정의 패스워드는 기본 패스워드가 아닌 패스워드로 변경하여 사용 ○  패스워드의 길이 및 사용주기를 제한하고 불필요한 디폴트 계정을 삭제하는 등 서버 사용자 및 패스워드 관리 ○  요구/분석 단계에서 소스 프로그램의 안전성을 고려해서 개발 ○  “행정기관 및 공공기관 정보시스템 구축․운영 지침”(행정안전부 고시 제50조(소프트웨어개발보안 원칙), 제51조(소프트웨어 개발보안 활동), 제53조(보안약점 진단절차))에 따라 소프트웨어 개발보안 적용 및 소프트웨어 보안약점 기준을 준수하여 시큐어 코딩을 수행, 점검 ○  구축한 시스템 전반에 대한 보안약점 진단을 실시하고 결과에 대해 보완 조치 ○  사용자 PC 백신 프로그램 최신 상태 유지 ○  사용자 PC 패스워드 사용 및 주기적인 변경 ○  정기적으로 바이러스 및 해킹 도구 검사 ○  불의의 사고로 인하여 시스템이나 파일이 피해를 입더라도 최근에 백업한 시점의 내용으로 복구할 수 있는 백업정책 수립 및 실행 ○  MS사의 OS 및 웹브라우저에 대한 기술지원 중단과 관련하여 최신 OS 및 웹브라우저의 사용자 환경에서 서비스를 이용하는데 문제가 없도록 최적화 \n산출정보: 보안관리 결과서(보안약점 진단 결과조치서 등)",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SER-004:T26",
+      "document_id": "HWPX3",
+      "requirement_id": "SER-004",
+      "title": "인력 보안",
+      "category_original": "보안 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 26,
+          "xml_table_id": "1772230118",
+          "anchor": "SER-004 인력 보안"
+        }
+      ],
+      "reference_text": "참여 인력 보안 요건\n사업 착수 시   - 사업 참여인원에 대해서는 사업투입 전, 대표자용 보안확약서와 참여자용 보안서약서, 보안각서를 제출   - 사업자는 용역사업 수행 전 참여인원에 대해 법률 또는 규정에 의한 비밀유지의무 준수 및 위반 시 처벌내용 등에 대한 보안교육 실시 사업 수행 시    - 사업자는 보안 인식 강화를 위해 주기적으로 자체 보안 교육을 실시해야 하며, 발주기관이 요구하는 보안 교육에 참석 사업 종료 시   - 사업자는 사업관련 자료를 보유해서는 안되며, 이를 위반시 향후 법적 책임이 있음을 포함한 대표자용 보안 확약서를 작성하여 제출\n산출정보: 보안서약서, 보안확약서, 보안관리 결과서(보안교육 결과 등)",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SER-005:T27",
+      "document_id": "HWPX3",
+      "requirement_id": "SER-005",
+      "title": "공통 보안 환경",
+      "category_original": "보안 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 27,
+          "xml_table_id": "1772230121",
+          "anchor": "SER-005 공통 보안 환경"
+        }
+      ],
+      "reference_text": "공통 보안 환경 요건\n보건복지부 보안 분야의 법령, 규정 준수 국가·공공기관 용역업체 보안관리 가이드라인 준수 행정안전부 소프트웨어 개발보안 가이드 준수 국가 공공기관 정보보호제품 도입기준 및 절차 준수   - CC인증 대상인 ‘중요’ 정보보호제품은 CC인증필 제품 도입을 원칙으로 함   - 국내용 CC인증 제품, 국가용 암호 제품, 보안 적합성 검증 제품 등이 아닌 정보보호 제품 도입은 제안서 접수 시점까지 국내용 CC인증을 획득하거나 보안적합성 검증을 필한 제품에 한함   - 보안적합성 검증 생략이 가능한 경우, 관련기관의 증빙 문서 첨부 국정원 보안성 검토 시 적극 지원해야 함\n산출정보: 라이센스 증서(CC인증 내용 포함)",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SER-006:T28",
+      "document_id": "HWPX3",
+      "requirement_id": "SER-006",
+      "title": "사업 수행 보안",
+      "category_original": "보안 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 28,
+          "xml_table_id": "1772230123",
+          "anchor": "SER-006 사업 수행 보안"
+        }
+      ],
+      "reference_text": "사업 수행 보안 요건\n제안사는 과업수행과 관련된 제반 보안대책을 강구 하여야 하며 대표자 명의의 보안각서를 제출하여야 함 발주기관은 제안사의 보안관리 상태를 점검할 수 있으며, 보안상 필요한 모든 지시를 할 수 있으며 제안사는 이를 수용하여야 함 제안사는 과업수행 중 취득한 발주기관 관련 정보나 자료를 외부로 유출할 수 없으며 이를 위반 할 경우, 손해배상, 부정당업자 제재조치 등 일체의 책임을 져야 함\n산출정보: 보안서약서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SER-007:T29",
+      "document_id": "HWPX3",
+      "requirement_id": "SER-007",
+      "title": "투입 인원 및 장비에 대한 보안",
+      "category_original": "보안 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 29,
+          "xml_table_id": "1772230125",
+          "anchor": "SER-007 투입 인원 및 장비에 대한 보안"
+        }
+      ],
+      "reference_text": "투입 인원 및 장비에 대한 보안 요건\n제안사는 사업수행 시 정보보안책임자 및 담당자를 지정하여 투입인력에 대한 철저한 보안업무를 수행하여야 함 제안사는 저작권 등 지적재산권을 침해할 수 있는 불법복제 소프트웨어 등을 본사업 수행을 목적으로 사용할 수 없음 문서폐기는 문서세단기 등을 이용하여 회복이 불가능한 상태로 폐기하여야 함 사업수행용 컴퓨터는 패스워드를 사용하여야 하며 주기적인 변경을 실시하고 백신프로그램은 최신 버전을 유지하여야 함 시스템 구축 시 활용한 개발자 노트북의 하드디스크 등 저장매체는 업무용 데이터 유출방지를 위해 사업 완료 후 완전포맷 후 증빙자료를 제출하여야 함\n산출정보: 보안관리 계획서, 보안관리 결과서(반출입대장 등)",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:SER-008:T30",
+      "document_id": "HWPX3",
+      "requirement_id": "SER-008",
+      "title": "개발 및 정보시스템 연계보안",
+      "category_original": "보안 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 30,
+          "xml_table_id": "1809176337",
+          "anchor": "SER-008 개발 및 정보시스템 연계보안"
+        }
+      ],
+      "reference_text": "개발 및 정보시스템 연계에 대한 보안 요건\n행정안전부「소프트웨어 개발보안 가이드」를 준용하여 분석·설계 단계 SW보안활동 강화 및 구현 단계 시큐어 코딩 적용하여 SW 보안취약점 사전 제거 개발 완료시 보안취약점 점검실시 및 취약점 조치 사용자 개인정보 및 인증정보의 소통·저장시 암호화 조치 사용자 메뉴별 접근통제, 결재 및 승인권자는 2차인증 적용 인사정보 연동시 개인정보 및 패스워드는 단방향 암호화(Sha-512 이상) 사전에 정의된 데이터 형식만 전달하고 통신구간은 암호화(https 등 ) SIEM 연동 시에는 보안로그 전송 금지 ITSM 수집서버 등 신규 도입장비와의 연계는 IP 기반으로 통제\n산출정보: 보안관리 결과서(시큐어 코딩 결과, 인사정보 암호화 결과 등)",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:QUR-001:T31",
+      "document_id": "HWPX3",
+      "requirement_id": "QUR-001",
+      "title": "기능 구현 정확성",
+      "category_original": "품질 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 31,
+          "xml_table_id": "1489469467",
+          "anchor": "QUR-001 기능 구현 정확성"
+        }
+      ],
+      "reference_text": "기능 구현 정확성 요건\n시스템은 제공되기로 한 요구사항을 모두 제공하며, 초기 협의한 요구사항에서 변경관리 절차를 통해 승인을 획득한 요구사항을 최종 베이스라인으로 간주함 제안 요구사항 충족 여부는 각 기능 요구사항의 검증(테스트) 활동을 통해 예상된 결과가 도출되었을 경우 요구사항을 제공한 것으로 평가함 기능구현 정확성은 사용자가 직접 테스트 수행 기간에 테스트를 수행함으로써 평가함\n산출정보: 성능진단 결과보고서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:QUR-002:T32",
+      "document_id": "HWPX3",
+      "requirement_id": "QUR-002",
+      "title": "시험운영",
+      "category_original": "품질 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 32,
+          "xml_table_id": "1489469468",
+          "anchor": "QUR-002 시험운영"
+        }
+      ],
+      "reference_text": "품질 보장을 위한 시험운영 실시\n일정기간 안정화 기간 운영 실시 안정화 기간 중 발생하는 오류는 결함으로 취급    - 보완·적용 후 테스트 실시\n산출정보: 시험운영 계획서 및 결과서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:COR-001:T33",
+      "document_id": "HWPX3",
+      "requirement_id": "COR-001",
+      "title": "정보화 기반 표준 준수",
+      "category_original": "제약사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 33,
+          "xml_table_id": "1489469469",
+          "anchor": "COR-001 정보화 기반 표준 준수"
+        }
+      ],
+      "reference_text": "정보화 기반 표준 준수 요건\n표준 준수   - 국제표준을 수용하고 국가표준 및 사용자 요구사항을 반영하여 전체 표준체계를 구축하여야 하며 최신의 정보기술 추세를 반영한 관련 기술표준의 효율적 추진 및 유지관리 체계를 확립함   - 각종 관련 행정정보 체계 표준 규격을 따라야 하고, 개정 사항 및 행정표준 코드의 수용이 가능하여야 하며, 해당 코드가 없는 경우 코드 체계를 마련하여 추진함   - DB 설계 시 행정안전부의 DB 표준화 지침인 “행정정보데이터베이스 표준화 지침” 준수 및 적용함   - 행정기관의 각종 관련 법규 및 지침, 기술표준을 준용함 표준화 요건   - 업무 분야별 상호연계성 확보 및 유사 분야 간 정보항목의 중복 개발 및 관리의 방지, 연계 대상 정보의 표준화된 연계체계를 구축함   - 정보 교환에 관련된 데이터 코드 및 정보처리 제반 기술을 표준화함\n산출정보: 라이선스 문서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:PMR-001:T34",
+      "document_id": "HWPX3",
+      "requirement_id": "PMR-001",
+      "title": "사업수행관리",
+      "category_original": "프로젝트관리 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 34,
+          "xml_table_id": "1489469471",
+          "anchor": "PMR-001 사업수행관리"
+        }
+      ],
+      "reference_text": "원활한 사업 수행과 관리를 위한 요구사항\n○ 사업수행계획서 : 계약 후 14일 이내   - (발주 기관과 협의를 통해) 제안서 상의 미흡한 부분을 조정한 최종 사업 계획서   - 일정, 투입 인력, 업무 범위, 보안서약서(계약사 대표자 포함)   - 기개발된 SW를 납품하는 경우 제품사양서 및 각종 인증과 관련된 확인서, 원개발사 공급 및 기술지원 확약서   - 계약 금액 세부 산출 내역서 ○ 사업관리 방법론 및 일정관리를 위한 WBS 작성·제출   -  일정관리, 사업위험(이슈) 관리, 보안관리, 산출물의 형상ㆍ문서 관리 등    - 코로나바이러스-19 등 사업 위험 관리를 위한 대책 방안 제시 ○ 정기보고서 : 주간 단위 적용(필요시 비정기)   - 사업 진행 내용, 업무협의(회의록)내용, 투입인력현황, 진척사항, 기타 특기사항을 기록한 업무일지 작성ㆍ제출 ○ 완료보고서 : 검수 요청시(최소 사업완료 2주 전)   - 제안요청서, 제안서, 계약서, 사업수행계획서 등 사업 범위에 포함된 사항에 대한 최종 사업 수행 보고서   - 아래의 항목을 포함하며, 종이 문서와 별도로 CD(USB) 1본 제출      구분 내  용 시스템 구축 명세서  시스템 및 네트워크 구성 등 세부 구축 명세서 인증서  \"서버SW\", \"PC SW\" 등 각종 프로그램 사용 증서(License)   및 관련 인증서 품질 관리  테스트 계획서(시나리오 등 포함), 최종품질보고서 교육, 기술이전  기술 이전, 교육 지원, 유지관리 등과 관련된 계획서 취약점 점검  구축 시스템 취약점 점검 및 조치 결과 보고서 매뉴얼  사용자를 위한 가이드 문서, 운영자 지침서 \n산출정보: 사업수행계획서, 일정관리문서, 정기업무보고서(주간), 완료보고서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:PSR-001:T36",
+      "document_id": "HWPX3",
+      "requirement_id": "PSR-001",
+      "title": "시험 운영",
+      "category_original": "프로젝트 지원 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 36,
+          "xml_table_id": "1489469475",
+          "anchor": "PSR-001 시험 운영"
+        }
+      ],
+      "reference_text": "시험 운영 요건\n제안사는 구축시스템에 대한 시험운영 계획을 담당부서와 협의하여 수립하고, 시스템에 대한 시험운영을 실시하여야 함 시스템 운영․관리지침 수립   - 전산시스템의 장애예방 점검 및 조치, 백업, 시스템 환경구성 등 운영관리를 지원   -  물리적 보안대책, 관리적 보안대책, 기술적인 보안대책 등 안전 및 보안관리에 대한 운영 규정을 마련하여 비상사태에 대비 단위 업무별 처리 요건 제시 도입 시스템에 대한 운영 방안   - 신규 도입되는 상용S/W 및 H/W는 시스템 운영환경에 탑재하여 운영   - 서버, 응용 및 데이터에 대한 보안진단 및 점검을 수행/조치하고, 보안 계획을 수립 장애관리 및 백업   - 장애 발생에 대한 복구 대책을 마련   - 타 기관 연계 시스템과의 안정적인 서비스를 위한 확인 및 장애대책 마련   - 정기적인 백업으로 장애 발생에 대비 시스템의 정상적인 운영을 위하여 발생 가능한 각종 상황에 대한 시나리오를 작성 및 연락체계 구축\n산출정보: 성능진단 결과보고서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:PSR-002:T37",
+      "document_id": "HWPX3",
+      "requirement_id": "PSR-002",
+      "title": "프로젝트 지원 요구사항",
+      "category_original": "프로젝트 지원 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 37,
+          "xml_table_id": "1772230140",
+          "anchor": "PSR-002 프로젝트 지원 요구사항"
+        }
+      ],
+      "reference_text": "도입 시스템 운영을 위한 교육 및 기술이전 방안 제시\n사용자 및 운영자 대상 매뉴얼 작성 사용자 및 운영자 대상 교육 실시    - 상호 협의하여 집합교육 및 개별교육 병행 안정화 지원    - 시스템 개통 이후 시스템 1개월간 안정화 지원 제안사는 발주기관이 사업완료 후 본 사업수행결과에 대한 보완을 하고자 할 경우, 필요한 제반 기술사항을 지원해야 함  현재 유지관리업무를 수행 중인 사업자가 새로운 시스템을 인수받아 유지관리함에 문제가 없도록 기술지원 및 업무 인수인계 방안 제시 기술이관 및 지원, 교육 관련 비용은 사업비에 포함됨\n산출정보: 사용자/관리자 매뉴얼, 교육계획서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:PSR-003:T38",
+      "document_id": "HWPX3",
+      "requirement_id": "PSR-003",
+      "title": "사업 수행사항 검사검수",
+      "category_original": "프로젝트 지원 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 38,
+          "xml_table_id": "1772230142",
+          "anchor": "PSR-003 사업 수행사항 검사검수"
+        }
+      ],
+      "reference_text": "검사검수 요건\n제안사는 사업 완료 후 발주기관이 지정하는 검사요원의 최종 검수를 받아야 함 제안사는 검수 개시 1주전까지 본 제안요청서의 요구조건을 충분히 포함하는 시험항목 및 방법 등을 기술한 검수계획서를 서면으로 발주기관에 제출하여 승인을 받은 후 검수를 실시함 검수계획서는 다음 사항들이 포함되어야 함   - 솔루션 구축 목록   - 제반 산출물 목록   - 장비 설치내역   - 인수시험 항목 및 방법 자체시험 결과 제시 검수는 발주기관이 지정한 검수요원들과 제안사의 피검수 요원들이 함께 수행하며, 검수과정을 관찰하고 시험결과를 확인  시험 결과 발견된 미비점에 대해서는 계약자가 즉시 보완하여, 발주기관에 의해 미비점 보완이 확인되어야 함 검수기간은 2주 이내로 하며, 시험이 성공적으로 완료되면 최종검수 결과를 계약자에게 통보 테스트 및 검수, 시연 등에 필요한 장비 및 장소, 비용 등의 제반사항은 제안사 부담\n산출정보: 검수계획서 및 결과서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "HWPX3:PSR-004:T39",
+      "document_id": "HWPX3",
+      "requirement_id": "PSR-004",
+      "title": "하자 보수",
+      "category_original": "프로젝트 지원 요구사항",
+      "response_level_original": "필수",
+      "locations": [
+        {
+          "section": "Contents/section0.xml",
+          "table_index_0based": 39,
+          "xml_table_id": "1772230145",
+          "anchor": "PSR-004 하자 보수"
+        }
+      ],
+      "reference_text": "하자 보수 요건\n무상하자보수    - 본 사업에 대한 최종 검수 완료 후 12개월간 무상 하자보수를 실시하며, 본 사업 시 납품한 하드웨어, 하드웨어 운영 소프트웨어, 시스템 소프트웨어 및 응용프로그램에 대해 위의 기간동안 결함이 발견될 경우, 사업자는 무상으로 결함에 대한 조치를 수행    - 공급한 제품(H/W, S/W 등) 전 시스템    - 환경변화에 따른 시스템 변경 최적화 및 시험 활동    - 공급된 상용 제품에 대한 Version Upgrade    - 장애발생에 대한 처리(Trouble Shooting)    - 기타 시스템의 정상 운영을 위한 기술지원 등 하자보수 조직 및 절차    - 제안사는 사업 종료 이후 시스템의 원활한 운영을 위해 하자보수/장애처리 지원체계 및 절차를 구체적으로 제시하여야 함    - 하자보수 지원팀은 시스템 운영지원과 장애 점검을 통해 장애를 사전 예방하고, 장애 발생 시 신속하게 처리 할 수 있도록 함 각종 장애 발생 시 즉각적인 원인분석 및 복구 등 유지보수를 보장하기 위하여 지원부서 및 전문인력을 확보하여 항시 운영 가능하도록 해야 하며, 구체적인 장애조치 계획을 제시하여야 함 공동수급 시 대표사업자는 개발한 응용 어플리케이션에 대한 하자보수 책임을 가지며 제안서 제출 시, 공동수급에 대한 하자보수체계 명시\n산출정보: 하자보수계획서",
+      "reference_text_provenance": "HWPX 원본 XML 표의 텍스트; 표 내부 run 사이 공백 연결",
+      "logical_source_count": 1
+    }
+  ],
+  "cases": [
+    {
+      "id": "FULL-HWPX3",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3",
+        "only": null,
+        "max_sources": null
+      },
+      "expected_output": {
+        "expected_unit_keys": [
+          "HWPX3:ECR-001:T0",
+          "HWPX3:ECR-002:T1",
+          "HWPX3:SFR-001:T2",
+          "HWPX3:SFR-002:T3",
+          "HWPX3:SFR-003:T4",
+          "HWPX3:SFR-004:T5",
+          "HWPX3:SFR-005:T6",
+          "HWPX3:SFR-006:T7",
+          "HWPX3:SFR-007:T8",
+          "HWPX3:SFR-008:T9",
+          "HWPX3:SFR-009:T10",
+          "HWPX3:SFR-010:T11",
+          "HWPX3:SFR-011:T12",
+          "HWPX3:PER-001:T13",
+          "HWPX3:PER-002:T14",
+          "HWPX3:PER-003:T15",
+          "HWPX3:PER-004:T16",
+          "HWPX3:ECR-001:T17",
+          "HWPX3:ECR-002:T19",
+          "HWPX3:SIR-001:T20",
+          "HWPX3:DAR-001:T21",
+          "HWPX3:SER-001:T22",
+          "HWPX3:SER-001:T23",
+          "HWPX3:SER-002:T24",
+          "HWPX3:SER-003:T25",
+          "HWPX3:SER-004:T26",
+          "HWPX3:SER-005:T27",
+          "HWPX3:SER-006:T28",
+          "HWPX3:SER-007:T29",
+          "HWPX3:SER-008:T30",
+          "HWPX3:QUR-001:T31",
+          "HWPX3:QUR-002:T32",
+          "HWPX3:COR-001:T33",
+          "HWPX3:PMR-001:T34",
+          "HWPX3:PSR-001:T36",
+          "HWPX3:PSR-002:T37",
+          "HWPX3:PSR-003:T38",
+          "HWPX3:PSR-004:T39"
+        ],
+        "expected_logical_units": 38,
+        "preserve_original_ids": true,
+        "no_unlisted_requirement_units": true
+      },
+      "metadata": {
+        "type": "전체 추출 목록",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "counting_policy": "논리 요구사항 기준. 물리 블록/검색 청크 개수를 뜻하지 않음."
+      }
+    },
+    {
+      "id": "EXT-037",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:ECR-001:T0",
+        "requirement_id": "ECR-001",
+        "title": "시스템 도입",
+        "category_original": "시스템 장비 구성 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 0,
+            "xml_table_id": "1791226976",
+            "anchor": "ECR-001 시스템 도입"
+          }
+        ],
+        "content_reference_key": "HWPX3:ECR-001:T0",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-038",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:ECR-002:T1",
+        "requirement_id": "ECR-002",
+        "title": "시스템 설치",
+        "category_original": "시스템 장비 구성 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 1,
+            "xml_table_id": "1791226979",
+            "anchor": "ECR-002 시스템 설치"
+          }
+        ],
+        "content_reference_key": "HWPX3:ECR-002:T1",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-039",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-001:T2",
+        "requirement_id": "SFR-001",
+        "title": "ITSM 공통사항",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 2,
+            "xml_table_id": "1489469444",
+            "anchor": "SFR-001 ITSM 공통사항"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-001:T2",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-040",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-002:T3",
+        "requirement_id": "SFR-002",
+        "title": "계정 및 로그인",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 3,
+            "xml_table_id": "1489469445",
+            "anchor": "SFR-002 계정 및 로그인"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-002:T3",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-041",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-003:T4",
+        "requirement_id": "SFR-003",
+        "title": "ITSM 테스크 서비스",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 4,
+            "xml_table_id": "1489469446",
+            "anchor": "SFR-003 ITSM 테스크 서비스"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-003:T4",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-042",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-004:T5",
+        "requirement_id": "SFR-004",
+        "title": "ITSM 포털",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 5,
+            "xml_table_id": "1767072953",
+            "anchor": "SFR-004 ITSM 포털"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-004:T5",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-043",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-005:T6",
+        "requirement_id": "SFR-005",
+        "title": "ITSM 대시보드 제공",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 6,
+            "xml_table_id": "1489469448",
+            "anchor": "SFR-005 ITSM 대시보드 제공"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-005:T6",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-044",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-006:T7",
+        "requirement_id": "SFR-006",
+        "title": "ITSM Workflow 서비스",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 7,
+            "xml_table_id": "1489469449",
+            "anchor": "SFR-006 ITSM Workflow 서비스"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-006:T7",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-045",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-007:T8",
+        "requirement_id": "SFR-007",
+        "title": "ITSM 프로세스 관리",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 8,
+            "xml_table_id": "1489469450",
+            "anchor": "SFR-007 ITSM 프로세스 관리"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-007:T8",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-046",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-008:T9",
+        "requirement_id": "SFR-008",
+        "title": "CMDB 구축",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 9,
+            "xml_table_id": "1489469451",
+            "anchor": "SFR-008 CMDB 구축"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-008:T9",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-047",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-009:T10",
+        "requirement_id": "SFR-009",
+        "title": "정기점검 관리 서비스",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 10,
+            "xml_table_id": "1772230236",
+            "anchor": "SFR-009 정기점검 관리 서비스"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-009:T10",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-048",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-010:T11",
+        "requirement_id": "SFR-010",
+        "title": "IT서비스 수준관리 서비스",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 11,
+            "xml_table_id": "1489469452",
+            "anchor": "SFR-010 IT서비스 수준관리 서비스"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-010:T11",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-049",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-011:T12",
+        "requirement_id": "SFR-011",
+        "title": "IT 운영관리 현황 서비스",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 12,
+            "xml_table_id": "1489469453",
+            "anchor": "SFR-011 IT 운영관리 현황 서비스"
+          }
+        ],
+        "content_reference_key": "HWPX3:SFR-011:T12",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-050",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PER-001:T13",
+        "requirement_id": "PER-001",
+        "title": "성능 일반 요구사항",
+        "category_original": "성능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 13,
+            "xml_table_id": "1489469455",
+            "anchor": "PER-001 성능 일반 요구사항"
+          }
+        ],
+        "content_reference_key": "HWPX3:PER-001:T13",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-051",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PER-002:T14",
+        "requirement_id": "PER-002",
+        "title": "시스템 성능",
+        "category_original": "성능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 14,
+            "xml_table_id": "1767072960",
+            "anchor": "PER-002 시스템 성능"
+          }
+        ],
+        "content_reference_key": "HWPX3:PER-002:T14",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-052",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PER-003:T15",
+        "requirement_id": "PER-003",
+        "title": "데이터 형식오류 응답시간",
+        "category_original": "성능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 15,
+            "xml_table_id": "1767072962",
+            "anchor": "PER-003 데이터 형식오류 응답시간"
+          }
+        ],
+        "content_reference_key": "HWPX3:PER-003:T15",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-053",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PER-004:T16",
+        "requirement_id": "PER-004",
+        "title": "성능 지연에 보안대책 및 기술지원 요구사항",
+        "category_original": "성능 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 16,
+            "xml_table_id": "1767072963",
+            "anchor": "PER-004 성능 지연에 보안대책 및 기술지원 요구사항"
+          }
+        ],
+        "content_reference_key": "HWPX3:PER-004:T16",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-054",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:ECR-001:T17",
+        "requirement_id": "ECR-001",
+        "title": "하드웨어 및 소프트웨어 공통 요구사항",
+        "category_original": "시스템 장비구성 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 17,
+            "xml_table_id": "1767072964",
+            "anchor": "ECR-001 하드웨어 및 소프트웨어 공통 요구사항"
+          },
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 18,
+            "xml_table_id": "1767072967",
+            "anchor": "ECR-001 하드웨어 및 소프트웨어 공통 요구사항"
+          }
+        ],
+        "content_reference_key": "HWPX3:ECR-001:T17",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-055",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:ECR-002:T19",
+        "requirement_id": "ECR-002",
+        "title": "하드웨어 및 소프트웨어 구성 요구사항",
+        "category_original": "시스템 장비구성 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 19,
+            "xml_table_id": "1767072969",
+            "anchor": "ECR-002 하드웨어 및 소프트웨어 구성 요구사항"
+          }
+        ],
+        "content_reference_key": "HWPX3:ECR-002:T19",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-056",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SIR-001:T20",
+        "requirement_id": "SIR-001",
+        "title": "기존 시스템 연계",
+        "category_original": "인터페이스 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 20,
+            "xml_table_id": "1489469459",
+            "anchor": "SIR-001 기존 시스템 연계"
+          }
+        ],
+        "content_reference_key": "HWPX3:SIR-001:T20",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-057",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:DAR-001:T21",
+        "requirement_id": "DAR-001",
+        "title": "데이터 공통사항",
+        "category_original": "데이터 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 21,
+            "xml_table_id": "1489469460",
+            "anchor": "DAR-001 데이터 공통사항"
+          }
+        ],
+        "content_reference_key": "HWPX3:DAR-001:T21",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-058",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SER-001:T22",
+        "requirement_id": "SER-001",
+        "title": "테스트 방안",
+        "category_original": "테스트 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 22,
+            "xml_table_id": "1489469465",
+            "anchor": "SER-001 테스트 방안"
+          }
+        ],
+        "content_reference_key": "HWPX3:SER-001:T22",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-059",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SER-001:T23",
+        "requirement_id": "SER-001",
+        "title": "관리적 보안",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 23,
+            "xml_table_id": "1489469466",
+            "anchor": "SER-001 관리적 보안"
+          }
+        ],
+        "content_reference_key": "HWPX3:SER-001:T23",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-060",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SER-002:T24",
+        "requirement_id": "SER-002",
+        "title": "물리적 보안",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 24,
+            "xml_table_id": "1767072977",
+            "anchor": "SER-002 물리적 보안"
+          }
+        ],
+        "content_reference_key": "HWPX3:SER-002:T24",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-061",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SER-003:T25",
+        "requirement_id": "SER-003",
+        "title": "기술적 보안",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 25,
+            "xml_table_id": "1767072981",
+            "anchor": "SER-003 기술적 보안"
+          }
+        ],
+        "content_reference_key": "HWPX3:SER-003:T25",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-062",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SER-004:T26",
+        "requirement_id": "SER-004",
+        "title": "인력 보안",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 26,
+            "xml_table_id": "1772230118",
+            "anchor": "SER-004 인력 보안"
+          }
+        ],
+        "content_reference_key": "HWPX3:SER-004:T26",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-063",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SER-005:T27",
+        "requirement_id": "SER-005",
+        "title": "공통 보안 환경",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 27,
+            "xml_table_id": "1772230121",
+            "anchor": "SER-005 공통 보안 환경"
+          }
+        ],
+        "content_reference_key": "HWPX3:SER-005:T27",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-064",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SER-006:T28",
+        "requirement_id": "SER-006",
+        "title": "사업 수행 보안",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 28,
+            "xml_table_id": "1772230123",
+            "anchor": "SER-006 사업 수행 보안"
+          }
+        ],
+        "content_reference_key": "HWPX3:SER-006:T28",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-065",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SER-007:T29",
+        "requirement_id": "SER-007",
+        "title": "투입 인원 및 장비에 대한 보안",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 29,
+            "xml_table_id": "1772230125",
+            "anchor": "SER-007 투입 인원 및 장비에 대한 보안"
+          }
+        ],
+        "content_reference_key": "HWPX3:SER-007:T29",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-066",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SER-008:T30",
+        "requirement_id": "SER-008",
+        "title": "개발 및 정보시스템 연계보안",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 30,
+            "xml_table_id": "1809176337",
+            "anchor": "SER-008 개발 및 정보시스템 연계보안"
+          }
+        ],
+        "content_reference_key": "HWPX3:SER-008:T30",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-067",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:QUR-001:T31",
+        "requirement_id": "QUR-001",
+        "title": "기능 구현 정확성",
+        "category_original": "품질 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 31,
+            "xml_table_id": "1489469467",
+            "anchor": "QUR-001 기능 구현 정확성"
+          }
+        ],
+        "content_reference_key": "HWPX3:QUR-001:T31",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-068",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:QUR-002:T32",
+        "requirement_id": "QUR-002",
+        "title": "시험운영",
+        "category_original": "품질 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 32,
+            "xml_table_id": "1489469468",
+            "anchor": "QUR-002 시험운영"
+          }
+        ],
+        "content_reference_key": "HWPX3:QUR-002:T32",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-069",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:COR-001:T33",
+        "requirement_id": "COR-001",
+        "title": "정보화 기반 표준 준수",
+        "category_original": "제약사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 33,
+            "xml_table_id": "1489469469",
+            "anchor": "COR-001 정보화 기반 표준 준수"
+          }
+        ],
+        "content_reference_key": "HWPX3:COR-001:T33",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-070",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PMR-001:T34",
+        "requirement_id": "PMR-001",
+        "title": "사업수행관리",
+        "category_original": "프로젝트관리 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 34,
+            "xml_table_id": "1489469471",
+            "anchor": "PMR-001 사업수행관리"
+          }
+        ],
+        "content_reference_key": "HWPX3:PMR-001:T34",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-071",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PSR-001:T36",
+        "requirement_id": "PSR-001",
+        "title": "시험 운영",
+        "category_original": "프로젝트 지원 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 36,
+            "xml_table_id": "1489469475",
+            "anchor": "PSR-001 시험 운영"
+          }
+        ],
+        "content_reference_key": "HWPX3:PSR-001:T36",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-072",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PSR-002:T37",
+        "requirement_id": "PSR-002",
+        "title": "프로젝트 지원 요구사항",
+        "category_original": "프로젝트 지원 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 37,
+            "xml_table_id": "1772230140",
+            "anchor": "PSR-002 프로젝트 지원 요구사항"
+          }
+        ],
+        "content_reference_key": "HWPX3:PSR-002:T37",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-073",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PSR-003:T38",
+        "requirement_id": "PSR-003",
+        "title": "사업 수행사항 검사검수",
+        "category_original": "프로젝트 지원 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 38,
+            "xml_table_id": "1772230142",
+            "anchor": "PSR-003 사업 수행사항 검사검수"
+          }
+        ],
+        "content_reference_key": "HWPX3:PSR-003:T38",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-074",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PSR-004:T39",
+        "requirement_id": "PSR-004",
+        "title": "하자 보수",
+        "category_original": "프로젝트 지원 요구사항",
+        "locations": [
+          {
+            "section": "Contents/section0.xml",
+            "table_index_0based": 39,
+            "xml_table_id": "1772230145",
+            "anchor": "PSR-004 하자 보수"
+          }
+        ],
+        "content_reference_key": "HWPX3:PSR-004:T39",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "C06",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PER-003:T15",
+        "must_include_together": [
+          "3초 이하",
+          "3초 이상(100Mbps 인터넷 접속을 사용 시)",
+          "사용자에게 메시지로 알려야 함"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "일반 오류 시간과 대량 통계 예외를 함께 유지",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C07",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:ECR-001:T17",
+        "must_include_together": [
+          "(1/2)",
+          "(2/2)",
+          "5년 이상",
+          "영구 라이선스",
+          "42U이하",
+          "계약 후 14일 이내"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "1/2와 2/2를 하나의 논리 요구사항으로 연결",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C08",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:PMR-001:T34",
+        "must_include_together": [
+          "계약 후 14일 이내",
+          "최소 사업완료 2주 전",
+          "시스템 구축 명세서",
+          "취약점 점검",
+          "매뉴얼"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "중첩 산출물 표(T35)를 PMR-001에 포함",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C09",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SER-008:T30",
+        "must_include_together": [
+          "Sha-512 이상",
+          "보안로그 전송 금지",
+          "IP 기반으로 통제"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "암호화·전송 금지·통제 조건을 함께 유지",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C10",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "unit_key": "HWPX3:SFR-010:T11",
+        "must_include_together": [
+          "자동실적 집계 핵심지표는 발주사와 협의를 통하여 선정",
+          "ETL",
+          "SLA평가 보고서"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "자동 집계 대상 선정 조건 보존",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "R11",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "사용자가 응답을 요청한 시각으로부터 3초 내에 요청결과 조회",
+        "original_locator": {
+          "requirement_id": "PER-002",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 14,
+              "xml_table_id": "1767072960",
+              "anchor": "PER-002 시스템 성능"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "HWPX3:PER-002:T14"
+        ],
+        "expected_quote": "사용자가 응답을 요청한 시각으로부터 3초 내에 요청결과 조회",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "정상 인용",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R12",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "3초 이상(100Mbps 인터넷 접속을 사용 시)",
+        "original_locator": {
+          "requirement_id": "PER-003",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 15,
+              "xml_table_id": "1767072962",
+              "anchor": "PER-003 데이터 형식오류 응답시간"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "HWPX3:PER-003:T15"
+        ],
+        "expected_quote": "3초 이상(100Mbps 인터넷 접속을 사용 시)",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "예외 조건의 정상 인용",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R13",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "SIEM 연동 시에는 보안로그 전송 금지",
+        "original_locator": {
+          "requirement_id": "SER-008",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 30,
+              "xml_table_id": "1809176337",
+              "anchor": "SER-008 개발 및 정보시스템 연계보안"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "HWPX3:SER-008:T30"
+        ],
+        "expected_quote": "SIEM 연동 시에는 보안로그 전송 금지",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "부정 표현 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R14",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "사용자가 응답을 요청한 시각으로부터 3초 내에 요청결과 조회",
+        "original_locator": {
+          "requirement_id": "PER-001",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 13,
+              "xml_table_id": "1489469455",
+              "anchor": "PER-001 성능 일반 요구사항"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "HWPX3:PER-002:T14"
+        ],
+        "expected_quote": "사용자가 응답을 요청한 시각으로부터 3초 내에 요청결과 조회",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "다른 블록의 원문 복구",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R15",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "영구 라이선스로 제공해야",
+        "original_locator": {
+          "requirement_id": "ECR-001",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 0,
+              "xml_table_id": "1791226976",
+              "anchor": "ECR-001 시스템 도입"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "HWPX3:ECR-001:T17"
+        ],
+        "expected_quote": "영구 라이선스로 제공해야",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "동일 ID의 다른 요구사항 구분",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R16",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "보안확약서",
+        "original_locator": {
+          "requirement_id": "SER-001",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 22,
+              "xml_table_id": "1489469465",
+              "anchor": "SER-001 테스트 방안"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "HWPX3:SER-001:T23",
+          "HWPX3:SER-004:T26"
+        ],
+        "expected_quote": "보안확약서",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "테스트/보안 동일 ID 충돌 구분",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R17",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "사용자가 응답을 요청한 시각으로부터 10초 내에 요청결과 조회",
+        "original_locator": {
+          "requirement_id": "PER-002",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 14,
+              "xml_table_id": "1767072960",
+              "anchor": "PER-002 시스템 성능"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "다른 문서 숫자의 오염 방지",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R18",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "SIEM 연동 시에는 보안로그 전송 허용",
+        "original_locator": {
+          "requirement_id": "SER-008",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 30,
+              "xml_table_id": "1809176337",
+              "anchor": "SER-008 개발 및 정보시스템 연계보안"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "금지/허용 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R19",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "CPU 평균 사용률은 어느 조건 하에서도 90% 이하 유지",
+        "original_locator": {
+          "requirement_id": "PER-001",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 13,
+              "xml_table_id": "1489469455",
+              "anchor": "PER-001 성능 일반 요구사항"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "숫자 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R20",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "양자암호 기반 생체인증을 의무 적용한다",
+        "original_locator": {
+          "requirement_id": "SFR-002",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 3,
+              "xml_table_id": "1489469445",
+              "anchor": "SFR-002 계정 및 로그인"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "문서에 없는 근거",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R22",
+      "input": {
+        "mode": "research",
+        "document_id": "HWPX3",
+        "quote": "42U이하 서버랙 설치 면적으로 구성하여야 함",
+        "original_locator": {
+          "requirement_id": "ECR-001",
+          "locations": [
+            {
+              "section": "Contents/section0.xml",
+              "table_index_0based": 0,
+              "xml_table_id": "1791226976",
+              "anchor": "ECR-001 시스템 도입"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "HWPX3:ECR-001:T17"
+        ],
+        "expected_quote": "42U이하 서버랙 설치 면적으로 구성하여야 함",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "이어지는 표의 근거 복구",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "Q02",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "issue_type": "duplicate_id_distinct_requirements",
+        "affected_unit_keys": [
+          "HWPX3:ECR-001:T0",
+          "HWPX3:ECR-001:T17"
+        ],
+        "expectation": "required",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "시스템 도입과 하드웨어 및 소프트웨어 공통 요구사항이 ECR-001을 공유. T17/T18은 그중 후자의 연속 표이므로 충돌하는 논리 요구사항은 2개."
+      }
+    },
+    {
+      "id": "Q03",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "issue_type": "duplicate_id_distinct_requirements",
+        "affected_unit_keys": [
+          "HWPX3:ECR-002:T1",
+          "HWPX3:ECR-002:T19"
+        ],
+        "expectation": "required",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "시스템 설치와 하드웨어 및 소프트웨어 구성 요구사항이 ECR-002를 공유. 두 항목을 별도로 보존."
+      }
+    },
+    {
+      "id": "Q04",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "issue_type": "duplicate_id_distinct_requirements",
+        "affected_unit_keys": [
+          "HWPX3:SER-001:T22",
+          "HWPX3:SER-001:T23"
+        ],
+        "expectation": "required",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "테스트 방안과 관리적 보안이 SER-001을 공유. 서로 덮어쓰거나 합치지 않음."
+      }
+    },
+    {
+      "id": "Q05",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "issue_type": "identifier_category_inconsistency",
+        "affected_unit_keys": [
+          "HWPX3:SER-001:T22"
+        ],
+        "expectation": "review",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "SER-001 테스트 방안의 분류는 테스트 요구사항. 접두어/분류 불일치 검토 후보. TER-001이 정답이라고 자동 수정하지 않음."
+      }
+    },
+    {
+      "id": "Q06",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "issue_type": "continuation_is_not_duplicate",
+        "affected_unit_keys": [
+          "HWPX3:ECR-001:T17"
+        ],
+        "expectation": "negative",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "T17(1/2)과 T18(2/2) 자체는 별도 중복 요구사항이 아님. Q02의 실제 충돌과 구분."
+      }
+    },
+    {
+      "id": "Q08",
+      "input": {
+        "mode": "full",
+        "document_id": "HWPX3"
+      },
+      "expected_output": {
+        "issue_type": "nested_table_is_not_requirement",
+        "affected_unit_keys": [
+          "HWPX3:PMR-001:T34"
+        ],
+        "expectation": "negative",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "T35는 PMR-001의 산출물 목록 중첩 표. 요구사항 ID 누락으로 오탐하거나 별도 source로 세지 않음."
+      }
+    }
+  ]
+}

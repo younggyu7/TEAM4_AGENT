@@ -1,0 +1,615 @@
+{
+ "entities": [
+  {
+   "name": "qna_post",
+   "attributes": [
+    {
+     "name": "qna_post_id",
+     "label": "qna_post ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "question_title",
+     "label": "질문 제목",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "질문 제목"
+    },
+    {
+     "name": "question_content",
+     "label": "질문 내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "질문 내용"
+    },
+    {
+     "name": "questioner_id",
+     "label": "질문자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "질문자"
+    },
+    {
+     "name": "answer_content",
+     "label": "답변",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "답변"
+    },
+    {
+     "name": "answerer_id",
+     "label": "답변자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "답변자"
+    },
+    {
+     "name": "answered_at",
+     "label": "답변 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "답변 일시"
+    },
+    {
+     "name": "visible_yn",
+     "label": "공개 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "공개 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "dashboard",
+   "attributes": [
+    {
+     "name": "dashboard_id",
+     "label": "dashboard ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "dashboard_name",
+     "label": "대시보드명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대시보드명"
+    },
+    {
+     "name": "owner_id",
+     "label": "소유자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "소유자"
+    },
+    {
+     "name": "visible_role_codes",
+     "label": "공개 역할",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "공개 역할"
+    },
+    {
+     "name": "layout_json",
+     "label": "배치",
+     "data_type": "jsonb",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "배치"
+    },
+    {
+     "name": "default_yn",
+     "label": "기본 대시보드 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "기본 대시보드 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "dashboard_widget",
+   "attributes": [
+    {
+     "name": "dashboard_widget_id",
+     "label": "dashboard_widget ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "dashboard_id",
+     "label": "대시보드",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "dashboard",
+     "allowed_values": [],
+     "description": "대시보드"
+    },
+    {
+     "name": "widget_type",
+     "label": "위젯 유형",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "COUNT",
+      "CHART",
+      "TABLE",
+      "KPI",
+      "EVENT"
+     ],
+     "description": "위젯 유형"
+    },
+    {
+     "name": "title",
+     "label": "제목",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "제목"
+    },
+    {
+     "name": "data_source",
+     "label": "데이터 소스",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "데이터 소스"
+    },
+    {
+     "name": "sla_indicator_id",
+     "label": "표시 지표",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "sla_indicator",
+     "allowed_values": [],
+     "description": "표시 지표"
+    },
+    {
+     "name": "position_json",
+     "label": "위치·크기",
+     "data_type": "jsonb",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "위치·크기"
+    },
+    {
+     "name": "refresh_seconds",
+     "label": "갱신 주기(초)",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "갱신 주기(초)"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "monitoring_event",
+   "attributes": [
+    {
+     "name": "monitoring_event_id",
+     "label": "monitoring_event ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "source_system",
+     "label": "발생 시스템",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "EMS",
+      "NMS",
+      "SIEM",
+      "NAC",
+      "OTHER"
+     ],
+     "description": "발생 시스템"
+    },
+    {
+     "name": "external_event_id",
+     "label": "원천 이벤트 ID",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "원천 이벤트 ID"
+    },
+    {
+     "name": "configuration_item_id",
+     "label": "대상 구성항목",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "configuration_item",
+     "allowed_values": [],
+     "description": "대상 구성항목"
+    },
+    {
+     "name": "severity",
+     "label": "등급",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "INFO",
+      "WARNING",
+      "MAJOR",
+      "CRITICAL"
+     ],
+     "description": "등급"
+    },
+    {
+     "name": "message",
+     "label": "이벤트 내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "이벤트 내용"
+    },
+    {
+     "name": "occurred_at",
+     "label": "발생 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "발생 일시"
+    },
+    {
+     "name": "received_at",
+     "label": "수신 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수신 일시"
+    },
+    {
+     "name": "status",
+     "label": "처리 상태",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "NEW",
+      "ACKNOWLEDGED",
+      "TICKETED",
+      "CLOSED"
+     ],
+     "description": "처리 상태"
+    },
+    {
+     "name": "service_request_id",
+     "label": "전환된 요청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "service_request",
+     "allowed_values": [],
+     "description": "전환된 요청"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "ci_type",
+   "attributes": [
+    {
+     "name": "ci_type_id",
+     "label": "ci_type ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "type_code",
+     "label": "유형 코드",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "유형 코드"
+    },
+    {
+     "name": "type_name",
+     "label": "유형명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "유형명"
+    },
+    {
+     "name": "parent_ci_type_id",
+     "label": "상위 유형",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "ci_type",
+     "allowed_values": [],
+     "description": "상위 유형"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  }
+ ]
+}

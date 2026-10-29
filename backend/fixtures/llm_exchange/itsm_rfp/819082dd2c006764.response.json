@@ -1,0 +1,273 @@
+{
+ "functions": [
+  {
+   "name": "SLA 지표 Pool 관리",
+   "description": "IT서비스 수준 지표와 지표별 정의·측정 방법·측정 주기를 지표 Pool에 등록·관리한다.",
+   "requirement_ids": [
+    "SFR-010-01",
+    "SFR-010-02"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "SLA 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "지표명",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "정의·산식",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "측정 방법",
+     "description": "쿼리·프로시저·ETL·수기",
+     "required": true
+    },
+    {
+     "name": "측정 주기",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "SLA 지표",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "지표 코드는 유일하다"
+   ],
+   "normal_flow": [
+    "관리자가 지표를 등록한다",
+    "측정 방법과 주기를 지정한다",
+    "Pool에 저장한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "지표 코드 중복",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "SLA 지표"
+   ]
+  },
+  {
+   "name": "서비스별 지표 적용",
+   "description": "지표 Pool에서 서비스별로 적용할 지표를 선택한다.",
+   "requirement_ids": [
+    "SFR-010-02"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "SLA 관리자"
+   ],
+   "preconditions": [
+    "서비스와 지표가 등록됨"
+   ],
+   "inputs": [
+    {
+     "name": "서비스",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "지표",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "가중치",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "서비스 지표",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "한 서비스에 같은 지표를 두 번 적용할 수 없다"
+   ],
+   "normal_flow": [
+    "관리자가 서비스를 선택한다",
+    "Pool에서 지표를 고른다",
+    "가중치를 지정해 저장한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "중복 적용",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "IT 서비스",
+    "서비스 지표"
+   ]
+  },
+  {
+   "name": "지표 목표 설정",
+   "description": "서비스 지표별로 기간 목표값을 등록한다.",
+   "requirement_ids": [
+    "SFR-010-03"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "SLA 관리자"
+   ],
+   "preconditions": [
+    "서비스 지표가 적용됨"
+   ],
+   "inputs": [
+    {
+     "name": "기간",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "목표값",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "지표 목표",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "같은 기간 목표는 하나다"
+   ],
+   "normal_flow": [
+    "관리자가 서비스 지표를 선택한다",
+    "기간과 목표값을 입력한다",
+    "저장한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "기간 중복",
+     "handling": "수정으로 처리"
+    }
+   ],
+   "data_objects": [
+    "지표 목표"
+   ]
+  },
+  {
+   "name": "지표 실적 수집·자동 집계",
+   "description": "지표별 측정 방법(쿼리·프로시저·ETL)으로 실적을 주기적으로 자동 집계하거나 수기로 등록하고, 목표 대비 달성 여부를 계산한다.",
+   "requirement_ids": [
+    "SFR-010-03",
+    "SFR-010-04",
+    "SFR-010-05"
+   ],
+   "nfr_ids": [
+    "PER-003-03"
+   ],
+   "actors": [
+    "시스템",
+    "SLA 관리자"
+   ],
+   "preconditions": [
+    "지표의 측정 방법이 설정됨"
+   ],
+   "inputs": [
+    {
+     "name": "집계 기간",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "지표 실적",
+     "description": "실적값·달성 여부·수집 방법",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) 자동 집계 대상 핵심 지표는 협의 후 지정한다 (요구사항 상태 OPEN)",
+    "자동 집계값을 수정하면 수정 사유를 남긴다"
+   ],
+   "normal_flow": [
+    "정해진 주기에 집계 작업을 시작한다",
+    "지표별 측정 방법을 실행한다",
+    "실적을 저장한다",
+    "목표 대비 달성 여부를 계산한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "측정 실패",
+     "handling": "실패 기록 후 수기 입력 안내"
+    }
+   ],
+   "data_objects": [
+    "지표 실적"
+   ]
+  },
+  {
+   "name": "SLA 평가 보고서",
+   "description": "서비스·기간별 SLA 평가 보고서를 생성·조회하고 Excel 다운로드·출력한다.",
+   "requirement_ids": [
+    "SFR-010-06"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "SLA 관리자"
+   ],
+   "preconditions": [
+    "해당 기간 실적이 있음"
+   ],
+   "inputs": [
+    {
+     "name": "서비스",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "평가 기간",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "SLA 평가 보고서",
+     "description": "지표별 목표·실적·점수",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "보고서는 생성 시점의 실적을 확정 값으로 저장한다"
+   ],
+   "normal_flow": [
+    "관리자가 서비스와 기간을 선택한다",
+    "지표별 목표·실적으로 평가한다",
+    "보고서를 저장한다",
+    "조회·Excel 다운로드·출력한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "실적 누락 지표",
+     "handling": "미집계로 표시"
+    }
+   ],
+   "data_objects": [
+    "SLA 평가 보고서",
+    "지표 실적"
+   ]
+  }
+ ]
+}

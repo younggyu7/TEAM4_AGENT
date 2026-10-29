@@ -1,0 +1,35 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SFR-008", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "CMDB 구성정보 관리", "description": "정보시스템과 IT 자원의 환경정보를 관리하는 CMDB를 구축한다.", "priority": "MUST",
+     "acceptance_criteria": ["구성항목(CI) 등록·수정·조회", "CI 간 관계 관리"],
+     "evidence": [{"source_block_id": "B0085", "quote": "정보시스템 및 IT자원 환경정보를 관리하는 CMDB* 구축"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SFR-008", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "CMDB 관리항목 조정", "description": "표준 CMDB 모델에 대한적십자사 특성과 요구를 반영해 관리 정보 항목을 조정한다.", "priority": "MUST",
+     "acceptance_criteria": ["CI 유형별 관리 속성 추가·삭제·수정"],
+     "evidence": [{"source_block_id": "B0085", "quote": "솔루션에서 제공하는 표준 CMDB 모델에 대한적십자사 특성 및 요구사항을 반영한 관리정보 항목 조정"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SFR-008", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "구성·변경관리 업무처리", "description": "구성관리와 변경관리 업무 처리를 관리한다.", "priority": "MUST",
+     "acceptance_criteria": ["변경 건 승인 후 대상 CI 정보 갱신", "CI 변경 이력 조회"],
+     "evidence": [{"source_block_id": "B0085", "quote": "구성관리, 변경관리 업무처리 관리"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SFR-008", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "관제시스템 연동 구성정보 자동수집", "description": "관제시스템(EMS, NMS, SIEM 등)과 연동해 서버·네트워크·보안장비 구성정보를 자동 수집·관리한다.", "priority": "MUST",
+     "acceptance_criteria": ["EMS·NMS·SIEM에서 구성정보를 주기적으로 수집", "수집 결과와 CMDB 차이 표시"],
+     "evidence": [{"source_block_id": "B0085", "quote": "관제시스템(EMS, NMS, SIEM 등)과 연동하여 서버, 네트워크, 보안장비의 구성정보를 자동수집 및 관리"}],
+     "status": "CONFIRMED"},
+    {"key": "R5", "source_key": "SFR-008", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "IT자산관리와 CMDB 연동", "description": "IT자산관리(시스템·서비스)와 CMDB를 연동한다.", "priority": "MUST",
+     "acceptance_criteria": ["자산 정보와 CI가 서로 연결·동기화"],
+     "evidence": [{"source_block_id": "B0085", "quote": "CMDB는 IT자산관리시스템와 연동 될 수 있도록 구축"}, {"source_block_id": "B0085", "quote": "IT자산관리서비스와 CMDB와 연동 구축"}],
+     "status": "ASSUMED"}
+  ],
+  "questions": [
+    {"kind": "CONFLICT", "question": "IT자산관리는 이번 ITSM에 구축하는 기능입니까, 기존 시스템과 연계만 합니까?",
+     "context": "SFR-008은 'IT자산관리시스템'과 연동을 요구하고, 요구사항 목록표(B0073)에는 SFR-010 'IT자산관리 서비스'가 있으나 상세 표의 SFR-010은 'IT서비스 수준관리 서비스'다. 자산관리 상세 요구가 누락되었는지 확인이 필요하다.",
+     "options": ["ITSM 안에 IT자산관리 기능을 구축(목록표의 'IT자산관리 서비스')", "기존 자산관리시스템과 데이터 연계만 구현"],
+     "requirement_keys": ["R5"], "evidence_block_ids": ["B0085", "B0073"], "blocking": true}
+  ]
+}

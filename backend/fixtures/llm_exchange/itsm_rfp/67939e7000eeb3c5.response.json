@@ -1,0 +1,20 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SER-006", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "보안대책 강구·대표자 보안각서", "description": "과업 수행 관련 보안대책을 강구하고 대표자 명의의 보안각서를 제출한다.", "priority": "MUST",
+     "acceptance_criteria": ["대표자 보안각서 제출"],
+     "evidence": [{"source_block_id": "B0110", "quote": "제반 보안대책을 강구 하여야 하며 대표자 명의의 보안각서를 제출하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SER-006", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "발주기관 보안점검·지시 수용", "description": "발주기관의 보안관리 상태 점검과 보안상 필요한 지시를 수용한다.", "priority": "MUST",
+     "acceptance_criteria": ["보안점검 지적사항 조치"],
+     "evidence": [{"source_block_id": "B0110", "quote": "보안상 필요한 모든 지시를 할 수 있으며 제안사는 이를 수용하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SER-006", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "발주기관 정보 유출 금지", "description": "과업 중 취득한 발주기관 정보·자료를 외부로 유출하지 않으며 위반 시 손해배상·제재 등 책임을 진다.", "priority": "MUST",
+     "acceptance_criteria": ["유출 사고 없음"],
+     "evidence": [{"source_block_id": "B0110", "quote": "발주기관 관련 정보나 자료를 외부로 유출할 수 없으며"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

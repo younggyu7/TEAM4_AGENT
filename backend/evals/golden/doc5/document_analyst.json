@@ -1,0 +1,2340 @@
+{
+  "meta": {
+    "name": "document_analyst 튜닝용 골든셋 (고객요구사항5)",
+    "version": "0.1",
+    "split": "tuning",
+    "created_date": "2026-10-26",
+    "status": "draft_pending_domain_review",
+    "expected_outputs_reviewed_by_human": false,
+    "purpose": "파싱·논리 요구사항 단위·원문 품질·인용문 검증/복구 규칙 튜닝",
+    "total_cases": 55,
+    "total_reference_units": 36,
+    "case_counts": {
+      "전체 추출 목록": 1,
+      "요구사항 추출 및 내용 보존": 36,
+      "청킹 완결성": 5,
+      "정상 인용": 1,
+      "원문 ID 이상이 있는 정상 인용": 1,
+      "이용 조건": 1,
+      "다른 블록의 원문 복구": 1,
+      "비슷한 시간 기준 블록에서 복구": 1,
+      "접두어 이상 블록 검색": 1,
+      "숫자 변조": 1,
+      "버전 변조": 1,
+      "대상 제한 변조": 1,
+      "문서에 없는 근거": 1,
+      "줄바꿈 정규화": 1,
+      "문서 품질 검사": 2
+    },
+    "no_agent_execution_performed": true,
+    "evaluation_policy": "strict_quote_integrity_v1",
+    "policy_note": "숫자/버전/부정 표현/대상이 변조된 인용문은 유사 원문을 찾아도 자동 verified하지 않음. 현행 0.6 재연결 동작보다 엄격한 개선 목표. 후보 제시+미확인 유지 허용.",
+    "provenance": "AI가 원문 PDF 텍스트·페이지 이미지 및 HWPX XML을 확인해 작성. HWPX 전체 페이지 렌더링은 수행하지 않음. 담당자의 정답 검수 후 v1.0 확정 권장.",
+    "split_from": "golden_tuning_v0.1.json (처음 받은 문서 3·5 묶음 파일. 지금은 지움. 내용은 그대로, 이 문서의 정답 단위와 사례만 옮김)"
+  },
+  "documents": [
+    {
+      "document_id": "PDF5",
+      "file_name": "고객요구사항5.pdf",
+      "source_path": "data/고객요구사항5.pdf",
+      "sha256": "67f54f3d71b1e1682e8f4bbc01e5bfc459531c3fce07e3482852b41546c792de",
+      "format": "PDF",
+      "pdf_page_count": 22,
+      "printed_page_range": [
+        8,
+        29
+      ],
+      "expected_logical_units": 36
+    }
+  ],
+  "normalization": {
+    "unicode": "NFC",
+    "ignore_whitespace": true,
+    "preserve": [
+      "숫자",
+      "단위",
+      "부정 표현",
+      "예외 조건",
+      "원문 ID",
+      "날짜/버전"
+    ],
+    "note": "문자 포함 검사는 보조 검사. 표 행/열 대응과 완결성은 별도로 검수."
+  },
+  "adapter_contract": {
+    "note": "document_analyst.py 미제공. 아래 키는 평가 전용 스키마이며 실행 옵션/실제 반환 필드가 아님.",
+    "unit_matching": "문서 + 원문 ID + 제목 + 원문 위치. ID 단독 매칭 금지.",
+    "locations": "PDF pdf_page_1based=파일 기준 1부터; printed_page=인쇄 번호. HWPX table_index_0based=section의 .//hp:tbl 순서 0부터(중첩 표 포함).",
+    "state_mapping": {
+      "verified": "기존 위치에서 확인",
+      "relinked": "다른 올바른 위치에 재연결",
+      "unconfirmed": "검증 불가 또는 후보 검토 필요, ⚠미확인 유지"
+    },
+    "chunk_policy": "reference_unit은 논리 단위. 물리 블록은 여러 개여도 source가 통합 참조하고 함께 전달하면 허용. 서로 다른 요구사항은 분리.",
+    "restricted_options": "전체 목록 시험은 --only/--max-sources 미사용. 필터/상한 순서는 코드 확인 전 평가 대상에서 제외."
+  },
+  "coverage_limits": [
+    "두 문서 모두 튜닝용. 최종 평가 성능을 주장할 수 없음.",
+    "TXT/DOCX, 텍스트층 없는 PDF 양성 사례, 실제 번호 누락 확정 사례는 미포함.",
+    "HWPX 연속 표는 (1/2)(2/2) 표식으로 확인. 페이지를 넘는지 여부는 확인하지 않음.",
+    "실제 DOC_* 코드와 반환 형식 미확인. issue_type은 평가용 의미 라벨.",
+    "LLM 토큰/호출/재시도/시간/메모리 실측은 별도 실행 필요.",
+    "원문 내 법령/기술 요건은 추출 대상 데이터이며 현실의 유효성이나 적합성을 검증한 것이 아님."
+  ],
+  "reference_units": [
+    {
+      "unit_key": "PDF5:ECR-001",
+      "document_id": "PDF5",
+      "requirement_id": "ECR-001",
+      "title": "시스템 활용",
+      "category_original": "시스템 장비 구성 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 1,
+          "printed_page": 8,
+          "anchor": "ECR-001 시스템 활용"
+        }
+      ],
+      "reference_text": "정의 디지털 운행관리 플랫폼을 안정적으로 운영하기 위해 필요한 인프라 환경을 정의함. 기본적인 서버·DB·WAS 등 시스템 환경을 구성하고, 보안·확장성·표준화를 고려한 설계를 통해 장기적인 유지보수와 고도화가 가능하도록 함.\n세부내용\n• (서버구성) 운영 서버(1대)와 테스트 서버(1대)로 구성 - 사용량에 따라 서버간 교체 및 이중화 - 상세 서버구성은 재단 관리자를 통해 열람 가능 • (OS) Rocky Linux - 기반 서버 환경 구축• (DB) Oracle DB - 데이터 무결성·백업 기능 포함• (WAS) Resin(운영), Apache Tomcat(테스트, 개발사 설정)  - 세션 관리 및 부하분산 고려• (개발언어) 안드로이드 기반(APP), Java 기반 플랫폼(WEB)• (보안) SSL 암호화 통신, 본인인증 체계, RBAC 기반 접근제어, 공공기관 기반 암호화 알고리즘• (확장성) API 기반 설계, 외부 행정·세무 시스템 연동 대비• (운영관리) 모니터링 시스템 구축, 장애 발생 시 자동 복구 체계",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SFR-001",
+      "document_id": "PDF5",
+      "requirement_id": "SFR-001",
+      "title": "플랫폼 기능 정의",
+      "category_original": "기능 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 2,
+          "printed_page": 9,
+          "anchor": "SFR-001 플랫폼 기능 정의"
+        }
+      ],
+      "reference_text": "정의 화물차 디지털 운행관리 플랫폼의 기본 기능 요구에 대해 정의함.\n세부내용\n1.사용자 APP• (인트로) 회원가입 및 로그인에 대한 기본 화면 제공 - 서비스 점검 등 이슈 발생 시 알림 기능 제공• (회원가입 및 로그인) 약관 동의를 안내하며, 회원가입이 가능하도록 함. - 회원가입 시 ‘화물운송종사자격증’ 진위 여부를 확인할 수 있는 기능을 제공해야 함. - 회원가입 시 필요한 데이터 정의\n  \n기본 회원정보(필수)이름 / 아이디(ID) / 비밀번호(PW) / 휴대폰 번호(SMS 및 외부 인증서를 이용한 본인인증 필요)차량정보(필수)차종 / 톤수 / 차량번호 / 화물운송종사자격증(API를 통한 체크 또는 사용자 직접입력 후 자격증 파일 첨부)기타정보(선택)필요시 정보 추가 - ID/PW 찾기 관련 기능 및 자동 로그인에 대한 기능 제공 - 관리자에게 승인받은 회원만 서비스 이용 가능2. 관리자 WEB• (로그인 화면) 기본적으로 슈퍼관리자 계정을 제공하며, 슈퍼관리자를 통해 계정을 생성·관리 가능• (회원관리) 회원 및 차량정보를 관리할 수 있는 페이지 제공• (통계) 일상점검 및 운행정보 등을 확인할 수 있는 페이지 제공 - 회원 이용 정보 제공• (게시판 관리) APP 게시판 서비스를 관리할 수 있는 기능 제공• (푸시 및 팝업관리) 푸시메시지 및 팝업 서비스 관리• (관리자 접속기록) 개인정보보호법 제29조에 따라 개인정보취급자가 접속한 기록을 보관·조회·분석·관리 가능한 페이지 제공",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SFR-002",
+      "document_id": "PDF5",
+      "requirement_id": "SFR-002",
+      "title": "디지털 일상점검",
+      "category_original": "기능 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": 10,
+          "anchor": "SFR-002 디지털 일상점검"
+        }
+      ],
+      "reference_text": "정의 운전자의 의무 점검 항목을 디지털화하여 모바일 기반 점검 시스템으로 제공, 점검 이행을 체계적으로 관리하고 법령 준수 및 안전운행을 지원함.세부내용• (점검항목) 외관, 등화장치, 타이어, 안전장치 등 법정항목 탑재• (입력방식) 체크박스 기반 정상/이상 여부 기록 및 사진 첨부• (저장) 점검 완료 후 서버 자동 저장 / 운전자, 차량별 이력관리• (알림) 미점검 시 APP 푸시 알림 / 관리자 대시보드 현황 확인• (분석) 점검결과 통계화 / 이상 발생항목 집계 / 정비관리 모듈 연계• (보고서) 엑셀 다운로드 / 제출용 보고서 자동 생성",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SFR-003",
+      "document_id": "PDF5",
+      "requirement_id": "SFR-003",
+      "title": "운행정보 관리",
+      "category_original": "기능 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": 10,
+          "anchor": "SFR-003 운행정보 관리"
+        }
+      ],
+      "reference_text": "정의 운행거리 입출력 항목을 생성하여 출발·도착 정보 및 운행거리를 기록·관리함.세부내용• 운행거리 기록 및 산출(계기판 정보 및 수기입력 / 촬영 이미지 저장)• 기간별 집계(일/주/월/분기/연간 등)• 일상점검항목 입력시 주행거리 동시 입력• 데이터 미입력 시 푸시메시지를 통한 알림을 제공하며, 항시 최신 데이터를 사용자가 입력할 수 있도록 유도해야 함.",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SFR-004",
+      "document_id": "PDF5",
+      "requirement_id": "SFR-004",
+      "title": "스마트 차계부",
+      "category_original": "기능 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": 10,
+          "anchor": "SFR-004 스마트 차계부"
+        }
+      ],
+      "reference_text": "정의 운행정보 및 비용데이터를 기록·관리하여 누락방지 및 효율성을 강화함.세부내용• (비용관리) 유류비, 통행료, 정비비, 보험료 등 지출 관리• (수익관리) 운행수입 기록 및 수익률 자동 계산• (OCR 인식) 영수증 자동인식 / 항목별 추출 / 원본 이미지 저장",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SFR-005",
+      "document_id": "PDF5",
+      "requirement_id": "SFR-005",
+      "title": "정비관리",
+      "category_original": "기능 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 4,
+          "printed_page": 11,
+          "anchor": "SFR-005 정비관리"
+        }
+      ],
+      "reference_text": "정의 차량 정비 이력과 검사 결과를 디지털화하여 예방정비와 이력관리를 체계적으로 수행함.\n세부내용\n• 정비일자·항목·비용·정비소 기록 가능• 스마트 차계부와 자료 연동 및 함께 기록할 수 있는 기능 제공• 주행거리·교체기간 기반 정비에 대해 푸시 알림 제공• 차량 등록정보와 연계한 정기검사·종합검사 일정 관리• 페이지 항목 구성 - (정비종류) 사고수리 / 외장수리 / 일반수리 / 타이어수리 - (정비모드) 정비소 / 자가정비 - (입력항목) 주행거리 / 사진 / 지출금액 / 메모• 정비 항목별 기간 및 주행거리 기준\n \n정비 항목기간(월)주행거리(km)에어컨필터6 5,000 와이퍼 블레이드12 8,000 타이어36 60,000 에어클리너 필터12 20,000 브레이크 오일24 45,000 배터리36 60,000 브레이크 패드60 60,000 브레이크 디스크60 60,000 미션오일60 100,000 구동벨트72 100,000 타이밍벨트72 100,000 점화플러그- 100,000 엔진오일/오일필터(대형) 5t 이상6 20,000 엔진오일/오일필터(소형) 1~5t 미만6 7,000 연료필터24 40,000 냉각수24 50,000 팬벨트/타이밍벨트60 100,000",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SFR-006",
+      "document_id": "PDF5",
+      "requirement_id": "SFR-006",
+      "title": "고도화 기능",
+      "category_original": "기능 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": 12,
+          "anchor": "SFR-006 고도화 기능"
+        }
+      ],
+      "reference_text": "정의 향후 운전자 편의 성과 데이터 활용성 극대화를 위한 고도화 수행 시 확장 기반을 마련함.세부내용• (커뮤니티) 기본 게시판 및 채팅 / 정비소·휴게소 추천 / 공지사항 전달• (음성인식) 점검·운행일지·차계부 등 음성 입력 지원• (OCR) 영수증 촬영 시 자동 인식 / 비용 카테고리 분류 • (데이터 시각화) 기본 대시보드 제공 / 그래프 및 차트 분석 • (보안) 관련 기능 수행 시 개인정보 및 정보보안 등 문제되지 않도록 시스템 구성",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PER-001",
+      "document_id": "PDF5",
+      "requirement_id": "PER-001",
+      "title": "사용자 환경",
+      "category_original": "성능 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": 12,
+          "anchor": "PER-001 사용자 환경"
+        }
+      ],
+      "reference_text": "정의 다양한 사용자 환경(모바일 앱, 웹 브라우저, 태블릿 등)에서 동일한 성능과 사용자 경험을 제공해야 함. 반응형 UI/UX 설계와 멀티 디바이스 호환성을 통해 구현되며, 운전자·관리자 모두가 장소와 기기에 구애받지 않고 서비스를 이용할 수 있도록 함.\n세부내용• (반응형 웹 설계) HTML5, CSS3, JavaScript 기반 반응형 레이아웃 적용• (모바일 앱 지원) Android 앱 제공 / 푸시 알림 기능 / OCR 및 음성인식 관련 기능 제공• (브라우저 호환성) 크로미움 기반 웹 브라우저 지원• (성능 최적화) 이미지·데이터 압축• (접근성 준수) 고령의 화물운전자를 고려한 접근성 확보• (테스트 기준) 다양한 기기·환경에서 성능 테스트 수행",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PER-002",
+      "document_id": "PDF5",
+      "requirement_id": "PER-002",
+      "title": "실시간 알림",
+      "category_original": "성능 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": 13,
+          "anchor": "PER-002 실시간 알림"
+        }
+      ],
+      "reference_text": "정의 운행·점검·정비 등 주요 이벤트 발생 시 실시간 알림을 제공하여 운전자와 관리자 모두가 즉시 대응할 수 있도록 함. 푸시 메시지, SMS 등을 통해 전달되며, 안전성과 업무 효율성을 동시에 확보함.세부내용• (알림 이벤트) 미점검, 정비주기 도래, 운행 시작/종료, 이상 데이터 발생 등• (알림채널) 모바일 앱 푸시, SMS, 관리자 대시보드 알림• (성능기준) 이벤트 발생 후 10초 이내 알림 전달• (사용자 설정) 알림 종류·수신 채널 사용자별 맞춤 설정 가능• (로그관리) 알림 발송 내역 기록 및 실패 시 재전송 기능",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PER-003",
+      "document_id": "PDF5",
+      "requirement_id": "PER-003",
+      "title": "데이터 및 오류 처리",
+      "category_original": "성능 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": 13,
+          "anchor": "PER-003 데이터 및 오류 처리"
+        }
+      ],
+      "reference_text": "정의 운행정보, 점검내역, 비용데이터, 정비이력 등 데이터를 안정적으로 처리하고, 분석 및 대시보드에 활용할 수 있도록 함. 서비스 최적화, 시스템 확장성 및 안정성을 보장함.세부내용• (성능기준) 모든 오류에 대한 안내 메시지는 최대 10초 내로 빠른 시간에 제공되어야 함.• (오류확인) 오류코드는 관리자에게만 공개되어야 하며, 관리자가 즉시 인지할 수 있도록 함.",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SIR-001",
+      "document_id": "PDF5",
+      "requirement_id": "SIR-001",
+      "title": "인터페이스",
+      "category_original": "인터페이스 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 7,
+          "printed_page": 14,
+          "anchor": "SIR-001 인터페이스"
+        }
+      ],
+      "reference_text": "정의 디지털 운행관리 플랫폼은 내부 모듈 간, 외부 시스템과의 연동을 위해 표준화된 API 기반 인터페이스를 제공해야 함. 데이터 교환의 안정성·보안성·확장성을 보장하며, 향후 고도화 기능 추가 시에도 유연하게 대응할 수 있도록 함.\n세부내용\n• (API 설계) RESTful API, JSON/XML 포맷 지원• (인증체계) OAuth2.0(카카오, 네이버 등), JWT 기반 인증·권한 관리• (외부연동) 외부 시스템, GPS·센서 데이터 / OCR 엔진 등과 연동 대비• (버전관리) API 버전 관리 체계 구축 / 하위 호환성 유지• (보안) SSL/TLS 암호화 / API Gateway 통한 접근제어• (그 외 요구사항)  - 화면 레이아웃 표준화, 코드화, 중복 최소화 및 입력 편의성 반영 - 화면 표준화(디자인, 색상, 폰트, 각종 실행버튼 등) 및 용어의 표준화 - 사용자 편의성 향상 및 확장성 고려 - 공통기능의 유지보수가 용이하도록 기능에 대한 모듈화로 재사용이 가능하도록 설계하고 표준 관리 체계를 마련",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:DAR-001",
+      "document_id": "PDF5",
+      "requirement_id": "DAR-001",
+      "title": "데이터 표준화",
+      "category_original": "데이터 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 8,
+          "printed_page": 15,
+          "anchor": "DAR-001 데이터 표준화"
+        }
+      ],
+      "reference_text": "정의 플랫폼 내 점검·운행·비용·정비 데이터의 구조를 표준화하여 일관성·무결성·재사용성을 확보함. 사용자의 니즈를 파악하여 명확한 정보를 제공해야 함.세부내용• 표준 데이터 모델 정의 (ERD, 스키마 설계)• 데이터 타입·코드·용어 표준화• 데이터 무결성이 검증된 정보 제공• 외부 시스템 연동 시 표준 인터페이스 적용• 엑셀 및 PDF 다운로드 지원 - 법정 준수 양식이 있을 경우, 해당 양식에 부합하도록 제공• 사용자에게 직관성 있는 정보를 대쉬보드 형태로 제공",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:DAR-002",
+      "document_id": "PDF5",
+      "requirement_id": "DAR-002",
+      "title": "엑셀·PDF 다운로드",
+      "category_original": "데이터 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 8,
+          "printed_page": 15,
+          "anchor": "DAR-002 엑셀·PDF 다운로드"
+        }
+      ],
+      "reference_text": "정의 사용자가 엑셀 및 PDF 파일로 내보낼 수 있어야 함.세부내용• 서버 저장• 엑셀 다운로드 기능 - 법정 준수 양식이 있을 경우, 해당 양식에 부합하도록 제공",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:DAR-003",
+      "document_id": "PDF5",
+      "requirement_id": "DAR-003",
+      "title": "분석 및 시각화",
+      "category_original": "데이터 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 8,
+          "printed_page": 15,
+          "anchor": "DAR-003 분석 및 시각화"
+        }
+      ],
+      "reference_text": "정의 운행·소득·지출·정비 데이터를 대시보드에서 분석 및 시각화함.세부내용• 차량별·운전자별·기간별 분석• 상황에 따른 분석 리포트 생성",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:TER-001",
+      "document_id": "PDF5",
+      "requirement_id": "TER-001",
+      "title": "기능 테스트",
+      "category_original": "테스트 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": 16,
+          "anchor": "TER-001 기능 테스트"
+        }
+      ],
+      "reference_text": "정의 시스템의 모든 기능이 요구사항 정의서에 따라 정상적으로 동작하는지 검증함. 기능 테스트는 단위(Unit), 통합(Integration), 시스템(System) 단계로 수행됨.\n세부내용\n• (단위 테스트) 각 모듈별 독립 기능 검증   예시 - 점검 항목 체크박스 입력 정상 여부• (통합 테스트) 모듈 간 연계 검증  예시 - 점검 결과 → 예외사항 명시 / 정비관리 연동• (시스템 테스트) 전체 시스템 시나리오 기반 검증   예시 - 운행일지 작성 → 비용 자동 반영 → 보고서 생성• (테스트 케이스 작성) 요구사항 추적 매트릭스(RTM) 기반으로 모든 기능 커버 및 보고서 작성• (성과지표) 실행 결과를 반영하며, 기능상 validation이 명확히 노출되는 지 확인",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:TER-002",
+      "document_id": "PDF5",
+      "requirement_id": "TER-002",
+      "title": "호환성 테스트",
+      "category_original": "테스트 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": 16,
+          "anchor": "TER-002 호환성 테스트"
+        }
+      ],
+      "reference_text": "정의 시스템이 다양한 운영체제(OS), 브라우저, 모바일 기기에서 동일한 성능과 사용자 경험을 제공하는지 검증함.\n세부내용\n• (OS 호환성) Windows, Linux, Android 환경에서 정상 동작 검증• (브라우저 호환성) Chrome, Edge, Whale 등 크로미움 기반의 브라우저 지원 여부 확인• (모바일 기기 호환성) 다양한 해상도·디바이스에서 안드로이드 기기 지원 테스트• (네트워크 환경 테스트) 3G, LTE, 5G, Wi-Fi 환경에서 성능 검증• (사용자 시나리오 테스트) 실제 운전자·관리자 시나리오 기반 다중 환경 검증",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SER-001",
+      "document_id": "PDF5",
+      "requirement_id": "SER-001",
+      "title": "사용자 인증",
+      "category_original": "보안 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 10,
+          "printed_page": 17,
+          "anchor": "SER-001 사용자 인증"
+        }
+      ],
+      "reference_text": "정의 시스템 접근 시 사용자 신원 확인 및 인증 절차를 통해 불법 접근을 차단하고, 계정 도용·권한 오남용을 예방함. 인증은 다중 인증(MFA)을 포함하여 보안 수준을 강화하며, 운전자·관리자·정비소 등 역할별로 차등 적용함.\n세부내용\n• (인증 방식) ID/PW 기본 인증 / SMS 및 인증서 이용한 2차 인증 제공 / 생체인식(지문·얼굴인식) 지원• (세션 관리) 로그인 세션 타임아웃 설정(예: 30분), 자동 로그아웃 기능• (비밀번호 정책) 최소 8자리 이상 / 대문자·소문자·숫자·특수문자 포함 / 주기적 변경(90일)• (계정 관리) 신규 계정 승인 절차, 휴면 계정 자동 잠금, 비정상 로그인 시도 차단• (로그 기록) 로그인·로그아웃·인증 실패, 개인정보 다운로드 등 내역 기록 및 관리자 알림",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SER-002",
+      "document_id": "PDF5",
+      "requirement_id": "SER-002",
+      "title": "데이터 암호화",
+      "category_original": "보안 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 11,
+          "printed_page": 18,
+          "anchor": "SER-002 데이터 암호화"
+        }
+      ],
+      "reference_text": "정의 시스템 내 저장·전송되는 모든 데이터는 암호화 기술을 적용하여 기밀성을 보장함. 특히 운행정보·정비이력·비용데이터·개인정보는 암호화 저장 및 전송을 통해 데이터 유출을 방지함.\n세부내용\n• (저장 데이터 암호화) 국정원 암호모듈 인증 기반으로 데이터 암호화• (전송 데이터 암호화) TLS 1.3 기반 통신 암호화, SSL 인증서 적용 • (키 관리) 암호화 키는 생명주기를 기반으로 안전한 프로세스로 관리하며, 주기적인 키 회전을 필수적으로 제공• (백업 데이터 암호화) 개인정보 및 민감정보의 데이터 백업도 동일한 수준의 암호화 적용• (검증 절차) 정기적으로 암호화 적용 여부 점검 및 취약점 테스트 수행• (시큐어 코딩 준수 및 웹 취약점 제거) 행정안전부 ‘SW 개발보안(시큐어 코딩) 가이드’를 준수해 수행\n \n주요 보안약점- 프로그램 입력 값에 대한 부적절한 검증(SQL삽입 등)- 인증, 접근제어, 권한 관리 등을 적절하지 않게 구현시 발생(중요정보 평문저장, 하드코드된 비밀번호 등)- 불충분한 에러처리(오류 메시지를 통한 정보 노출 등)- 코드 오류(널 포인터 역참조, 부적절한 자원 해제 등)- 불충분한 캡슐화(제거되지 않고 남은 디버거 코드, 시스템 데이터 정보노출 등)- 부적절하거나 보안에 취약한 API 사용 등",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SER-003",
+      "document_id": "PDF5",
+      "requirement_id": "SER-003",
+      "title": "접근권한 관리",
+      "category_original": "보안 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 12,
+          "printed_page": 19,
+          "anchor": "SER-003 접근권한 관리"
+        }
+      ],
+      "reference_text": "정의 시스템 내 모든 사용자·관리자 계정은 RBAC 기반으로 권한을 분리하여 최소 권한 원칙을 적용함. 이를 통해 불필요한 데이터 접근을 차단하고, 권한 오남용을 예방함.\n세부내용• (권한 분류) 관리자의 역할별 권한 정의• (권한 부여 절차) 신규 계정 생성 시 관리자 승인 필요 - 개인정보보호법 제29조에 따라 개인정보 담당의 구분 및 제어 필요 • (권한 변경 관리) 권한 변경 시 로그 기록 및 관리자 알림• (데이터 접근 제어) 개인정보 접근은 관리자 권한으로 제한• (정기 검토) 권한 부여 현황을 분기별로 검토하여 불필요한 권한 제거",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:SR-004",
+      "document_id": "PDF5",
+      "requirement_id": "SR-004",
+      "title": "로그 관리",
+      "category_original": "보안 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 12,
+          "printed_page": 19,
+          "anchor": "SR-004 로그 관리"
+        }
+      ],
+      "reference_text": "정의 시스템 내 모든 행위(로그인, 데이터 조회·수정·삭제, 권한 변경 등)를 로그로 기록하고, 이상 행위 탐지 시 관리자에게 알림을 제공함.\n세부내용• (로그 기록 범위) 사용자 로그인·로그아웃 / 데이터 접근 / 권한 변경 / 알림 발송 / 시스템 오류• (로그 저장 방식) 운영 및 테스트 서버에 저장• (이상 탐지) 비정상 로그인 시도 / 대량 데이터 다운로드 / 권한 없는 접근 시 관리자 알림• (보관 정책) 로그는 최소 3년 이상 보관 / 법령 준수• (분석 도구) 실시간 모니터링 및 이상로그에 대한 SMS 알림 제공",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:QUR-001",
+      "document_id": "PDF5",
+      "requirement_id": "QUR-001",
+      "title": "무중단 서비스",
+      "category_original": "품질 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 13,
+          "printed_page": 20,
+          "anchor": "QUR-001 무중단 서비스"
+        }
+      ],
+      "reference_text": "정의 디지털 운행관리 플랫폼은 24/7 무중단 서비스를 제공해야 하며, 장애 발생 시에도 서비스가 지속적으로 운영될 수 있도록 구조를 갖추어야 함. 세부내용• (서비스 운영) 서버 및 DB 상시 운영 / 비상시 테스트 서버로 운영할 수 있도록 구성• (백업/복구) 주기적 백업 및 복구 운영• (테스트) 무중단 운영 시나리오 기반 정기 테스트 수행",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:QUR-002",
+      "document_id": "PDF5",
+      "requirement_id": "QUR-002",
+      "title": "직관적 UI/UX 및 접근성 준수",
+      "category_original": "품질 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 13,
+          "printed_page": 20,
+          "anchor": "QUR-002 직관적 UI/UX 및 접근성 준수"
+        }
+      ],
+      "reference_text": "정의 플랫폼은 사용자 중심의 직관적 인터페이스를 제공해야 하며, 모든 사용자가 쉽게 접근할 수 있는 환경을 구축함\n세부내용• (UI 설계 원칙) 단순성, 일관성, 직관성 확보• (UX 고려사항) 최소 클릭으로 주요 기능 접근 가능 / 운행 중 안전한 사용성 확보 • (접근성 준수) 색상 대비 / 기기에 부합되는 텍스트 제공 / 키보드 네비게이션 지원• (테스트) 사용자 그룹별 UI/UX 테스트 / 고령자 접근성 검증• (지속 개선) 사용자 피드백 기반 UI/UX 개선 프로세스 운영",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:QUR-003",
+      "document_id": "PDF5",
+      "requirement_id": "QUR-003",
+      "title": "모듈화 API 기반 구조 및 코드 표준 준수",
+      "category_original": "품질 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 14,
+          "printed_page": 21,
+          "anchor": "QUR-003 모듈화 API 기반 구조 및 코드 표준 준수"
+        }
+      ],
+      "reference_text": "정의 시스템은 모듈화된 API 기반 구조로 설계되어야 하며, 개발 표준을 준수하여 유지보수성과 확장성을 확보해야 함. 세부내용• (모듈화 설계) 기능별 독립 모듈화 / 서비스 간 결합도 최소화• (API 표준화) RESTful API, JSON/XML 포맷, 버전 관리 체계 적용• (코드 표준) 공공기관 개발 표준 준수 / 코드 리뷰 프로세스 운영• (CI/CD 적용) 자동 빌드·배포 파이프라인 구축 / 테스트 자동화",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:QUR-004",
+      "document_id": "PDF5",
+      "requirement_id": "QUR-004",
+      "title": "신규 기능 추가 용이성",
+      "category_original": "품질 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 14,
+          "printed_page": 21,
+          "anchor": "QUR-004 신규 기능 추가 용이성"
+        }
+      ],
+      "reference_text": "정의 플랫폼은 확장성 고려 설계를 통해 신규 기능을 쉽게 추가할 수 있어야 함. 운행정보 자동화, 세무지원, 계약관리 등 향후 고도화 기능을 단계적으로 도입할 수 있도록 하는 품질 요구사항임.세부내용• (API 확장성) 신규 모듈 추가 시 기존 API와 호환성 유지 • (데이터 모델 확장) 표준화된 데이터 모델 기반 / 신규 필드 추가 용이• (테스트 체계) 신규 기능 추가 시 자동화 테스트 수행• (운영 절차) 신규 기능 추가 시 사용자 매뉴얼·교육 제공",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:COR-001",
+      "document_id": "PDF5",
+      "requirement_id": "COR-001",
+      "title": "법령 준수",
+      "category_original": "제약사항",
+      "locations": [
+        {
+          "pdf_page_1based": 15,
+          "printed_page": 22,
+          "anchor": "COR-001 법령 준수"
+        }
+      ],
+      "reference_text": "정의 디지털 운행관리 플랫폼은 관련 법령 및 규정을 반드시 준수해야 함. 특히 「화물자동차 운수사업법 시행규칙」, 「개인정보보호법」, 「정보통신망법」 등 교통·안전·개인정보 보호 관련 법령을 기반으로 시스템을 설계·운영해야 하며, 법령 개정 시 즉시 반영할 수 있는 체계를 갖추어야 함.\n세부내용\n• (교통법령 준수) 「화물자동차 운수사업법 시행규칙」 제14호의6서식에 따른 점검 항목 반영 / 운행일지·정비이력 관리 기준 준수• (개인정보 보호) 개인정보보호 관련 모든 법(시행령, 시행규칙, 고시포함) 및 행정안전부 지침을 준수하고 개발 표준안에 이를 반영하여 개발 - 개인정보 최소수집, 암호화 저장, 접근권한 제한 - 용역수행자 전원은 개인정보보호 서약서를 제출• (정보통신망법 준수) 데이터 전송 시 암호화 / 불법 접근 차단 / 보안 인증서 적용• (법령 개정 대응) 법령 변경 시 시스템 업데이트 및 매뉴얼 개정 / 사용자 교육 실시• (검증 절차) 정기적으로 법령 준수 여부 점검 / 외부 감사 및 인증 대응• (책임 체계) 법령 위반 발생 시 사업자 책임 명확화 / 개선 조치 즉시 시행",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:COR-002",
+      "document_id": "PDF5",
+      "requirement_id": "COR-002",
+      "title": "표준 데이터 모델 적용 및 사용",
+      "category_original": "제약사항",
+      "locations": [
+        {
+          "pdf_page_1based": 16,
+          "printed_page": 23,
+          "anchor": "COR-002 표준 데이터 모델 적용 및 사용"
+        }
+      ],
+      "reference_text": "정의 플랫폼은 공공 표준 데이터 모델을 적용하여 데이터의 일관성·호환성·확장성을 확보해야 함. 외부 행정·세무·물류 시스템과의 연동을 원활히 하고, 장기적인 데이터 관리 및 분석을 가능하게 함.\n세부내용\n• (데이터 구조 표준화) 점검·운행·비용·정비 데이터에 대해 공공 표준 코드·용어·스키마 적용• (호환성 확보) 외부 시스템(API, DB, 행정 포털 등)과 연동 시 데이터 변환 최소화• (확장성 고려) 신규 기능 추가 시 데이터 모델 확장 용이 / 버전 관리 체계 운영• (데이터 무결성) 표준화된 데이터 검증 규칙 적용 / 입력 오류 방지• (검증 절차) 데이터 모델 변경 시 영향 분석 수행 / 테스트 환경에서 검증 후 운영 반영• (문서화) 표준 코드·용어 관리 문서 제공• (운영 관리) 프로젝트 담당자 지정 / 정기 점검 및 개선 프로세스 운영• (고려 사항) 시스템 운영을 위한 코드 라이브러리, 인터페이스 규약(API : Application Programming Interface) 설정 등의 집합으로 S/W 구성에 필요한 기본 뼈대를 제공 - 용역수행자는 지속적인 기술지원이 가능한 개발 툴 및 언어를 사용하여야 하며, 유지관리 용이성을 위해 가급적 JAVA 등 보편적으로 사용되는 언어를 이용• (접근 제한) 허가된 사용자에 한하여 DBMS 및 데이터 접근",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PMR-001",
+      "document_id": "PDF5",
+      "requirement_id": "PMR-001",
+      "title": "일정 관리",
+      "category_original": "프로젝트관리 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 17,
+          "printed_page": 24,
+          "anchor": "PMR-001 일정 관리"
+        }
+      ],
+      "reference_text": "정의 프로젝트 수행 과정에서 체계적인 일정 관리를 통해 사업 목표를 기한 내 달성하도록 함. 세부 일정 계획을 수립하고, 일정 지연을 최소화함.세부내용• (일정 계획 수립) 전체 사업을 단계별(WBS)로 세분화하여 일정 정의 • (진척 관리) 주간·월간 보고 체계 운영• (리스크 대응) 일정 지연 발생 시 대체 일정 및 자원 재배치 계획 수립• (협업 관련) 인프라 및 서비스 협업이 필요할 경우 재단 공유 후 수행",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PMR-002",
+      "document_id": "PDF5",
+      "requirement_id": "PMR-002",
+      "title": "리스크 관리",
+      "category_original": "프로젝트관리 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 17,
+          "printed_page": 24,
+          "anchor": "PMR-002 리스크 관리"
+        }
+      ],
+      "reference_text": "정의 프로젝트 수행 중 발생 가능한 리스크를 사전에 식별·분석·대응하여 사업 성공률을 높임. 리스크 관리 계획은 프로젝트 전 단계에서 지속적으로 운영됨.\n세부내용\n• (리스크 식별) 기술적 위험, 일정 지연, 인력 부족, 법령 변경 등 리스크 등록부 작성 • (리스크 평가) 발생 가능성·영향도 기준으로 리스크 매트릭스 작성• (대응 전략) 회피(Avoid), 완화(Mitigate), 전가(Transfer), 수용(Accept) 전략 수립• (모니터링) 보고 시 리스크 리뷰 상시 포함 / 신규 리스크 발생 시 즉시 보고• (성과 지표) 주요 리스크 대응 완료율 ≥ 90% / 리스크 발생 건수 감소 추세 유지",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PMR-003",
+      "document_id": "PDF5",
+      "requirement_id": "PMR-003",
+      "title": "산출물 관리",
+      "category_original": "프로젝트관리 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 18,
+          "printed_page": 25,
+          "anchor": "PMR-003 산출물 관리"
+        }
+      ],
+      "reference_text": "정의 프로젝트 수행 과정에서 생성되는 산출물(정의서, 설계서, 테스트 결과, 매뉴얼 등)을 체계적으로 관리하여 품질과 추적성을 확보함. 형상관리 시스템을 통해 버전 관리와 변경 이력을 기록함.\n세부내용\n• (산출물 목록 정의) 주간보고서(매주 월요일 1회/주), 월간보고서(익월 10일 1회/월), DB설계서 및 테이블정의서,  프로그램 명세서, 시스템 설계서(배포 및 환경설정 , 라이선스 등 포함), 테스트 보고서, 기능명세서, 사용자 매뉴얼 등 - 그 외 재단에서 요구한 산출물을 준비하여 제출• (형상관리) SVN 기반 형상관리 / 버전 태깅 / 변경 이력 관리 - Git 사용 시 재단 담당자를 ‘협력자’로 초대해 운영• (검증 절차) 산출물 작성 후 내부 리뷰 및 승인 절차 운영• (보관 정책) 산출물은 형상관리(SVN)에 보관하며, 요청 시 암호화 된 USB로 보관 / 접근 권한 관리 / 산출물 변경 시 재단 보고 후 버전별 보관• (성과 지표) 산출물 승인율 ≥ 95%, 변경 이력 관리 누락률 ≤ 1%",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PMR-004",
+      "document_id": "PDF5",
+      "requirement_id": "PMR-004",
+      "title": "품질보증",
+      "category_original": "프로젝트관리 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 18,
+          "printed_page": 25,
+          "anchor": "PMR-004 품질보증"
+        }
+      ],
+      "reference_text": "정의 프로젝트 산출물과 시스템 구축 결과가 품질 기준을 충족하도록 QA(Quality Assurance) 프로세스를 운영함. 품질보증은 개발·테스트·운영 전 단계에서 수행되며, 외부 감사에도 대응할 수 있어야 함.\n세부내용• (QA 프로세스 운영) 요구사항 검증 / 코드 리뷰 / 테스트 커버리지 관리 • (품질 기준 정의) 성능, 보안, 접근성, 유지보수성 등 품질 지표 설정• (정기 품질 리뷰) 테스트 보고서를 통해 관련 품질사항 기재 필수• (테스트 관리) 테스트 및 커버 커버리지를 통한 서비스 관리• (외부 감사 대응) 재단 및 외부 품질 인증 기준 준수 / 감사 보고서 제출",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PSR-001",
+      "document_id": "PDF5",
+      "requirement_id": "PSR-001",
+      "title": "교육·매뉴얼 제공",
+      "category_original": "프로젝트지원 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 19,
+          "printed_page": 26,
+          "anchor": "PSR-001 교육·매뉴얼 제공"
+        }
+      ],
+      "reference_text": "정의 시스템 도입 후 사용자와 관리자가 원활히 활용할 수 있도록 운영환경 설정과 매뉴얼을 제공함.\n세부내용• (운영환경) 현 운영 시스템에 영향을 주지 않도록 운영환경 및 테스트 환경 반영 - 발주의 요청에 따라 개발 환경을 전산 PC에 설정• (매뉴얼 제공) 사용자 매뉴얼, 관리자 매뉴얼, 온라인 가이드, 동영상을 통한 교육 제공• (지속 지원) 신규 기능 추가 시 교육 업데이트 / FAQ 문서 제공• (비용) 해당 업무 수행에 있어 발생되는 비용은 용역수행자가 부담",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PSR-002",
+      "document_id": "PDF5",
+      "requirement_id": "PSR-002",
+      "title": "유지보수·기술지원",
+      "category_original": "프로젝트지원 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 19,
+          "printed_page": 26,
+          "anchor": "PSR-002 유지보수·기술지원"
+        }
+      ],
+      "reference_text": "정의 시스템 안정적 운영을 위해 유지보수 및 기술지원을 제공함. 장애 발생 시 신속히 대응하고, 정기 점검을 통해 성능을 개선함.세부내용• (지원 체계) 원격 지원(전화·화상) / 현장 지원 병행 • (정기 점검) 월간 시스템 점검, 성능 최적화, 보안 패치 적용• (기술지원 범위) 사업 수행에 필요한 전체 구성요소 지원 • (자료 제공) 데이터 분석 및 기록 등 관련 자료 확인 시 지원",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PSR-003",
+      "document_id": "PDF5",
+      "requirement_id": "PSR-003",
+      "title": "헬프데스크 운영",
+      "category_original": "프로젝트지원 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 20,
+          "printed_page": 27,
+          "anchor": "PSR-003 헬프데스크 운영"
+        }
+      ],
+      "reference_text": "정의 사용자 문의·문제 해결을 위한 헬프데스크 서비스를 운영함. 세부내용• (지원 채널) 전화, 이메일, 웹 포털 문의 시스템 • (운영 시간) 24/7 대응 체계 / 긴급 장애 시 즉시 대응• (문의 처리 절차) 접수 → 분류 → 해결 → 피드백 → 기록• (로그 관리) 모든 문의·응답 내역 기록 / 분석을 통한 서비스 개선",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:PSR-004",
+      "document_id": "PDF5",
+      "requirement_id": "PSR-004",
+      "title": "정기 업데이트 및 패치",
+      "category_original": "프로젝트지원 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 20,
+          "printed_page": 27,
+          "anchor": "PSR-004 정기 업데이트 및 패치"
+        }
+      ],
+      "reference_text": "정의 시스템 안정성과 보안을 유지하기 위해 정기 업데이트 및 패치를 제공함. 신규 기능 추가와 보안 취약점 대응을 포함하며, 버전 관리 체계를 통해 체계적으로 운영함.세부내용• (업데이트 주기) 분기별 정기 업데이트 / 긴급 보안 패치 즉시 적용• (배포 방식) 서비스 운영에 지장을 주지 않는 방식으로 진행 - 필요 시 재단에서 제공하는 테스트 서버를 통해 이중화 기술 지원• (버전 관리) 버전 번호 체계 운영 / 릴리즈 노트 제공• (테스트 절차) 업데이트 전 테스트 환경에서 검증 후 운영 반영",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:MHR-001",
+      "document_id": "PDF5",
+      "requirement_id": "MHR-001",
+      "title": "사업 수행 참여자",
+      "category_original": "유지관리 인력 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 21,
+          "printed_page": 28,
+          "anchor": "MHR-001 사업 수행 참여자"
+        }
+      ],
+      "reference_text": "정의 사업 수행 참여자 조건\n세부내용\n• (투입인력) 본 사업을 수행 함에 있어 아래와 같은 인력이 투입되는 것을 권장 - 해당 사업 총괄 관리자(PM) - 응용 SW 개발자 (APP) - 응용 SW 개발자 (WEB) - PM 및 개발 인력은 DB에 대한 기본적인 지식이 있으며, 개발에 필요한 운영을 수행해야 함. - 시스템 파트 별 사용 언어의 유사 프로젝트 개발 경험을 보유한 전문기술 인력을 투입하여야 함. - 직무의 정의 및 이에 관한 기준은 소프트웨어산업 진흥법 및  소프트웨어 산업협회의 대가 산정 가이드를 참조",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF5:MHR-002",
+      "document_id": "PDF5",
+      "requirement_id": "MHR-002",
+      "title": "사업 수행 인력 관리",
+      "category_original": "유지관리 인력 요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 22,
+          "printed_page": 29,
+          "anchor": "MHR-002 사업 수행 인력 관리"
+        }
+      ],
+      "reference_text": "정의 사업 수행 인력 관리 조건\n세부내용\n• (인력관리) 본 사업을 관리하는 총괄 관리자(PM)은 본인을 포함한 사업수행자의 프로필을 상세하게 기재하여하며, 각 인력의 업무 수행에 대한 보고를 주간/월간에 기재 - 운영 인력은 제안사 소속의 인력이어야 함. - 단, UI/UX 디자이너의 경우 제안사 소속의 인력이 아닐 경우 계약 관계가 보장되어 있는 인력으로 대체할 수 있음. 이 경우에는 하도급 및 이에 준하는 서류를 제출 후 재단의 승인이 필요 - 각 인력에 대한 비상연락망을 구축하여 재단에 제공• (인력교체) 투입된 인력이 사업 수행에 적절하지 못하다고 판단될 경우 사업자에게 교체 요구 가능 - 이 경우 사업자는 특별한 사유가 없는 한 실근무일 15일 이내(인수인계 기간)에 교체하여야 하며, 요구일 후 15일 이후 변경이 되지 아니하면 해당 인력의 인건비는 지급하지 않음. - 교체 시 교체 인원에 대한 교육 계획서를 제출하여야 하며, 사업자의 별도 양식으로 갈음하며, 재단에서 요청한 서류를 제공해야 함.• (보안) 투입인력은 보안 준수사항을 위반하여 발생하는 모든 민·형사상 책임 및 그에 따른 유·무형의 손해에 대해 책임짐. - 투입인력이 신원 조회 등으로 과거의 해당업무와 연관된 위법 및 부적절한 이력이 나타날 경우 사업자는 해당 인력을 교체• (근무조건) 인력의 근무시간은 「국가공무원복무규정」에 의한 법정근무시간을 적용함. - 근무시간: 09:00 ~ 18:00 - 근무요일: 월요일 ~ 금요일(공휴일 제외) - 단, 하자 및 장애가 발생하였을 경우 24시간 적극 협조• (인력증원) 제안사가 추가 인력 투입 시, 금액 변동 없이 증원 가능",
+      "reference_text_provenance": "PDF 텍스트 추출; 페이지 이미지로 표 구조 확인",
+      "logical_source_count": 1
+    }
+  ],
+  "cases": [
+    {
+      "id": "FULL-PDF5",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5",
+        "only": null,
+        "max_sources": null
+      },
+      "expected_output": {
+        "expected_unit_keys": [
+          "PDF5:ECR-001",
+          "PDF5:SFR-001",
+          "PDF5:SFR-002",
+          "PDF5:SFR-003",
+          "PDF5:SFR-004",
+          "PDF5:SFR-005",
+          "PDF5:SFR-006",
+          "PDF5:PER-001",
+          "PDF5:PER-002",
+          "PDF5:PER-003",
+          "PDF5:SIR-001",
+          "PDF5:DAR-001",
+          "PDF5:DAR-002",
+          "PDF5:DAR-003",
+          "PDF5:TER-001",
+          "PDF5:TER-002",
+          "PDF5:SER-001",
+          "PDF5:SER-002",
+          "PDF5:SER-003",
+          "PDF5:SR-004",
+          "PDF5:QUR-001",
+          "PDF5:QUR-002",
+          "PDF5:QUR-003",
+          "PDF5:QUR-004",
+          "PDF5:COR-001",
+          "PDF5:COR-002",
+          "PDF5:PMR-001",
+          "PDF5:PMR-002",
+          "PDF5:PMR-003",
+          "PDF5:PMR-004",
+          "PDF5:PSR-001",
+          "PDF5:PSR-002",
+          "PDF5:PSR-003",
+          "PDF5:PSR-004",
+          "PDF5:MHR-001",
+          "PDF5:MHR-002"
+        ],
+        "expected_logical_units": 36,
+        "preserve_original_ids": true,
+        "no_unlisted_requirement_units": true
+      },
+      "metadata": {
+        "type": "전체 추출 목록",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "counting_policy": "논리 요구사항 기준. 물리 블록/검색 청크 개수를 뜻하지 않음."
+      }
+    },
+    {
+      "id": "EXT-001",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:ECR-001",
+        "requirement_id": "ECR-001",
+        "title": "시스템 활용",
+        "category_original": "시스템 장비 구성 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 1,
+            "printed_page": 8,
+            "anchor": "ECR-001 시스템 활용"
+          }
+        ],
+        "content_reference_key": "PDF5:ECR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-002",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SFR-001",
+        "requirement_id": "SFR-001",
+        "title": "플랫폼 기능 정의",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 2,
+            "printed_page": 9,
+            "anchor": "SFR-001 플랫폼 기능 정의"
+          }
+        ],
+        "content_reference_key": "PDF5:SFR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-003",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SFR-002",
+        "requirement_id": "SFR-002",
+        "title": "디지털 일상점검",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": 10,
+            "anchor": "SFR-002 디지털 일상점검"
+          }
+        ],
+        "content_reference_key": "PDF5:SFR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-004",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SFR-003",
+        "requirement_id": "SFR-003",
+        "title": "운행정보 관리",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": 10,
+            "anchor": "SFR-003 운행정보 관리"
+          }
+        ],
+        "content_reference_key": "PDF5:SFR-003",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-005",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SFR-004",
+        "requirement_id": "SFR-004",
+        "title": "스마트 차계부",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": 10,
+            "anchor": "SFR-004 스마트 차계부"
+          }
+        ],
+        "content_reference_key": "PDF5:SFR-004",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-006",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SFR-005",
+        "requirement_id": "SFR-005",
+        "title": "정비관리",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 4,
+            "printed_page": 11,
+            "anchor": "SFR-005 정비관리"
+          }
+        ],
+        "content_reference_key": "PDF5:SFR-005",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-007",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SFR-006",
+        "requirement_id": "SFR-006",
+        "title": "고도화 기능",
+        "category_original": "기능 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": 12,
+            "anchor": "SFR-006 고도화 기능"
+          }
+        ],
+        "content_reference_key": "PDF5:SFR-006",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-008",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PER-001",
+        "requirement_id": "PER-001",
+        "title": "사용자 환경",
+        "category_original": "성능 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": 12,
+            "anchor": "PER-001 사용자 환경"
+          }
+        ],
+        "content_reference_key": "PDF5:PER-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-009",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PER-002",
+        "requirement_id": "PER-002",
+        "title": "실시간 알림",
+        "category_original": "성능 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": 13,
+            "anchor": "PER-002 실시간 알림"
+          }
+        ],
+        "content_reference_key": "PDF5:PER-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-010",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PER-003",
+        "requirement_id": "PER-003",
+        "title": "데이터 및 오류 처리",
+        "category_original": "성능 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": 13,
+            "anchor": "PER-003 데이터 및 오류 처리"
+          }
+        ],
+        "content_reference_key": "PDF5:PER-003",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-011",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SIR-001",
+        "requirement_id": "SIR-001",
+        "title": "인터페이스",
+        "category_original": "인터페이스 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 7,
+            "printed_page": 14,
+            "anchor": "SIR-001 인터페이스"
+          }
+        ],
+        "content_reference_key": "PDF5:SIR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-012",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:DAR-001",
+        "requirement_id": "DAR-001",
+        "title": "데이터 표준화",
+        "category_original": "데이터 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 8,
+            "printed_page": 15,
+            "anchor": "DAR-001 데이터 표준화"
+          }
+        ],
+        "content_reference_key": "PDF5:DAR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-013",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:DAR-002",
+        "requirement_id": "DAR-002",
+        "title": "엑셀·PDF 다운로드",
+        "category_original": "데이터 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 8,
+            "printed_page": 15,
+            "anchor": "DAR-002 엑셀·PDF 다운로드"
+          }
+        ],
+        "content_reference_key": "PDF5:DAR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-014",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:DAR-003",
+        "requirement_id": "DAR-003",
+        "title": "분석 및 시각화",
+        "category_original": "데이터 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 8,
+            "printed_page": 15,
+            "anchor": "DAR-003 분석 및 시각화"
+          }
+        ],
+        "content_reference_key": "PDF5:DAR-003",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-015",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:TER-001",
+        "requirement_id": "TER-001",
+        "title": "기능 테스트",
+        "category_original": "테스트 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": 16,
+            "anchor": "TER-001 기능 테스트"
+          }
+        ],
+        "content_reference_key": "PDF5:TER-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-016",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:TER-002",
+        "requirement_id": "TER-002",
+        "title": "호환성 테스트",
+        "category_original": "테스트 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": 16,
+            "anchor": "TER-002 호환성 테스트"
+          }
+        ],
+        "content_reference_key": "PDF5:TER-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-017",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SER-001",
+        "requirement_id": "SER-001",
+        "title": "사용자 인증",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 10,
+            "printed_page": 17,
+            "anchor": "SER-001 사용자 인증"
+          }
+        ],
+        "content_reference_key": "PDF5:SER-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-018",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SER-002",
+        "requirement_id": "SER-002",
+        "title": "데이터 암호화",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 11,
+            "printed_page": 18,
+            "anchor": "SER-002 데이터 암호화"
+          }
+        ],
+        "content_reference_key": "PDF5:SER-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-019",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SER-003",
+        "requirement_id": "SER-003",
+        "title": "접근권한 관리",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 12,
+            "printed_page": 19,
+            "anchor": "SER-003 접근권한 관리"
+          }
+        ],
+        "content_reference_key": "PDF5:SER-003",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-020",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SR-004",
+        "requirement_id": "SR-004",
+        "title": "로그 관리",
+        "category_original": "보안 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 12,
+            "printed_page": 19,
+            "anchor": "SR-004 로그 관리"
+          }
+        ],
+        "content_reference_key": "PDF5:SR-004",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-021",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:QUR-001",
+        "requirement_id": "QUR-001",
+        "title": "무중단 서비스",
+        "category_original": "품질 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 13,
+            "printed_page": 20,
+            "anchor": "QUR-001 무중단 서비스"
+          }
+        ],
+        "content_reference_key": "PDF5:QUR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-022",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:QUR-002",
+        "requirement_id": "QUR-002",
+        "title": "직관적 UI/UX 및 접근성 준수",
+        "category_original": "품질 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 13,
+            "printed_page": 20,
+            "anchor": "QUR-002 직관적 UI/UX 및 접근성 준수"
+          }
+        ],
+        "content_reference_key": "PDF5:QUR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-023",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:QUR-003",
+        "requirement_id": "QUR-003",
+        "title": "모듈화 API 기반 구조 및 코드 표준 준수",
+        "category_original": "품질 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 14,
+            "printed_page": 21,
+            "anchor": "QUR-003 모듈화 API 기반 구조 및 코드 표준 준수"
+          }
+        ],
+        "content_reference_key": "PDF5:QUR-003",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-024",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:QUR-004",
+        "requirement_id": "QUR-004",
+        "title": "신규 기능 추가 용이성",
+        "category_original": "품질 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 14,
+            "printed_page": 21,
+            "anchor": "QUR-004 신규 기능 추가 용이성"
+          }
+        ],
+        "content_reference_key": "PDF5:QUR-004",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-025",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:COR-001",
+        "requirement_id": "COR-001",
+        "title": "법령 준수",
+        "category_original": "제약사항",
+        "locations": [
+          {
+            "pdf_page_1based": 15,
+            "printed_page": 22,
+            "anchor": "COR-001 법령 준수"
+          }
+        ],
+        "content_reference_key": "PDF5:COR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-026",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:COR-002",
+        "requirement_id": "COR-002",
+        "title": "표준 데이터 모델 적용 및 사용",
+        "category_original": "제약사항",
+        "locations": [
+          {
+            "pdf_page_1based": 16,
+            "printed_page": 23,
+            "anchor": "COR-002 표준 데이터 모델 적용 및 사용"
+          }
+        ],
+        "content_reference_key": "PDF5:COR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-027",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PMR-001",
+        "requirement_id": "PMR-001",
+        "title": "일정 관리",
+        "category_original": "프로젝트관리 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 17,
+            "printed_page": 24,
+            "anchor": "PMR-001 일정 관리"
+          }
+        ],
+        "content_reference_key": "PDF5:PMR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-028",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PMR-002",
+        "requirement_id": "PMR-002",
+        "title": "리스크 관리",
+        "category_original": "프로젝트관리 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 17,
+            "printed_page": 24,
+            "anchor": "PMR-002 리스크 관리"
+          }
+        ],
+        "content_reference_key": "PDF5:PMR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-029",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PMR-003",
+        "requirement_id": "PMR-003",
+        "title": "산출물 관리",
+        "category_original": "프로젝트관리 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 18,
+            "printed_page": 25,
+            "anchor": "PMR-003 산출물 관리"
+          }
+        ],
+        "content_reference_key": "PDF5:PMR-003",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-030",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PMR-004",
+        "requirement_id": "PMR-004",
+        "title": "품질보증",
+        "category_original": "프로젝트관리 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 18,
+            "printed_page": 25,
+            "anchor": "PMR-004 품질보증"
+          }
+        ],
+        "content_reference_key": "PDF5:PMR-004",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-031",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PSR-001",
+        "requirement_id": "PSR-001",
+        "title": "교육·매뉴얼 제공",
+        "category_original": "프로젝트지원 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 19,
+            "printed_page": 26,
+            "anchor": "PSR-001 교육·매뉴얼 제공"
+          }
+        ],
+        "content_reference_key": "PDF5:PSR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-032",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PSR-002",
+        "requirement_id": "PSR-002",
+        "title": "유지보수·기술지원",
+        "category_original": "프로젝트지원 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 19,
+            "printed_page": 26,
+            "anchor": "PSR-002 유지보수·기술지원"
+          }
+        ],
+        "content_reference_key": "PDF5:PSR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-033",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PSR-003",
+        "requirement_id": "PSR-003",
+        "title": "헬프데스크 운영",
+        "category_original": "프로젝트지원 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 20,
+            "printed_page": 27,
+            "anchor": "PSR-003 헬프데스크 운영"
+          }
+        ],
+        "content_reference_key": "PDF5:PSR-003",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-034",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PSR-004",
+        "requirement_id": "PSR-004",
+        "title": "정기 업데이트 및 패치",
+        "category_original": "프로젝트지원 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 20,
+            "printed_page": 27,
+            "anchor": "PSR-004 정기 업데이트 및 패치"
+          }
+        ],
+        "content_reference_key": "PDF5:PSR-004",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-035",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:MHR-001",
+        "requirement_id": "MHR-001",
+        "title": "사업 수행 참여자",
+        "category_original": "유지관리 인력 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 21,
+            "printed_page": 28,
+            "anchor": "MHR-001 사업 수행 참여자"
+          }
+        ],
+        "content_reference_key": "PDF5:MHR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "EXT-036",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:MHR-002",
+        "requirement_id": "MHR-002",
+        "title": "사업 수행 인력 관리",
+        "category_original": "유지관리 인력 요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 22,
+            "printed_page": 29,
+            "anchor": "MHR-002 사업 수행 인력 관리"
+          }
+        ],
+        "content_reference_key": "PDF5:MHR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·숫자·조건·예외·산출정보를 대조. 공백 차이는 허용. 문자 전체 일치만으로 채점하지 않음."
+      }
+    },
+    {
+      "id": "C01",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SFR-001",
+        "must_include_together": [
+          "기본 회원정보(필수)",
+          "차량정보(필수)",
+          "기타정보(선택)",
+          "관리자에게 승인받은 회원만 서비스 이용 가능",
+          "개인정보보호법 제29조"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "중첩 회원정보 표와 APP/WEB 범위를 같은 논리 요구사항에 유지",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C02",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SFR-005",
+        "must_include_together": [
+          "정비 항목기간(월)주행거리(km)",
+          "에어컨필터6 5,000",
+          "엔진오일/오일필터(대형) 5t 이상6 20,000",
+          "엔진오일/오일필터(소형) 1~5t 미만6 7,000",
+          "점화플러그- 100,000"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "정비 항목·기간·거리의 행/열 관계 보존; 결측 기간을 0으로 바꾸지 않음",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C03",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:PER-003",
+        "must_include_together": [
+          "최대 10초",
+          "오류코드는 관리자에게만 공개"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "시간 기준과 공개 대상 제한을 함께 유지",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C04",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:SER-002",
+        "must_include_together": [
+          "TLS 1.3",
+          "주요 보안약점",
+          "SQL삽입",
+          "API 사용"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "세부 보안약점 표를 별도 요구사항으로 세지 않음",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C05",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "unit_key": "PDF5:MHR-002",
+        "must_include_together": [
+          "운영 인력은 제안사 소속",
+          "단, UI/UX 디자이너",
+          "재단의 승인이 필요",
+          "실근무일 15일 이내",
+          "공휴일 제외",
+          "24시간 적극 협조"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "본문·인력 예외·교체 기한·장애 대응 예외 보존",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "R01",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "이벤트 발생 후 10초 이내 알림 전달",
+        "original_locator": {
+          "requirement_id": "PER-002",
+          "locations": [
+            {
+              "pdf_page_1based": 6,
+              "printed_page": 13,
+              "anchor": "PER-002 실시간 알림"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF5:PER-002"
+        ],
+        "expected_quote": "이벤트 발생 후 10초 이내 알림 전달",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "정상 인용",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R02",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "로그는 최소 3년 이상 보관",
+        "original_locator": {
+          "requirement_id": "SR-004",
+          "locations": [
+            {
+              "pdf_page_1based": 12,
+              "printed_page": 19,
+              "anchor": "SR-004 로그 관리"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF5:SR-004"
+        ],
+        "expected_quote": "로그는 최소 3년 이상 보관",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "원문 ID 이상이 있는 정상 인용",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R03",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "관리자에게 승인받은 회원만 서비스 이용 가능",
+        "original_locator": {
+          "requirement_id": "SFR-001",
+          "locations": [
+            {
+              "pdf_page_1based": 2,
+              "printed_page": 9,
+              "anchor": "SFR-001 플랫폼 기능 정의"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF5:SFR-001"
+        ],
+        "expected_quote": "관리자에게 승인받은 회원만 서비스 이용 가능",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "이용 조건",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R04",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "TLS 1.3 기반 통신 암호화",
+        "original_locator": {
+          "requirement_id": "SER-001",
+          "locations": [
+            {
+              "pdf_page_1based": 10,
+              "printed_page": 17,
+              "anchor": "SER-001 사용자 인증"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "PDF5:SER-002"
+        ],
+        "expected_quote": "TLS 1.3 기반 통신 암호화",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "다른 블록의 원문 복구",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R05",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "이벤트 발생 후 10초 이내 알림 전달",
+        "original_locator": {
+          "requirement_id": "PER-003",
+          "locations": [
+            {
+              "pdf_page_1based": 6,
+              "printed_page": 13,
+              "anchor": "PER-003 데이터 및 오류 처리"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "PDF5:PER-002"
+        ],
+        "expected_quote": "이벤트 발생 후 10초 이내 알림 전달",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "비슷한 시간 기준 블록에서 복구",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R06",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "로그는 최소 3년 이상 보관",
+        "original_locator": {
+          "requirement_id": "SER-003",
+          "locations": [
+            {
+              "pdf_page_1based": 12,
+              "printed_page": 19,
+              "anchor": "SER-003 접근권한 관리"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "PDF5:SR-004"
+        ],
+        "expected_quote": "로그는 최소 3년 이상 보관",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "접두어 이상 블록 검색",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R07",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "이벤트 발생 후 5초 이내 알림 전달",
+        "original_locator": {
+          "requirement_id": "PER-002",
+          "locations": [
+            {
+              "pdf_page_1based": 6,
+              "printed_page": 13,
+              "anchor": "PER-002 실시간 알림"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "숫자 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "10초 원문을 후보로 제시할 수 있으나 5초 인용문을 검증 완료로 처리하지 않음."
+      }
+    },
+    {
+      "id": "R08",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "TLS 1.2 기반 통신 암호화",
+        "original_locator": {
+          "requirement_id": "SER-002",
+          "locations": [
+            {
+              "pdf_page_1based": 11,
+              "printed_page": 18,
+              "anchor": "SER-002 데이터 암호화"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "버전 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R09",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "오류코드는 모든 사용자에게 공개되어야",
+        "original_locator": {
+          "requirement_id": "PER-003",
+          "locations": [
+            {
+              "pdf_page_1based": 6,
+              "printed_page": 13,
+              "anchor": "PER-003 데이터 및 오류 처리"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "대상 제한 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R10",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "블록체인 기반 운송대금 자동정산을 제공해야 한다",
+        "original_locator": {
+          "requirement_id": "SFR-001",
+          "locations": [
+            {
+              "pdf_page_1based": 2,
+              "printed_page": 9,
+              "anchor": "SFR-001 플랫폼 기능 정의"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "문서에 없는 근거",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R21",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF5",
+        "quote": "이벤트 발생 후\n10초 이내 알림 전달",
+        "original_locator": {
+          "requirement_id": "PER-002",
+          "locations": [
+            {
+              "pdf_page_1based": 6,
+              "printed_page": 13,
+              "anchor": "PER-002 실시간 알림"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF5:PER-002"
+        ],
+        "expected_quote": "이벤트 발생 후\n10초 이내 알림 전달",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "줄바꿈 정규화",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "Q01",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "issue_type": "identifier_prefix_inconsistency",
+        "affected_unit_keys": [
+          "PDF5:SR-004"
+        ],
+        "expectation": "review",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "보안 요구사항의 원문 ID가 SR-004. 앞선 SER-001~003과 접두어가 다름. 원문 ID를 보존하고 검토 경고. SER-004로 자동 수정하거나 누락을 확정하지 않음."
+      }
+    },
+    {
+      "id": "Q07",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF5"
+      },
+      "expected_output": {
+        "issue_type": "no_text_layer_absent_pages",
+        "affected_unit_keys": [],
+        "expectation": "negative",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "PDF 22페이지 모두 텍스트 추출 가능. 텍스트층 없음 경고를 만들지 않음. 모든 글자의 추출 완전성을 뜻하지 않음."
+      }
+    }
+  ]
+}

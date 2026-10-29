@@ -1,0 +1,659 @@
+{
+ "functions": [
+  {
+   "name": "서비스 요청 등록",
+   "description": "사용자가 IT서비스 문제 접수, 수정 요구 등 서비스 요청을 등록하고 요청 번호를 받는다.",
+   "requirement_ids": [
+    "SFR-003-01"
+   ],
+   "nfr_ids": [
+    "PER-003-01",
+    "PER-002-02"
+   ],
+   "actors": [
+    "요청자"
+   ],
+   "preconditions": [
+    "로그인"
+   ],
+   "inputs": [
+    {
+     "name": "요청 유형",
+     "description": "장애·수정 요구·서비스 요청 등",
+     "required": true
+    },
+    {
+     "name": "제목",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "내용",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "긴급도",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "대상 시스템",
+     "description": "관련 정보시스템(CI)",
+     "required": false
+    },
+    {
+     "name": "첨부파일",
+     "description": "",
+     "required": false
+    },
+    {
+     "name": "희망 완료일",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "요청 번호",
+     "description": "등록된 서비스 요청 식별자",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "등록 시 상태는 '등록'이다",
+    "입력 형식 오류는 3초 이내 안내한다"
+   ],
+   "normal_flow": [
+    "요청자가 요청 등록 화면을 연다",
+    "관련 지식 문서를 먼저 안내한다",
+    "요청 정보를 입력한다",
+    "저장하면 요청 번호가 부여된다",
+    "서비스데스크에 알림을 보낸다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "필수값 누락",
+     "handling": "항목별 오류 메시지 표시"
+    },
+    {
+     "condition": "첨부 용량 초과",
+     "handling": "업로드 거부 안내"
+    }
+   ],
+   "data_objects": [
+    "서비스 요청",
+    "첨부파일"
+   ]
+  },
+  {
+   "name": "헬프데스크 대리 접수",
+   "description": "서비스데스크 담당자가 전화 등으로 받은 정보시스템 문제·수정 요구를 요청자를 대신해 등록한다.",
+   "requirement_ids": [
+    "SFR-003-02"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "서비스데스크 담당자"
+   ],
+   "preconditions": [
+    "서비스데스크 역할 보유"
+   ],
+   "inputs": [
+    {
+     "name": "요청자",
+     "description": "실제 요청자",
+     "required": true
+    },
+    {
+     "name": "접수 경로",
+     "description": "전화·메일 등",
+     "required": true
+    },
+    {
+     "name": "요청 내용",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "요청 번호",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) 외부 헬프데스크 시스템이 아닌 ITSM 내부 대리 접수로 처리한다 (질문 대기)",
+    "대리 접수 건은 접수 경로와 대리 등록자를 기록한다"
+   ],
+   "normal_flow": [
+    "담당자가 대리 접수 화면을 연다",
+    "요청자를 검색해 지정한다",
+    "접수 경로와 내용을 입력한다",
+    "저장하면 요청 번호가 부여된다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "요청자 계정 없음",
+     "handling": "요청자 정보를 수기로 기록"
+    }
+   ],
+   "data_objects": [
+    "서비스 요청"
+   ]
+  },
+  {
+   "name": "요청 접수·반려",
+   "description": "서비스데스크 담당자가 등록된 요청을 검토해 접수하거나 사유와 함께 반려한다.",
+   "requirement_ids": [
+    "SFR-003-03"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "서비스데스크 담당자"
+   ],
+   "preconditions": [
+    "요청 상태가 '등록'"
+   ],
+   "inputs": [
+    {
+     "name": "처리 구분",
+     "description": "접수 또는 반려",
+     "required": true
+    },
+    {
+     "name": "반려 사유",
+     "description": "반려 시 필수",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "요청 상태",
+     "description": "접수 또는 반려",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "반려 시 사유는 필수다",
+    "상태 변경은 모두 상태 이력에 남긴다",
+    "(가정) 반려된 요청은 요청자가 수정해 재요청할 수 있다 (질문 대기)"
+   ],
+   "normal_flow": [
+    "담당자가 접수 대기 목록을 연다",
+    "요청을 검토한다",
+    "접수 또는 반려를 선택한다",
+    "상태를 변경하고 요청자에게 알린다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "반려 사유 누락",
+     "handling": "저장 거부"
+    },
+    {
+     "condition": "이미 처리된 요청",
+     "handling": "상태 불일치 안내"
+    }
+   ],
+   "data_objects": [
+    "서비스 요청",
+    "요청 상태 이력"
+   ]
+  },
+  {
+   "name": "처리유형·담당자 배정",
+   "description": "접수한 요청에 처리 유형을 지정하고 1·2·3순위 처리 담당자를 배정한다.",
+   "requirement_ids": [
+    "SFR-003-04",
+    "SFR-003-07"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "서비스데스크 담당자"
+   ],
+   "preconditions": [
+    "요청 상태가 '접수'"
+   ],
+   "inputs": [
+    {
+     "name": "처리 유형",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "1순위 담당자",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "2·3순위 담당자",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "배정 결과",
+     "description": "순위별 담당자",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "1순위 담당자는 필수다",
+    "(가정) 1순위가 처리하지 못하면 2·3순위로 순차 이관한다 (질문 대기)",
+    "배정·재배정은 배정 이력에 남긴다"
+   ],
+   "normal_flow": [
+    "담당자가 접수된 요청을 연다",
+    "처리 유형을 지정한다",
+    "순위별 담당자를 지정한다",
+    "저장하면 상태가 '배정'이 되고 담당자에게 알린다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "담당자가 부재 중",
+     "handling": "대리인을 안내하거나 다른 담당자 선택"
+    },
+    {
+     "condition": "같은 담당자를 여러 순위에 지정",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "담당자 배정",
+    "서비스 요청",
+    "요청 상태 이력"
+   ]
+  },
+  {
+   "name": "서비스 처리·결과 등록",
+   "description": "배정된 담당자가 요청을 처리하고 처리 내용과 결과를 등록한다.",
+   "requirement_ids": [
+    "SFR-003-06",
+    "SFR-003-07"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "처리 담당자"
+   ],
+   "preconditions": [
+    "본인에게 배정된 요청"
+   ],
+   "inputs": [
+    {
+     "name": "처리 내용",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "처리 결과",
+     "description": "완료·보류·이관",
+     "required": true
+    },
+    {
+     "name": "첨부파일",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "처리 이력",
+     "description": "담당자별 처리 기록",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "배정된 담당자만 처리 결과를 등록한다",
+    "완료 시 처리 완료일을 기록한다"
+   ],
+   "normal_flow": [
+    "담당자가 내 업무 목록에서 요청을 연다",
+    "처리 중으로 상태를 바꾼다",
+    "처리 내용과 결과를 입력한다",
+    "완료하면 상태가 '처리완료'가 된다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "본인 배정 건 아님",
+     "handling": "처리 차단"
+    },
+    {
+     "condition": "처리 불가",
+     "handling": "다음 순위 담당자에게 이관"
+    }
+   ],
+   "data_objects": [
+    "처리 이력",
+    "서비스 요청",
+    "첨부파일"
+   ]
+  },
+  {
+   "name": "처리결과 회신",
+   "description": "처리가 끝난 요청의 결과를 요청자에게 회신하고 요청자가 확인·종료한다.",
+   "requirement_ids": [
+    "SFR-003-05"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "처리 담당자",
+    "요청자"
+   ],
+   "preconditions": [
+    "요청 상태가 '처리완료'"
+   ],
+   "inputs": [
+    {
+     "name": "회신 내용",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "회신",
+     "description": "요청자 알림과 회신 기록",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) 요청자가 확인하면 '종료', 일정 기간 미확인 시 자동 종료한다"
+   ],
+   "normal_flow": [
+    "담당자가 회신 내용을 작성한다",
+    "요청자에게 알림을 보낸다",
+    "요청자가 결과를 확인한다",
+    "요청을 종료한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "요청자가 결과 불만족",
+     "handling": "재처리 요청으로 상태 되돌림"
+    }
+   ],
+   "data_objects": [
+    "서비스 요청",
+    "알림"
+   ]
+  },
+  {
+   "name": "문제·변경 건 생성·연결",
+   "description": "서비스 요청이나 장애 처리 중 근본 원인 분석이 필요하면 문제 건을, 구성 변경이 필요하면 변경 요청을 만들어 원 요청과 연결한다.",
+   "requirement_ids": [
+    "SFR-003-08"
+   ],
+   "nfr_ids": [
+    "SFR-006-04"
+   ],
+   "actors": [
+    "처리 담당자",
+    "변경 관리자"
+   ],
+   "preconditions": [
+    "원 요청이 존재"
+   ],
+   "inputs": [
+    {
+     "name": "구분",
+     "description": "문제 또는 변경",
+     "required": true
+    },
+    {
+     "name": "내용",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "대상 구성항목",
+     "description": "변경 대상 CI",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "문제·변경 건",
+     "description": "생성된 건과 원 요청 연결",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "변경 요청은 승인 후 실행한다",
+    "문제·변경 건은 원 요청과 연결을 유지한다"
+   ],
+   "normal_flow": [
+    "담당자가 요청 화면에서 문제·변경 생성을 선택한다",
+    "내용과 대상 CI를 입력한다",
+    "저장하면 원 요청과 연결된다",
+    "변경 요청이면 결재를 요청한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "대상 CI 없음",
+     "handling": "CI 등록 후 진행 안내"
+    }
+   ],
+   "data_objects": [
+    "문제",
+    "변경 요청",
+    "서비스 요청"
+   ]
+  },
+  {
+   "name": "가용성·용량 지표 관리",
+   "description": "IT서비스 설계 관리를 위해 대상 자원별 가용성·용량 지표를 등록하고 측정값을 조회한다.",
+   "requirement_ids": [
+    "SFR-003-09"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "운영 관리자"
+   ],
+   "preconditions": [
+    "대상 구성항목이 등록됨"
+   ],
+   "inputs": [
+    {
+     "name": "대상 자원",
+     "description": "CI",
+     "required": true
+    },
+    {
+     "name": "지표",
+     "description": "가용률·사용률 등",
+     "required": true
+    },
+    {
+     "name": "임계값",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "지표 현황",
+     "description": "측정값과 임계 초과 여부",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) 측정값은 관제 연동 수집값 또는 수기 입력값을 쓴다"
+   ],
+   "normal_flow": [
+    "관리자가 자원을 선택한다",
+    "지표와 임계값을 등록한다",
+    "측정값을 조회한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "측정값 없음",
+     "handling": "미수집 표시"
+    }
+   ],
+   "data_objects": [
+    "가용성·용량 지표",
+    "구성항목"
+   ]
+  },
+  {
+   "name": "요청·변경 건의 구성항목 연결",
+   "description": "서비스 요청, 장애, 변경 건에 관련 구성항목(CI)을 연결해 CMDB와 연계한다.",
+   "requirement_ids": [
+    "SFR-003-10"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "처리 담당자"
+   ],
+   "preconditions": [
+    "CMDB에 CI가 존재"
+   ],
+   "inputs": [
+    {
+     "name": "대상 건",
+     "description": "요청·변경 건",
+     "required": true
+    },
+    {
+     "name": "구성항목",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "연결 정보",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "하나의 건에 여러 CI를 연결할 수 있다"
+   ],
+   "normal_flow": [
+    "담당자가 건을 연다",
+    "CI를 검색한다",
+    "연결을 저장한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "폐기된 CI",
+     "handling": "연결 불가 안내"
+    }
+   ],
+   "data_objects": [
+    "구성항목",
+    "서비스 요청",
+    "변경 요청"
+   ]
+  },
+  {
+   "name": "지식 검색 셀프 해결",
+   "description": "사용자가 요청 등록 전에 KDB를 검색해 스스로 문제를 해결한다.",
+   "requirement_ids": [
+    "SFR-003-11"
+   ],
+   "nfr_ids": [
+    "PER-002-02"
+   ],
+   "actors": [
+    "요청자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "검색어",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "지식 문서 목록",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "공개 범위가 허용된 문서만 보여준다",
+    "(가정) 문서로 해결했는지 피드백을 받는다"
+   ],
+   "normal_flow": [
+    "요청자가 검색어를 입력한다",
+    "관련 지식 문서를 표시한다",
+    "해결되면 종료, 아니면 요청 등록으로 이동한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "결과 없음",
+     "handling": "요청 등록 안내"
+    }
+   ],
+   "data_objects": [
+    "지식 문서"
+   ]
+  },
+  {
+   "name": "역할·권한 설정",
+   "description": "관리자가 역할과 권한(메뉴·기능)을 정의하고, 권한별 설명과 사업장·부서 단위 적용 범위를 관리한다.",
+   "requirement_ids": [
+    "SFR-003-12"
+   ],
+   "nfr_ids": [
+    "SIR-001-01",
+    "SER-008-03",
+    "SER-003-01"
+   ],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "역할",
+     "description": "역할명·설명",
+     "required": true
+    },
+    {
+     "name": "권한",
+     "description": "메뉴·기능 권한과 설명",
+     "required": true
+    },
+    {
+     "name": "적용 범위",
+     "description": "사업장·부서",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "역할 권한",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "권한은 역할에 묶어 부여한다",
+    "권한마다 설명을 둔다"
+   ],
+   "normal_flow": [
+    "관리자가 역할을 만든다",
+    "권한을 선택해 역할에 연결한다",
+    "적용 범위를 지정한다",
+    "저장한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "사용 중인 역할 삭제",
+     "handling": "삭제 거부"
+    }
+   ],
+   "data_objects": [
+    "역할",
+    "권한",
+    "역할 권한"
+   ]
+  }
+ ]
+}

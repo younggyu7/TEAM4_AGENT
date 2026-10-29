@@ -2,15 +2,10 @@ __pycache__/
 *.pyc
 .venv/
 .env
-*.db
 .pytest_cache/
+.ruff_cache/
 .DS_Store
-.omc
 
-# Local scenario debug reports (full synthetic inputs and outputs)
-backend/.debug-runs/
-backend/.storage/
-
-# LangGraph Studio(langgraph dev) 로컬 상태·별도 가상환경
-backend/.langgraph_api/
-backend/.venv-studio/
+# 실행 산출물·체크포인트·업로드 문서
+backend/output/
+backend/data/uploads/

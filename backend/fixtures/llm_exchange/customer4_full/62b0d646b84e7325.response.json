@@ -1,0 +1,751 @@
+{
+ "entities": [
+  {
+   "name": "support_budget",
+   "attributes": [
+    {
+     "name": "support_budget_id",
+     "label": "지원 예산 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "지원 예산 대리키"
+    },
+    {
+     "name": "budget_name",
+     "label": "예산명",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "예산 항목 이름"
+    },
+    {
+     "name": "fiscal_year",
+     "label": "사업 연도",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "지원 사업 연도"
+    },
+    {
+     "name": "solution_type",
+     "label": "솔루션 분야",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "CLOUD_BACKUP",
+      "NAS_BACKUP",
+      "OTHER"
+     ],
+     "description": "대상 솔루션 분야 (비어 있으면 전체)"
+    },
+    {
+     "name": "region_id",
+     "label": "지역",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "region",
+     "allowed_values": [],
+     "description": "대상 지역 (비어 있으면 전국)"
+    },
+    {
+     "name": "allocated_amount",
+     "label": "배정액",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "배정된 지원 예산(원)"
+    },
+    {
+     "name": "executed_amount",
+     "label": "집행액",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "승인된 신청 지원 금액 합계. 승인과 같은 트랜잭션에서 갱신"
+    },
+    {
+     "name": "per_company_limit",
+     "label": "기업당 지원 한도",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "기업 1곳 최대 지원 금액"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "support_condition",
+   "attributes": [
+    {
+     "name": "support_condition_id",
+     "label": "지원 조건 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "지원 조건 대리키"
+    },
+    {
+     "name": "support_budget_id",
+     "label": "지원 예산",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "support_budget",
+     "allowed_values": [],
+     "description": "조건이 적용되는 예산"
+    },
+    {
+     "name": "condition_type",
+     "label": "조건 유형",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "COMPANY_SIZE",
+      "CAPACITY",
+      "PERIOD",
+      "REGION",
+      "OTHER"
+     ],
+     "description": "참여 조건 종류"
+    },
+    {
+     "name": "condition_value",
+     "label": "조건 값",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "조건 기준 값 (예: SMALL,MICRO / 지역 코드)"
+    },
+    {
+     "name": "min_capacity_tb",
+     "label": "최소 용량(TB)",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "용량 조건 하한"
+    },
+    {
+     "name": "max_capacity_tb",
+     "label": "최대 용량(TB)",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "용량 조건 상한"
+    },
+    {
+     "name": "description",
+     "label": "설명",
+     "data_type": "varchar",
+     "length": 1000,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "조건 설명"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "승인 검사에 적용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "support_application",
+   "attributes": [
+    {
+     "name": "support_application_id",
+     "label": "지원 신청 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "지원 신청 대리키"
+    },
+    {
+     "name": "application_no",
+     "label": "신청 번호",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "신청 업무키"
+    },
+    {
+     "name": "company_id",
+     "label": "수요기업",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "company",
+     "allowed_values": [],
+     "description": "신청한 수요기업"
+    },
+    {
+     "name": "supply_solution_id",
+     "label": "공급 솔루션",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "supply_solution",
+     "allowed_values": [],
+     "description": "신청한 솔루션"
+    },
+    {
+     "name": "region_id",
+     "label": "설치·이용 지역",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "region",
+     "allowed_values": [],
+     "description": "신청 지역"
+    },
+    {
+     "name": "applicant_id",
+     "label": "신청자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "신청한 수요기업 담당자"
+    },
+    {
+     "name": "requested_capacity_tb",
+     "label": "신청 용량(TB)",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "신청 용량"
+    },
+    {
+     "name": "start_date",
+     "label": "이용 시작일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "신청 기간 시작"
+    },
+    {
+     "name": "end_date",
+     "label": "이용 종료일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "신청 기간 종료"
+    },
+    {
+     "name": "request_note",
+     "label": "요청 사항",
+     "data_type": "varchar",
+     "length": 2000,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "기타 요청"
+    },
+    {
+     "name": "status",
+     "label": "진행 상태",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "APPLIED",
+      "APPROVED",
+      "REJECTED",
+      "CONTRACTED",
+      "IN_PROGRESS",
+      "COMPLETED",
+      "CANCELED"
+     ],
+     "description": "신청 진행 상태"
+    },
+    {
+     "name": "support_budget_id",
+     "label": "배정 예산",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "support_budget",
+     "allowed_values": [],
+     "description": "승인 시 차감한 예산"
+    },
+    {
+     "name": "approved_amount",
+     "label": "승인 지원 금액",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "승인된 정부지원 금액"
+    },
+    {
+     "name": "reject_reason",
+     "label": "반려 사유",
+     "data_type": "varchar",
+     "length": 1000,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "반려 시 사유"
+    },
+    {
+     "name": "applied_at",
+     "label": "신청일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "신청 시각"
+    },
+    {
+     "name": "approved_at",
+     "label": "승인일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "승인 시각"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "application_status_history",
+   "attributes": [
+    {
+     "name": "application_status_history_id",
+     "label": "신청 상태 이력 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "신청 상태 이력 대리키"
+    },
+    {
+     "name": "support_application_id",
+     "label": "지원 신청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "support_application",
+     "allowed_values": [],
+     "description": "대상 신청"
+    },
+    {
+     "name": "from_status",
+     "label": "이전 상태",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "APPLIED",
+      "APPROVED",
+      "REJECTED",
+      "CONTRACTED",
+      "IN_PROGRESS",
+      "COMPLETED",
+      "CANCELED"
+     ],
+     "description": "변경 전 상태"
+    },
+    {
+     "name": "to_status",
+     "label": "변경 상태",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "APPLIED",
+      "APPROVED",
+      "REJECTED",
+      "CONTRACTED",
+      "IN_PROGRESS",
+      "COMPLETED",
+      "CANCELED"
+     ],
+     "description": "변경 후 상태"
+    },
+    {
+     "name": "changed_by",
+     "label": "처리자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "상태를 바꾼 사용자"
+    },
+    {
+     "name": "comment",
+     "label": "처리 의견",
+     "data_type": "varchar",
+     "length": 1000,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "메모·반려 사유"
+    },
+    {
+     "name": "changed_at",
+     "label": "변경일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "상태 변경 시각"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "tripartite_contract",
+   "attributes": [
+    {
+     "name": "tripartite_contract_id",
+     "label": "3자 계약 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "3자 계약 대리키"
+    },
+    {
+     "name": "support_application_id",
+     "label": "지원 신청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "support_application",
+     "allowed_values": [],
+     "description": "계약 대상 신청"
+    },
+    {
+     "name": "contract_no",
+     "label": "계약 번호",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": true,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "계약 업무키"
+    },
+    {
+     "name": "contract_date",
+     "label": "계약일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "계약 체결일"
+    },
+    {
+     "name": "contract_amount",
+     "label": "계약 금액",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "총 계약 금액(원)"
+    },
+    {
+     "name": "subsidy_amount",
+     "label": "정부지원 금액",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "정부지원 금액 (승인 지원 금액 이내)"
+    },
+    {
+     "name": "self_pay_amount",
+     "label": "자부담 금액",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수요기업 부담 금액"
+    },
+    {
+     "name": "contract_status",
+     "label": "계약 상태",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "DRAFT",
+      "SIGNED",
+      "TERMINATED"
+     ],
+     "description": "작성·체결·해지"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  }
+ ]
+}

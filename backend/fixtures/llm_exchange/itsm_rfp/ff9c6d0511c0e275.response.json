@@ -1,0 +1,30 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SFR-009", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "장비별 정기점검 등록", "description": "장비별로 월·분기·반기·연 정기점검 일정을 등록한다.", "priority": "MUST",
+     "acceptance_criteria": ["장비별 점검 주기(월/분기/반기/연) 등록"],
+     "evidence": [{"source_block_id": "B0086", "quote": "장비별로 월/분기/반기/연 정기점검을 등록"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SFR-009", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "정기점검 서식 관리", "description": "월별 방문 엔지니어가 정기점검을 진행할 수 있도록 점검 서식을 등록·관리한다.", "priority": "MUST",
+     "acceptance_criteria": ["장비 유형별 점검 서식(점검 항목) 등록·수정"],
+     "evidence": [{"source_block_id": "B0086", "quote": "월별 방문 엔지니어가 정기점검을 진행할 수 있도록 서식을 등록/관리하는 기능 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SFR-009", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "장비별 점검 결과 조회", "description": "장비별 정기점검 결과를 조회한다.", "priority": "MUST",
+     "acceptance_criteria": ["장비 선택 시 점검 이력·결과 표시"],
+     "evidence": [{"source_block_id": "B0086", "quote": "장비별 정기점검 결과 조회 서비스 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SFR-009", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "월별 점검 현황·결과서 출력", "description": "월별 정기점검 진행 현황을 조회하고 결과서를 출력한다.", "priority": "MUST",
+     "acceptance_criteria": ["월별 점검 예정·완료·미완료 현황", "결과서 출력"],
+     "evidence": [{"source_block_id": "B0086", "quote": "월별 정기점검 현황(진행사항) 조회 및 결과서 출력 서비스 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R5", "source_key": "SFR-009", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "점검 결과·현황 엑셀 다운로드", "description": "월별 정기점검 결과서와 현황을 엑셀로 다운로드·출력한다.", "priority": "MUST",
+     "acceptance_criteria": ["월별 결과서·현황 Excel 다운로드"],
+     "evidence": [{"source_block_id": "B0086", "quote": "월별 정기점검 결과서 및 현황 엑셀 다운로드 및 출력 기능 구현"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

@@ -1,0 +1,15 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "PER-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "성능",
+     "title": "성능 미달 시 개선대책 반영", "description": "테스트·시범운영 결과 성능이 낮으면 개선 대책을 수립해 반영한다.", "priority": "MUST",
+     "acceptance_criteria": ["보완계획서·결과보고서 제출"],
+     "evidence": [{"source_block_id": "B0093", "quote": "테스트 및 시범운영 결과가 낮을경우 개선 대책을 수립하여 반영하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "PER-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업지원",
+     "title": "하자보수기간 성능 개선 수락", "description": "하자보수 기간(1년) 내 성능 저하·지연에 대한 발주처 개선 요청을 수락한다.", "priority": "MUST",
+     "acceptance_criteria": ["하자보수기간 개선 요청 처리 기록"],
+     "evidence": [{"source_block_id": "B0093", "quote": "하자보수기간(1년) 내 발생할 수 있는 성능 저하/지연 현상에 대해 발주처의 개선요청 시 수락해야 함"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

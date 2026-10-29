@@ -1,0 +1,791 @@
+{
+ "entities": [
+  {
+   "name": "service_request",
+   "attributes": [
+    {
+     "name": "service_request_id",
+     "label": "service_request ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "request_no",
+     "label": "요청 번호",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "요청 번호"
+    },
+    {
+     "name": "request_type_code_id",
+     "label": "요청 유형",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "common_code",
+     "allowed_values": [],
+     "description": "요청 유형"
+    },
+    {
+     "name": "process_definition_id",
+     "label": "적용 프로세스",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "process_definition",
+     "allowed_values": [],
+     "description": "적용 프로세스"
+    },
+    {
+     "name": "process_version_no",
+     "label": "적용 프로세스 버전",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "적용 프로세스 버전"
+    },
+    {
+     "name": "current_step_id",
+     "label": "현재 단계",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "process_step",
+     "allowed_values": [],
+     "description": "현재 단계"
+    },
+    {
+     "name": "title",
+     "label": "제목",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "제목"
+    },
+    {
+     "name": "content",
+     "label": "내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "내용"
+    },
+    {
+     "name": "urgency",
+     "label": "긴급도",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "LOW",
+      "MEDIUM",
+      "HIGH",
+      "CRITICAL"
+     ],
+     "description": "긴급도"
+    },
+    {
+     "name": "status",
+     "label": "상태",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "REGISTERED",
+      "RECEIVED",
+      "REJECTED",
+      "ASSIGNED",
+      "IN_PROGRESS",
+      "RESOLVED",
+      "CLOSED"
+     ],
+     "description": "상태"
+    },
+    {
+     "name": "channel",
+     "label": "접수 경로",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "PORTAL",
+      "PHONE",
+      "EMAIL",
+      "EVENT"
+     ],
+     "description": "접수 경로"
+    },
+    {
+     "name": "requester_id",
+     "label": "요청자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "요청자"
+    },
+    {
+     "name": "registered_by_id",
+     "label": "대리 등록자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "대리 등록자"
+    },
+    {
+     "name": "it_service_id",
+     "label": "대상 서비스",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "it_service",
+     "allowed_values": [],
+     "description": "대상 서비스"
+    },
+    {
+     "name": "desired_due_date",
+     "label": "희망 완료일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "희망 완료일"
+    },
+    {
+     "name": "due_at",
+     "label": "처리기한",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "처리기한"
+    },
+    {
+     "name": "reject_reason",
+     "label": "반려 사유",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "반려 사유"
+    },
+    {
+     "name": "custom_values",
+     "label": "커스텀 필드 값",
+     "data_type": "jsonb",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "커스텀 필드 값"
+    },
+    {
+     "name": "resolved_at",
+     "label": "처리 완료 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "처리 완료 일시"
+    },
+    {
+     "name": "closed_at",
+     "label": "종료 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "종료 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "request_history",
+   "attributes": [
+    {
+     "name": "request_history_id",
+     "label": "request_history ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "service_request_id",
+     "label": "서비스 요청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "service_request",
+     "allowed_values": [],
+     "description": "서비스 요청"
+    },
+    {
+     "name": "process_step_id",
+     "label": "단계",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "process_step",
+     "allowed_values": [],
+     "description": "단계"
+    },
+    {
+     "name": "from_status",
+     "label": "이전 상태",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "이전 상태"
+    },
+    {
+     "name": "to_status",
+     "label": "변경 상태",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "변경 상태"
+    },
+    {
+     "name": "action",
+     "label": "처리 동작",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "REGISTER",
+      "RECEIVE",
+      "REJECT",
+      "ASSIGN",
+      "START",
+      "RESOLVE",
+      "CLOSE",
+      "REOPEN",
+      "STEP_MOVE"
+     ],
+     "description": "처리 동작"
+    },
+    {
+     "name": "actor_id",
+     "label": "처리자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "처리자"
+    },
+    {
+     "name": "delegated_yn",
+     "label": "대리 처리 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리 처리 여부"
+    },
+    {
+     "name": "comment",
+     "label": "의견",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "의견"
+    },
+    {
+     "name": "acted_at",
+     "label": "처리 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "처리 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    }
+   ]
+  },
+  {
+   "name": "assignment",
+   "attributes": [
+    {
+     "name": "assignment_id",
+     "label": "assignment ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "service_request_id",
+     "label": "서비스 요청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "service_request",
+     "allowed_values": [],
+     "description": "서비스 요청"
+    },
+    {
+     "name": "assignee_id",
+     "label": "담당자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "담당자"
+    },
+    {
+     "name": "priority_rank",
+     "label": "담당 순위",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "1·2·3순위"
+    },
+    {
+     "name": "process_type_code_id",
+     "label": "처리 유형",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "common_code",
+     "allowed_values": [],
+     "description": "처리 유형"
+    },
+    {
+     "name": "assigned_by_id",
+     "label": "배정자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "배정자"
+    },
+    {
+     "name": "assigned_at",
+     "label": "배정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "배정 일시"
+    },
+    {
+     "name": "status",
+     "label": "배정 상태",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "ASSIGNED",
+      "ACCEPTED",
+      "ESCALATED",
+      "DONE"
+     ],
+     "description": "배정 상태"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "work_log",
+   "attributes": [
+    {
+     "name": "work_log_id",
+     "label": "work_log ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "service_request_id",
+     "label": "서비스 요청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "service_request",
+     "allowed_values": [],
+     "description": "서비스 요청"
+    },
+    {
+     "name": "assignment_id",
+     "label": "배정",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "assignment",
+     "allowed_values": [],
+     "description": "배정"
+    },
+    {
+     "name": "worker_id",
+     "label": "처리자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "처리자"
+    },
+    {
+     "name": "work_content",
+     "label": "처리 내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "처리 내용"
+    },
+    {
+     "name": "work_result",
+     "label": "처리 결과",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "DONE",
+      "HOLD",
+      "TRANSFER"
+     ],
+     "description": "처리 결과"
+    },
+    {
+     "name": "worked_at",
+     "label": "처리 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "처리 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    }
+   ]
+  },
+  {
+   "name": "sub_task",
+   "attributes": [
+    {
+     "name": "sub_task_id",
+     "label": "sub_task ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "service_request_id",
+     "label": "원 요청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "service_request",
+     "allowed_values": [],
+     "description": "원 요청"
+    },
+    {
+     "name": "task_title",
+     "label": "작업명",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "작업명"
+    },
+    {
+     "name": "department_id",
+     "label": "담당 부문",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "department",
+     "allowed_values": [],
+     "description": "담당 부문"
+    },
+    {
+     "name": "assignee_id",
+     "label": "담당자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "담당자"
+    },
+    {
+     "name": "status",
+     "label": "상태",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "OPEN",
+      "IN_PROGRESS",
+      "DONE",
+      "REJECTED"
+     ],
+     "description": "상태"
+    },
+    {
+     "name": "completed_at",
+     "label": "완료 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "완료 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  }
+ ]
+}

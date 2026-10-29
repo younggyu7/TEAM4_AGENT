@@ -1,0 +1,25 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SER-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "투입 전 보안확약·서약 제출", "description": "사업 착수 시 투입 전에 대표자용 보안확약서, 참여자용 보안서약서, 보안각서를 제출한다.", "priority": "MUST",
+     "acceptance_criteria": ["착수 시 보안확약서·서약서·각서 제출"],
+     "evidence": [{"source_block_id": "B0108", "quote": "대표자용 보안확약서와 참여자용 보안서약서, 보안각서를 제출"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SER-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "착수 전 비밀유지 보안교육", "description": "용역 수행 전 참여 인원에게 비밀유지 의무와 위반 시 처벌 내용 등 보안교육을 실시한다.", "priority": "MUST",
+     "acceptance_criteria": ["착수 보안교육 결과 제출"],
+     "evidence": [{"source_block_id": "B0108", "quote": "비밀유지의무 준수 및 위반 시 처벌내용 등에 대한 보안교육 실시"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SER-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "수행 중 주기적 보안교육", "description": "사업 수행 중 주기적으로 자체 보안교육을 실시하고 발주기관이 요구하는 보안교육에 참석한다.", "priority": "MUST",
+     "acceptance_criteria": ["주기적 보안교육 기록"],
+     "evidence": [{"source_block_id": "B0108", "quote": "주기적으로 자체 보안 교육을 실시해야 하며, 발주기관이 요구하는 보안 교육에 참석"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SER-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "종료 시 자료 미보유 확약", "description": "사업 종료 시 사업 관련 자료를 보유하지 않으며 법적 책임을 포함한 대표자 보안확약서를 제출한다.", "priority": "MUST",
+     "acceptance_criteria": ["종료 시 보안확약서 제출"],
+     "evidence": [{"source_block_id": "B0108", "quote": "사업자는 사업관련 자료를 보유해서는 안되며"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

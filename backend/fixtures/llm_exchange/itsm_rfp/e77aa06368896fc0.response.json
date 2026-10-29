@@ -1,0 +1,476 @@
+{
+ "entities": [
+  {
+   "name": "project",
+   "attributes": [
+    {
+     "name": "project_id",
+     "label": "project ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "business_category_id",
+     "label": "사업 분류",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "business_category",
+     "allowed_values": [],
+     "description": "사업 분류"
+    },
+    {
+     "name": "project_name",
+     "label": "프로젝트명",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "프로젝트명"
+    },
+    {
+     "name": "start_date",
+     "label": "시작일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "시작일"
+    },
+    {
+     "name": "end_date",
+     "label": "종료일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "종료일"
+    },
+    {
+     "name": "manager_id",
+     "label": "담당자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "담당자"
+    },
+    {
+     "name": "status",
+     "label": "상태",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "PLANNED",
+      "IN_PROGRESS",
+      "DONE",
+      "CANCELED"
+     ],
+     "description": "상태"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "work_item",
+   "attributes": [
+    {
+     "name": "work_item_id",
+     "label": "work_item ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "project_id",
+     "label": "프로젝트",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "project",
+     "allowed_values": [],
+     "description": "프로젝트"
+    },
+    {
+     "name": "item_name",
+     "label": "업무명",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "업무명"
+    },
+    {
+     "name": "assignee_id",
+     "label": "담당자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "담당자"
+    },
+    {
+     "name": "planned_start",
+     "label": "계획 시작일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "계획 시작일"
+    },
+    {
+     "name": "planned_end",
+     "label": "계획 종료일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "계획 종료일"
+    },
+    {
+     "name": "progress_rate",
+     "label": "진척률(%)",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "0~100"
+    },
+    {
+     "name": "status",
+     "label": "상태",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "TODO",
+      "IN_PROGRESS",
+      "DONE",
+      "DELAYED"
+     ],
+     "description": "상태"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "report_template",
+   "attributes": [
+    {
+     "name": "report_template_id",
+     "label": "report_template ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "report_type",
+     "label": "보고서 유형",
+     "data_type": "varchar",
+     "length": 14,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "INCIDENT",
+      "TECH_SUPPORT",
+      "INSPECTION",
+      "STAGE"
+     ],
+     "description": "보고서 유형"
+    },
+    {
+     "name": "template_name",
+     "label": "양식명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "양식명"
+    },
+    {
+     "name": "template_json",
+     "label": "양식 구성",
+     "data_type": "jsonb",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "양식 구성"
+    },
+    {
+     "name": "active_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "stage_report",
+   "attributes": [
+    {
+     "name": "stage_report_id",
+     "label": "stage_report ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "project_id",
+     "label": "프로젝트",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "project",
+     "allowed_values": [],
+     "description": "프로젝트"
+    },
+    {
+     "name": "stage",
+     "label": "사업 단계",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "KICKOFF",
+      "INTERIM",
+      "FINAL",
+      "OTHER"
+     ],
+     "description": "사업 단계"
+    },
+    {
+     "name": "report_template_id",
+     "label": "보고서 양식",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "report_template",
+     "allowed_values": [],
+     "description": "보고서 양식"
+    },
+    {
+     "name": "title",
+     "label": "제목",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "제목"
+    },
+    {
+     "name": "content",
+     "label": "내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "내용"
+    },
+    {
+     "name": "author_id",
+     "label": "작성자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "작성자"
+    },
+    {
+     "name": "submitted_at",
+     "label": "제출 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "제출 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  }
+ ]
+}

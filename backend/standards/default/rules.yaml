@@ -1,0 +1,12 @@
+# 기본 프로필: 지금 데이터 모델 Agent의 규칙 그대로 (이름을 바꾸지 않는다)
+name: 기본
+description: 영문 소문자 snake_case 단수형, 기본키 <엔티티>_id, 감사 컬럼 created_at·updated_at (지금 규칙)
+case: lower
+table_prefix: ""
+max_length: 63            # PostgreSQL 식별자 최대 길이
+primary_key: ""           # 설계 이름 그대로 (<엔티티>_id)
+foreign_key: label        # 설계 이름 그대로 (<참조 엔티티>_id, 역할명_id)
+audit_columns:
+  rename: {}
+  add: []
+types: {}

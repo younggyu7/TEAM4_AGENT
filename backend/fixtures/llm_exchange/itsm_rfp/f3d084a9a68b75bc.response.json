@@ -1,0 +1,25 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SER-001_2", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "보안정책 수립·수시 진단", "description": "인적·물적 자원에 대한 보안정책과 지침을 수립·적용하고 수시로 보안 진단을 실시한다.", "priority": "MUST",
+     "acceptance_criteria": ["보안관리 계획서 제출", "보안 진단 결과 기록"],
+     "evidence": [{"source_block_id": "B0105", "quote": "인적, 물적 자원에 대한 보안정책 및 지침을 수립하여 적용하고, 수시로 보안 진단을 실시"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SER-001_2", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "수행 인력 보안교육·서약", "description": "외부 인력을 포함한 사업 수행 인력에게 보안교육을 실시하고 보안서약서를 받는다.", "priority": "MUST",
+     "acceptance_criteria": ["보안교육 결과·보안서약서 제출"],
+     "evidence": [{"source_block_id": "B0105", "quote": "외부 인력을 포함한 사업 수행 인력을 대상으로 보안교육 실시 및 보안서약서 작성"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SER-001_2", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "사업 종료 후 비밀 유지", "description": "사업 수행 중 취득한 지식은 사업 완료 후에도 비밀을 유지한다.", "priority": "MUST",
+     "acceptance_criteria": ["비밀유지 서약"],
+     "evidence": [{"source_block_id": "B0105", "quote": "사업이 완료된 후에라도 비밀 보안을 준수"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SER-001_2", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "자료 무단 유출 금지·보안확약서", "description": "취득 자료·정보를 발주기관 승인 없이 외부에 유출하지 않으며, 법적 책임을 포함한 보안확약서를 제출한다.", "priority": "MUST",
+     "acceptance_criteria": ["보안확약서 제출"],
+     "evidence": [{"source_block_id": "B0105", "quote": "발주기관의 승인 없이 외부에 유출 또는 누설하여서는 안 되며"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

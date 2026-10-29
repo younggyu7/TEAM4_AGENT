@@ -1,0 +1,30 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "PSR-003", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업지원",
+     "title": "발주기관 최종 검수", "description": "사업 완료 후 발주기관이 지정한 검사요원의 최종 검수를 받는다.", "priority": "MUST",
+     "acceptance_criteria": ["최종 검수 결과 통보"],
+     "evidence": [{"source_block_id": "B0124", "quote": "발주기관이 지정하는 검사요원의 최종 검수를 받아야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "PSR-003", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업지원",
+     "title": "검수계획서 1주 전 승인", "description": "검수 개시 1주 전까지 솔루션 구축 목록·산출물 목록·장비 설치내역·인수시험 항목과 방법을 담은 검수계획서를 제출해 승인받는다.", "priority": "MUST",
+     "acceptance_criteria": ["검수 1주 전 검수계획서 승인"],
+     "evidence": [{"source_block_id": "B0124", "quote": "검수 개시 1주전까지 본 제안요청서의 요구조건을 충분히 포함하는 시험항목 및 방법 등을 기술한 검수계획서를 서면으로 발주기관에 제출하여 승인을 받은 후 검수를 실시함"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "PSR-003", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업지원",
+     "title": "검수 미비점 즉시 보완", "description": "시험에서 발견된 미비점은 계약자가 즉시 보완하고 발주기관 확인을 받는다.", "priority": "MUST",
+     "acceptance_criteria": ["미비점 보완 확인"],
+     "evidence": [{"source_block_id": "B0124", "quote": "시험 결과 발견된 미비점에 대해서는 계약자가 즉시 보완하여"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "PSR-003", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업지원",
+     "title": "검수기간 2주 이내", "description": "검수 기간은 2주 이내로 한다.", "priority": "MUST",
+     "acceptance_criteria": ["검수 2주 이내 완료"],
+     "evidence": [{"source_block_id": "B0124", "quote": "검수기간은 2주 이내로 하며"}],
+     "status": "CONFIRMED"},
+    {"key": "R5", "source_key": "PSR-003", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업관리",
+     "title": "테스트·검수 비용 제안사 부담", "description": "테스트·검수·시연에 필요한 장비, 장소, 비용 등은 제안사가 부담한다.", "priority": "MUST",
+     "acceptance_criteria": ["검수 관련 비용 제안사 부담"],
+     "evidence": [{"source_block_id": "B0124", "quote": "테스트 및 검수, 시연 등에 필요한 장비 및 장소, 비용 등의 제반사항은 제안사 부담"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

@@ -1,0 +1,622 @@
+{
+ "entities": [
+  {
+   "name": "region",
+   "attributes": [
+    {
+     "name": "region_id",
+     "label": "지역 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "지역 대리키"
+    },
+    {
+     "name": "region_code",
+     "label": "지역 코드",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "행정구역 시도 코드"
+    },
+    {
+     "name": "region_name",
+     "label": "지역명",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "시도 이름"
+    },
+    {
+     "name": "sort_order",
+     "label": "정렬 순서",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "목록 표시 순서"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "선택 목록 노출 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "company",
+   "attributes": [
+    {
+     "name": "company_id",
+     "label": "기업 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "기업 대리키"
+    },
+    {
+     "name": "company_type",
+     "label": "기업 유형",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "SUPPLIER",
+      "DEMAND"
+     ],
+     "description": "공급기업·수요기업 구분"
+    },
+    {
+     "name": "business_reg_no",
+     "label": "사업자등록번호",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "기관 식별 업무키(숫자 10자리, 하이픈 제외 저장)"
+    },
+    {
+     "name": "company_name",
+     "label": "기관명",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "기업 이름"
+    },
+    {
+     "name": "representative_name",
+     "label": "대표자명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대표자 이름"
+    },
+    {
+     "name": "region_id",
+     "label": "소재 지역",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "region",
+     "allowed_values": [],
+     "description": "기업 소재 시도"
+    },
+    {
+     "name": "address",
+     "label": "주소",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사업장 주소"
+    },
+    {
+     "name": "company_size",
+     "label": "기업 규모",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "LARGE",
+      "MEDIUM",
+      "SMALL",
+      "MICRO"
+     ],
+     "description": "지원 참여 조건 판정용 규모"
+    },
+    {
+     "name": "approval_status",
+     "label": "가입 승인 상태",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "PENDING",
+      "APPROVED",
+      "REJECTED"
+     ],
+     "description": "기관 인증(가입 승인) 상태"
+    },
+    {
+     "name": "reject_reason",
+     "label": "반려 사유",
+     "data_type": "varchar",
+     "length": 1000,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "가입 반려 사유"
+    },
+    {
+     "name": "approved_at",
+     "label": "승인일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "가입 승인 시각"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "app_user",
+   "attributes": [
+    {
+     "name": "app_user_id",
+     "label": "사용자 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사용자 대리키"
+    },
+    {
+     "name": "company_id",
+     "label": "소속 기업",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "company",
+     "allowed_values": [],
+     "description": "기업 담당자의 소속 기업 (관리자는 비어 있음)"
+    },
+    {
+     "name": "login_id",
+     "label": "로그인 아이디",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "로그인 아이디 (특수문자 등 유효성 검증)"
+    },
+    {
+     "name": "password_hash",
+     "label": "비밀번호 해시",
+     "data_type": "varchar",
+     "length": 255,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "단방향 해시(솔트 포함)한 비밀번호. 평문 저장 금지"
+    },
+    {
+     "name": "user_name",
+     "label": "이름",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "담당자 이름"
+    },
+    {
+     "name": "email",
+     "label": "이메일",
+     "data_type": "varchar",
+     "length": 255,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "연락·비밀번호 재설정용 이메일"
+    },
+    {
+     "name": "phone",
+     "label": "연락처",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "전화번호"
+    },
+    {
+     "name": "user_status",
+     "label": "계정 상태",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "PENDING",
+      "ACTIVE",
+      "LOCKED",
+      "DISABLED"
+     ],
+     "description": "승인 대기·활성·잠금·비활성"
+    },
+    {
+     "name": "login_fail_count",
+     "label": "로그인 실패 횟수",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "연속 실패 횟수 (기준 초과 시 잠금)"
+    },
+    {
+     "name": "password_changed_at",
+     "label": "비밀번호 변경일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "비밀번호 사용주기 제한 판단"
+    },
+    {
+     "name": "mfa_enabled",
+     "label": "2단계 인증 사용",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "2-Factor 인증 적용 여부"
+    },
+    {
+     "name": "mfa_secret_enc",
+     "label": "2단계 인증 비밀값(암호화)",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "TOTP 등 2단계 인증 비밀값. 양방향 암호화해 저장"
+    },
+    {
+     "name": "last_login_at",
+     "label": "최종 로그인일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "마지막 로그인 성공 시각"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "app_role",
+   "attributes": [
+    {
+     "name": "app_role_id",
+     "label": "역할 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "역할 대리키"
+    },
+    {
+     "name": "role_code",
+     "label": "역할 코드",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "역할 식별 코드 (예: ADMIN, SUPPLIER, DEMAND)"
+    },
+    {
+     "name": "role_name",
+     "label": "역할명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "역할 이름"
+    },
+    {
+     "name": "description",
+     "label": "설명",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "역할 설명"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "역할 사용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "user_role",
+   "attributes": [
+    {
+     "name": "user_role_id",
+     "label": "사용자 역할 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사용자 역할 대리키"
+    },
+    {
+     "name": "app_user_id",
+     "label": "사용자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "역할을 받은 사용자"
+    },
+    {
+     "name": "app_role_id",
+     "label": "역할",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_role",
+     "allowed_values": [],
+     "description": "부여된 역할"
+    },
+    {
+     "name": "granted_at",
+     "label": "부여일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "역할 부여 시각"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  }
+ ]
+}

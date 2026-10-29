@@ -1,0 +1,12 @@
+{
+  "entities": [
+    {"name": "account_group", "label": "계정 그룹", "description": "사업참여 인원 등 계정을 묶어 접근권한을 차등 관리하는 그룹 (SER-004)", "kind": "MASTER", "function_ids": [], "parents": []},
+    {"name": "user_account", "label": "사용자 계정", "description": "서비스데스크 요원·운영담당자·공사 담당자 계정", "kind": "MASTER", "function_ids": ["FN-MAR-030-01", "FN-MAR-030-02", "FN-MAR-030-03"], "parents": ["account_group"]},
+    {"name": "work_area", "label": "업무 구분", "description": "담당자 배정 기준이 되는 시스템·업무 영역 코드", "kind": "CODE", "function_ids": ["FN-MAR-030-03"], "parents": []},
+    {"name": "work_area_assignee", "label": "업무별 담당자 규칙", "description": "업무 구분별 기본 처리 담당자", "kind": "MAPPING", "function_ids": ["FN-MAR-030-03"], "parents": ["work_area", "user_account"]},
+    {"name": "incident", "label": "인시던트", "description": "서비스데스크로 접수된 장애·문의·요청 (내부 직원·외부 고객)", "kind": "TRANSACTION", "function_ids": ["FN-MAR-030-01", "FN-MAR-030-02", "FN-MAR-030-03", "FN-MAR-030-04"], "parents": ["user_account", "work_area"]},
+    {"name": "consultation_log", "label": "상담 기록", "description": "인시던트 접수·응대 시 상담 내역", "kind": "HISTORY", "function_ids": ["FN-MAR-030-01"], "parents": ["incident", "user_account"]},
+    {"name": "incident_history", "label": "인시던트 처리 이력", "description": "1·2·3차 처리와 이관, 3차 적정성 검토 기록", "kind": "HISTORY", "function_ids": ["FN-MAR-030-02"], "parents": ["incident", "user_account"]},
+    {"name": "monthly_desk_stat", "label": "월간 운영현황", "description": "월별 처리건수·유형별 건수·평균 처리시간 확정 집계", "kind": "TRANSACTION", "function_ids": ["FN-MAR-030-04"], "parents": []}
+  ]
+}

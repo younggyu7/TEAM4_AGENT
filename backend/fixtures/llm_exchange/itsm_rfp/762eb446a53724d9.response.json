@@ -1,0 +1,139 @@
+{
+ "functions": [
+  {
+   "name": "IT 운영관리 현황 조회",
+   "description": "IT 자원 현황, 서비스 요청 처리 현황, 운영 수준(SLA 실적)을 한 화면에서 조회한다.",
+   "requirement_ids": [
+    "SFR-011-01"
+   ],
+   "nfr_ids": [
+    "PER-002-02"
+   ],
+   "actors": [
+    "운영 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "조회 기간",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "운영 현황",
+     "description": "자원·요청·운영수준 요약",
+     "required": true
+    }
+   ],
+   "business_rules": [],
+   "normal_flow": [
+    "관리자가 운영 현황 화면을 연다",
+    "기간을 지정한다",
+    "자원·요청·SLA 현황을 표시한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "데이터 없음",
+     "handling": "빈 현황 안내"
+    }
+   ],
+   "data_objects": [
+    "구성항목",
+    "서비스 요청",
+    "지표 실적"
+   ]
+  },
+  {
+   "name": "운영현황 Excel 다운로드",
+   "description": "운영 수준, 서비스 요청·처리 결과 등 IT서비스 운영 현황을 Excel로 내려받는다.",
+   "requirement_ids": [
+    "SFR-011-02"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "운영 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "대상",
+     "description": "운영수준·요청·처리결과",
+     "required": true
+    },
+    {
+     "name": "기간",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "Excel 파일",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "열람 권한이 있는 데이터만 포함한다"
+   ],
+   "normal_flow": [
+    "관리자가 대상과 기간을 선택한다",
+    "파일을 생성한다",
+    "내려받는다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "대상 데이터 없음",
+     "handling": "다운로드 불가 안내"
+    }
+   ],
+   "data_objects": [
+    "서비스 요청",
+    "지표 실적"
+   ]
+  },
+  {
+   "name": "IT 자산정보 Excel 다운로드",
+   "description": "IT 자산 목록과 상세 정보를 Excel로 내려받는다.",
+   "requirement_ids": [
+    "SFR-011-03"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "자산 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "조회 조건",
+     "description": "자산 유형·상태",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "Excel 파일",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [],
+   "normal_flow": [
+    "관리자가 조건을 지정한다",
+    "자산 목록을 조회한다",
+    "Excel로 내려받는다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "결과 없음",
+     "handling": "다운로드 불가 안내"
+    }
+   ],
+   "data_objects": [
+    "IT 자산"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,25 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SFR-006", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "관리자 절차 변경 Workflow", "description": "관리자가 시스템에서 운영관리 절차(Workflow)를 변경·적용한다.", "priority": "MUST",
+     "acceptance_criteria": ["관리자가 절차 단계를 추가·삭제·순서 변경하고 적용", "변경된 절차가 이후 신규 건에 적용"],
+     "evidence": [{"source_block_id": "B0083", "quote": "관리자가 시스템상에서 절차 변경 적용이 가능한 Workflow 서비스 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SFR-006", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능",
+     "title": "절차별 화면 항목 관리", "description": "절차별로 사용하는 화면의 정보 관리 항목을 관리자가 변경한다.", "priority": "MUST",
+     "acceptance_criteria": ["절차별 입력 항목 추가·삭제·필수 여부 변경"],
+     "evidence": [{"source_block_id": "B0083", "quote": "절차별 활용 화면의 정보관리 항목을 관리자가 변경 가능하도록 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SFR-006", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업관리",
+     "title": "운영관리 프로세스 정비", "description": "대한적십자사 IT 운영환경과 조직 특성을 반영해 운영관리 프로세스를 정비한다.", "priority": "MUST",
+     "acceptance_criteria": ["정비된 프로세스 정의서 제출"],
+     "evidence": [{"source_block_id": "B0083", "quote": "대한적십자사 IT운영환경 및 조직 특성을 반영한 운영관리 프로세스 정비"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SFR-006", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "제약",
+     "title": "ITIL v4 기반 프로세스 적용", "description": "ITIL v4 기반으로 정비한 프로세스를 시스템에 적용한다.", "priority": "MUST",
+     "acceptance_criteria": ["시스템 프로세스가 ITIL v4 프로세스 정의와 대응"],
+     "evidence": [{"source_block_id": "B0083", "quote": "ITIL v4 기반 프로세스 정비하여 시스템에 적용"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

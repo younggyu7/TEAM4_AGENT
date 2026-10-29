@@ -1,0 +1,30 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SER-007", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "정보보안책임자 지정", "description": "사업 수행 시 정보보안책임자와 담당자를 지정해 투입 인력의 보안 업무를 수행한다.", "priority": "MUST",
+     "acceptance_criteria": ["보안책임자 지정 내역 제출"],
+     "evidence": [{"source_block_id": "B0111", "quote": "정보보안책임자 및 담당자를 지정하여 투입인력에 대한 철저한 보안업무를 수행하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SER-007", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "제약",
+     "title": "불법복제 SW 사용 금지", "description": "지적재산권을 침해할 수 있는 불법복제 소프트웨어를 사업 수행에 사용하지 않는다.", "priority": "MUST",
+     "acceptance_criteria": ["사용 SW 라이선스 점검"],
+     "evidence": [{"source_block_id": "B0111", "quote": "불법복제 소프트웨어 등을 본사업 수행을 목적으로 사용할 수 없음"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SER-007", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "문서 세단 폐기", "description": "문서는 세단기 등으로 복구 불가능하게 폐기한다.", "priority": "MUST",
+     "acceptance_criteria": ["문서 폐기 대장"],
+     "evidence": [{"source_block_id": "B0111", "quote": "문서폐기는 문서세단기 등을 이용하여 회복이 불가능한 상태로 폐기하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SER-007", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "사업수행 PC 패스워드·백신", "description": "사업 수행용 컴퓨터는 패스워드를 사용하고 주기적으로 변경하며 백신을 최신 버전으로 유지한다.", "priority": "MUST",
+     "acceptance_criteria": ["PC 보안 점검 기록"],
+     "evidence": [{"source_block_id": "B0111", "quote": "사업수행용 컴퓨터는 패스워드를 사용하여야 하며 주기적인 변경을 실시하고 백신프로그램은 최신 버전을 유지하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R5", "source_key": "SER-007", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "개발 장비 저장매체 완전포맷", "description": "시스템 구축에 쓴 개발자 노트북 등 저장매체는 사업 완료 후 완전 포맷하고 증빙을 제출한다.", "priority": "MUST",
+     "acceptance_criteria": ["완전포맷 증빙자료 제출"],
+     "evidence": [{"source_block_id": "B0111", "quote": "사업 완료 후 완전포맷 후 증빙자료를 제출하여야 함"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

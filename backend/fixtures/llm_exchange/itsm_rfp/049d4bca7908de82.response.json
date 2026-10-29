@@ -1,0 +1,30 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SIR-001", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "보안",
+     "title": "업무 Role 기반 접근권한 모델", "description": "사용자별 접근권한은 업무 역할(Role) 기반 접근권한 모델로 적용한다.", "priority": "MUST",
+     "acceptance_criteria": ["권한이 역할 단위로 부여·회수됨", "사용자는 보유 역할의 권한만 사용"],
+     "evidence": [{"source_block_id": "B0099", "quote": "업무 Role 기반의 접근권한 모델을 수립하여 적용하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SIR-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업관리",
+     "title": "현행 접근권한 분석", "description": "현행 대한적십자사 접근권한을 분석해 접근권한 특성을 권한 모델에 반영한다.", "priority": "MUST",
+     "acceptance_criteria": ["현행 접근권한 분석 결과서"],
+     "evidence": [{"source_block_id": "B0099", "quote": "사용자별 접근권한은 현행 대한적십자사 접근권한을 분석하여 접근권한 특성을 반영하고"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SIR-001", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "인터페이스",
+     "title": "접근권한 적용 SSO 연계", "description": "접근권한 적용을 위해 통합인증(SSO)과 연계한다.", "priority": "MUST",
+     "acceptance_criteria": ["SSO 인증 사용자 정보로 ITSM 역할·권한 적용"],
+     "evidence": [{"source_block_id": "B0099", "quote": "접근권한 적용을 위하여 SSO 연계 구현"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SIR-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업관리",
+     "title": "연계 비용 제안사 부담", "description": "기존 시스템 연계에 필요한 모든 비용은 제안사가 부담한다.", "priority": "MUST",
+     "acceptance_criteria": ["연계 비용이 제안 금액에 포함"],
+     "evidence": [{"source_block_id": "B0099", "quote": "기존 시스템 연계에 필요한 모든 비용은 제안사의 비용으로 진행하여야 한다"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": [
+    {"kind": "MISSING", "question": "내부 연계 대상 시스템별 연계 방식과 주기는 어떻게 됩니까?",
+     "context": "연계 대상 범위를 '[4p. 내부업무연계] 참조'로만 제시하고 시스템별 연계 방식(API, DB, 파일)과 주기가 없다.",
+     "options": ["SSO는 실시간 인증, 관제시스템은 일 1회 배치 수집", "시스템별로 착수 후 협의"],
+     "requirement_keys": ["R3"], "evidence_block_ids": ["B0099"], "blocking": false}
+  ]
+}

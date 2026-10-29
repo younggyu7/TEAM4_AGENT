@@ -1,0 +1,29 @@
+{
+  "status": "passed",
+  "checked_at": "2026-10-28",
+  "documents": [
+    "doc1",
+    "doc2",
+    "doc3",
+    "doc5",
+    "doc6"
+  ],
+  "checks": [
+    "사례 ID가 문서끼리 겹치지 않음",
+    "문서 파일 지문(sha256)이 정답을 만들 때와 같음",
+    "사례가 가리키는 정답 단위가 모두 있음",
+    "정상·재연결 인용문은 정답 위치 원문에 있음",
+    "미확인 인용문은 문서 어디에도 없음",
+    "재연결 인용문은 주장한 위치에 없음",
+    "청킹 문구는 정답 원문에 있음",
+    "requirements_analyst 정답 단위 = 고정 입력의 추출 단위",
+    "requirements_analyst 필수어는 입력 원문에 있음",
+    "확인 질문이 가리키는 단위가 있음"
+  ],
+  "problems": [],
+  "not_checked": [
+    "실제 Agent 실행 결과 (evals.eval_document_analyst / eval_requirements_analyst로 채점)",
+    "담당자 정답 승인 (human_review_status: pending)",
+    "분류(t·s·c)·확인 질문 같은 판단의 타당성"
+  ]
+}

@@ -3,6 +3,5 @@
 __pycache__
 .pytest_cache
 .ruff_cache
-*.db
-
-.debug-runs
+output
+data/uploads

@@ -1,0 +1,107 @@
+{
+ "functions": [
+  {
+   "name": "운영 절차 버전 적용",
+   "description": "관리자가 변경한 운영관리 절차(Workflow)를 새 버전으로 배포하고, 이후 생성되는 건부터 적용한다.",
+   "requirement_ids": [
+    "SFR-006-01"
+   ],
+   "nfr_ids": [
+    "SFR-006-04"
+   ],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [
+    "프로세스 정의 변경본이 있음"
+   ],
+   "inputs": [
+    {
+     "name": "프로세스 버전",
+     "description": "적용할 버전",
+     "required": true
+    },
+    {
+     "name": "적용 시작일",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "적용 결과",
+     "description": "현재 사용 버전",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "진행 중인 건은 기존 버전으로 끝까지 처리한다",
+    "버전 변경 이력을 남긴다"
+   ],
+   "normal_flow": [
+    "관리자가 변경본을 검토한다",
+    "적용 시작일을 지정한다",
+    "배포하면 사용 버전이 바뀐다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "검증 오류가 있는 변경본",
+     "handling": "배포 거부"
+    }
+   ],
+   "data_objects": [
+    "프로세스 정의",
+    "프로세스 단계"
+   ]
+  },
+  {
+   "name": "절차별 입력 항목 관리",
+   "description": "관리자가 절차별 화면의 입력 항목(커스텀 필드)을 추가·삭제하고 필수 여부를 바꾼다.",
+   "requirement_ids": [
+    "SFR-006-02"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "절차",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "항목",
+     "description": "이름·유형·필수 여부·선택값",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "절차별 항목 구성",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "삭제된 항목의 기존 입력값은 보존한다"
+   ],
+   "normal_flow": [
+    "관리자가 절차를 선택한다",
+    "항목을 추가·수정한다",
+    "저장하면 화면에 반영된다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "같은 이름의 항목",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "커스텀 필드",
+    "화면 양식"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,555 @@
+{
+ "entities": [
+  {
+   "name": "inquiry",
+   "attributes": [
+    {
+     "name": "inquiry_id",
+     "label": "1:1 문의 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "1:1 문의 대리키"
+    },
+    {
+     "name": "inquirer_id",
+     "label": "문의자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "문의한 기업 담당자"
+    },
+    {
+     "name": "target_type",
+     "label": "문의 대상",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "SUPPLIER",
+      "ADMIN"
+     ],
+     "description": "공급기업 또는 관리자"
+    },
+    {
+     "name": "supply_solution_id",
+     "label": "대상 솔루션",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "supply_solution",
+     "allowed_values": [],
+     "description": "공급기업 대상 문의일 때"
+    },
+    {
+     "name": "inquiry_type",
+     "label": "문의 유형",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "QUOTE",
+      "TECH",
+      "ETC"
+     ],
+     "description": "견적·기술·기타"
+    },
+    {
+     "name": "title",
+     "label": "제목",
+     "data_type": "varchar",
+     "length": 300,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "문의 제목"
+    },
+    {
+     "name": "content",
+     "label": "내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "문의 내용"
+    },
+    {
+     "name": "status",
+     "label": "처리 상태",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "WAITING",
+      "ANSWERED"
+     ],
+     "description": "답변 대기·완료"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "inquiry_answer",
+   "attributes": [
+    {
+     "name": "inquiry_answer_id",
+     "label": "문의 답변 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "문의 답변 대리키"
+    },
+    {
+     "name": "inquiry_id",
+     "label": "문의",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "inquiry",
+     "allowed_values": [],
+     "description": "답변 대상 문의"
+    },
+    {
+     "name": "answerer_id",
+     "label": "답변자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "공급기업 담당자 또는 관리자"
+    },
+    {
+     "name": "content",
+     "label": "답변 내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "답변"
+    },
+    {
+     "name": "answered_at",
+     "label": "답변일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "답변 시각"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "satisfaction_survey",
+   "attributes": [
+    {
+     "name": "satisfaction_survey_id",
+     "label": "만족도 조사 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "만족도 조사 대리키"
+    },
+    {
+     "name": "title",
+     "label": "조사 제목",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "조사 이름"
+    },
+    {
+     "name": "fiscal_year",
+     "label": "사업 연도",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대상 사업 연도"
+    },
+    {
+     "name": "target_type",
+     "label": "응답 대상",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "ALL",
+      "SUPPLIER",
+      "DEMAND"
+     ],
+     "description": "전체·공급기업·수요기업"
+    },
+    {
+     "name": "start_date",
+     "label": "응답 시작일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "응답 기간 시작"
+    },
+    {
+     "name": "end_date",
+     "label": "응답 종료일",
+     "data_type": "date",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "응답 기간 종료"
+    },
+    {
+     "name": "survey_status",
+     "label": "조사 상태",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "DRAFT",
+      "OPEN",
+      "CLOSED"
+     ],
+     "description": "작성·진행·종료"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "survey_question",
+   "attributes": [
+    {
+     "name": "survey_question_id",
+     "label": "조사 문항 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "조사 문항 대리키"
+    },
+    {
+     "name": "satisfaction_survey_id",
+     "label": "만족도 조사",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "satisfaction_survey",
+     "allowed_values": [],
+     "description": "문항이 속한 조사"
+    },
+    {
+     "name": "question_no",
+     "label": "문항 번호",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "표시 순서"
+    },
+    {
+     "name": "question_text",
+     "label": "문항 내용",
+     "data_type": "varchar",
+     "length": 1000,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "질문"
+    },
+    {
+     "name": "answer_type",
+     "label": "응답 유형",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "SCORE",
+      "CHOICE",
+      "TEXT"
+     ],
+     "description": "점수·선택·서술"
+    },
+    {
+     "name": "choice_options",
+     "label": "선택 보기",
+     "data_type": "jsonb",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "선택형 보기 목록"
+    },
+    {
+     "name": "required_yn",
+     "label": "필수 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "필수 응답 문항"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "survey_response",
+   "attributes": [
+    {
+     "name": "survey_response_id",
+     "label": "만족도 응답 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "만족도 응답 대리키"
+    },
+    {
+     "name": "satisfaction_survey_id",
+     "label": "만족도 조사",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "satisfaction_survey",
+     "allowed_values": [],
+     "description": "응답한 조사"
+    },
+    {
+     "name": "respondent_id",
+     "label": "응답자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "응답한 담당자"
+    },
+    {
+     "name": "company_id",
+     "label": "기업",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "company",
+     "allowed_values": [],
+     "description": "응답 기업 (기업당 1회 판단)"
+    },
+    {
+     "name": "submitted_at",
+     "label": "제출일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "응답 제출 시각"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  }
+ ]
+}

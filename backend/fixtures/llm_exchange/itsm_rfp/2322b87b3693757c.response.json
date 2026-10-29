@@ -1,0 +1,20 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SER-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "테스트",
+     "title": "테스트 방안 제시", "description": "테스트 조직 구성, 시험 데이터 구축, 테스트 시나리오에 의한 테스트 방안을 제시한다.", "priority": "MUST",
+     "acceptance_criteria": ["테스트 계획서 제출"],
+     "evidence": [{"source_block_id": "B0103", "quote": "테스트에 필요한 조직구성과 시험데이터 구축 및 테스트 시나리오에 의한 테스트 방안 제시"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SER-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업관리",
+     "title": "승인된 요구사항을 베이스라인으로", "description": "변경관리 절차로 승인된 요구사항을 최종 베이스라인으로 본다.", "priority": "MUST",
+     "acceptance_criteria": ["요구사항 변경 승인 기록 유지"],
+     "evidence": [{"source_block_id": "B0103", "quote": "변경관리 절차를 통해 승인을 획득한 요구사항을 최종 베이스라인으로 간주함"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SER-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "테스트",
+     "title": "테스트 기반 요구사항 충족 평가", "description": "요구사항 충족 여부는 기능 요구사항별 검증(테스트)에서 예상 결과가 나왔는지로 평가한다.", "priority": "MUST",
+     "acceptance_criteria": ["기능 요구사항별 테스트 결과 보고서"],
+     "evidence": [{"source_block_id": "B0103", "quote": "각 기능 요구사항의 검증(테스트) 활동을 통해 예상된 결과가 도출되었을 경우를 기준으로 평가함"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

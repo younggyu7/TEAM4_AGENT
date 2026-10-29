@@ -1,0 +1,15 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "DAR-001", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "데이터",
+     "title": "DB 표준화 지침 준수", "description": "행정안전부 데이터 관리 정책과 '공공기관의 데이터베이스 표준화 지침' 등 관련 지침을 준수한다.", "priority": "MUST",
+     "acceptance_criteria": ["표준 용어·도메인 사전에 따른 테이블·컬럼 명명", "DB 표준화 점검 결과"],
+     "evidence": [{"source_block_id": "B0101", "quote": "행정안전부의 데이터 관리 정책을 준수하여야 함"}, {"source_block_id": "B0101", "quote": "공공기관의 데이터베이스 표준화 지침"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "DAR-001", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "보안",
+     "title": "비밀번호 일방향 암호화 저장", "description": "관리자(운영자)와 사용자의 비밀번호는 복호화되지 않는 일방향 암호화로 저장한다.", "priority": "MUST",
+     "acceptance_criteria": ["DB에 비밀번호 평문·복호화 가능 값 없음", "해시 값으로만 저장"],
+     "evidence": [{"source_block_id": "B0101", "quote": "관리자(운영자) 및 사용자의 비밀번호는 반드시 암호화 처리하여 저장하여야 하며, 일방향 암호화 처리로 복호화되지 않아야 함"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

@@ -1,0 +1,25 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "PER-002", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "테스트",
+     "title": "목표성능 테스트 계획 협의", "description": "목표 성능에 대한 시스템 테스트 계획서를 발주자와 협의해 확정하고 목표 성능을 보장하도록 구축한다.", "priority": "MUST",
+     "acceptance_criteria": ["확정된 성능 테스트 계획서"],
+     "evidence": [{"source_block_id": "B0091", "quote": "목표성능에 대한 시스템 테스트 계획서를 발주자와 협의하여 확정하고"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "PER-002", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "성능",
+     "title": "조회 응답 3초 이내", "description": "사용자가 응답을 요청한 시각부터 3초 이내에 요청 결과를 조회한다.", "priority": "MUST",
+     "acceptance_criteria": ["주요 조회 화면 응답시간 3초 이내"],
+     "evidence": [{"source_block_id": "B0091", "quote": "사용자가 응답을 요청한 시각으로부터 3초 내에 요청결과 조회"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "PER-002", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "성능",
+     "title": "느린 작업 사전 알림", "description": "처리 속도가 느린 작업은 사용자에게 미리 알린다.", "priority": "MUST",
+     "acceptance_criteria": ["3초 초과 예상 작업 시작 시 안내 메시지 표시"],
+     "evidence": [{"source_block_id": "B0091", "quote": "처리속도가 느린 작업의 경우, 사용자에게 사전 알림"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "PER-002", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "성능",
+     "title": "성능진단·튜닝", "description": "성능진단 도구로 성능을 진단하고 DB 튜닝·프로그램 구조 개선 등으로 시스템을 최적화한다.", "priority": "MUST",
+     "acceptance_criteria": ["성능진단 결과보고서 제출"],
+     "evidence": [{"source_block_id": "B0091", "quote": "성능진단 도구를 활용한 정확한 성능을 진단하고 결과에 따른 DB튜닝, 프로그램구조개선 등을 통해 시스템을 최적화 실시"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

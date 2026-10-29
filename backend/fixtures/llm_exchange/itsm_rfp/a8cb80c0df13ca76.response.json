@@ -1,0 +1,30 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "ECR-002_2", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "성능",
+     "title": "운영자 45명·사용자 5,000명 규모", "description": "시스템은 운영(결재자) 약 45명(정보관리국·유지관리업체)과 사용자 약 5,000명(대한적십자사 임직원) 규모를 지원한다. 인원은 변경될 수 있다.", "priority": "MUST",
+     "acceptance_criteria": ["사용자 5,000명 계정 수용", "운영자 45명 동시 업무 처리"],
+     "evidence": [{"source_block_id": "B0097", "quote": "운영(결재자) 예정인원: 45명(정보관리국 및 유지관리업체)"}, {"source_block_id": "B0097", "quote": "사용(사용자) 인원 : 5,000명(대한적십자사 임직원)"}],
+     "status": "ASSUMED"},
+    {"key": "R2", "source_key": "ECR-002_2", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "제약",
+     "title": "전 사용자 라이선스 제공", "description": "모든 SW는 사업 종료 기준 전 사용자(관리자·동시접속자 등)가 사용할 수 있는 수량의 라이선스를 제공하고, 운영·제안 장비 규격과 수량에 맞는 라이선스를 제공한다.", "priority": "MUST",
+     "acceptance_criteria": ["사용자·관리자 수에 맞는 라이선스 증서"],
+     "evidence": [{"source_block_id": "B0097", "quote": "사용가능한 수량으로 라이선스를 제공해야 한다"}, {"source_block_id": "B0097", "quote": "운영 및 제안 장비 규격(모델, CPU, Core 등) 및 수량에 적절한 라이선스를 제공해야 한다"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "ECR-002_2", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "장비구성",
+     "title": "서버 OS 포함 제공", "description": "모든 서버는 운영체제(OS)를 포함해 제공한다.", "priority": "MUST",
+     "acceptance_criteria": ["서버별 OS 설치·라이선스 확인"],
+     "evidence": [{"source_block_id": "B0097", "quote": "모든 서버는 운영체제(OS)를 포함하여 제공하여야 한다"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "ECR-002_2", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "장비구성",
+     "title": "안정적 서버 구성", "description": "서버 구성은 최대한 안정적인 방식으로 구현하며 필요한 자원(솔루션 포함)은 제안사가 제공한다.", "priority": "MUST",
+     "acceptance_criteria": ["서버 구성도와 안정성 확보 방안 확인"],
+     "evidence": [{"source_block_id": "B0097", "quote": "서버 구성은 최대한 안정적인 방식으로 구현하고"}],
+     "status": "CONFIRMED"},
+    {"key": "R5", "source_key": "ECR-002_2", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "보안",
+     "title": "SW 운용·보안 안전 구성", "description": "모든 SW는 운용과 보안에 문제가 없도록 구성한다.", "priority": "MUST",
+     "acceptance_criteria": ["SW 보안 설정 점검 결과"],
+     "evidence": [{"source_block_id": "B0097", "quote": "제안하는 모든 S/W는 운용 및 보안에 문제가 없도록 구성하여 제시되어야 함"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

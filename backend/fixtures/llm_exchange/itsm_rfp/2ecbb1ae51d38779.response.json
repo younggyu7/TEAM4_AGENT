@@ -1,0 +1,20 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "QUR-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "품질",
+     "title": "요구사항 전부 제공", "description": "시스템은 제공하기로 한 요구사항을 모두 제공하며, 변경관리로 승인된 요구사항을 최종 베이스라인으로 본다.", "priority": "MUST",
+     "acceptance_criteria": ["베이스라인 요구사항 전수 구현 확인"],
+     "evidence": [{"source_block_id": "B0114", "quote": "시스템은 제공되기로 한 요구사항을 모두 제공하며"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "QUR-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "품질",
+     "title": "테스트 결과 기준 충족 평가", "description": "기능 요구사항별 검증(테스트)에서 예상 결과가 나오면 요구사항을 제공한 것으로 평가한다.", "priority": "MUST",
+     "acceptance_criteria": ["기능 요구사항별 테스트 결과 보고"],
+     "evidence": [{"source_block_id": "B0114", "quote": "예상된 결과가 도출되었을 경우 요구사항을 제공한 것으로 평가함"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "QUR-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "품질",
+     "title": "사용자 테스트로 정확성 평가", "description": "기능 구현 정확성은 사용자가 테스트 기간에 직접 테스트해 평가한다.", "priority": "MUST",
+     "acceptance_criteria": ["사용자 테스트 결과서"],
+     "evidence": [{"source_block_id": "B0114", "quote": "기능구현 정확성은 사용자가 직접 테스트 수행 기간에 테스트를 수행함으로써 평가함"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

@@ -1,0 +1,25 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SER-005", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "보안 법령·가이드라인 준수", "description": "보건복지부 보안 분야 법령·규정과 국가·공공기관 용역업체 보안관리 가이드라인을 준수한다.", "priority": "MUST",
+     "acceptance_criteria": ["보안관리 점검 결과 지적사항 없음"],
+     "evidence": [{"source_block_id": "B0109", "quote": "보건복지부 보안 분야의 법령, 규정 준수"}, {"source_block_id": "B0109", "quote": "국가·공공기관 용역업체 보안관리 가이드라인 준수"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SER-005", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "SW 개발보안 가이드 준수", "description": "행정안전부 소프트웨어 개발보안 가이드를 준수한다.", "priority": "MUST",
+     "acceptance_criteria": ["개발보안 점검 결과"],
+     "evidence": [{"source_block_id": "B0109", "quote": "행정안전부 소프트웨어 개발보안 가이드 준수"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SER-005", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "제약",
+     "title": "정보보호제품 CC인증·보안적합성", "description": "CC인증 대상 중요 정보보호제품은 CC인증 제품을 도입하고, 그 외 정보보호제품은 제안서 접수 시점까지 국내용 CC인증 또는 보안적합성 검증을 마친 제품으로 한정한다.", "priority": "MUST",
+     "acceptance_criteria": ["정보보호제품 CC인증서·검증서 제출"],
+     "evidence": [{"source_block_id": "B0109", "quote": "정보보호제품은 CC인증필 제품 도입을 원칙으로 함"}, {"source_block_id": "B0109", "quote": "국내용 CC인증을 획득하거나 보안적합성 검증을 필한 제품에 한함"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SER-005", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "국정원 보안성 검토 지원", "description": "국가정보원 보안성 검토 시 적극 지원한다.", "priority": "MUST",
+     "acceptance_criteria": ["보안성 검토 대응 기록"],
+     "evidence": [{"source_block_id": "B0109", "quote": "국정원 보안성 검토 시 적극 지원해야 함"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

@@ -1,0 +1,31 @@
+{
+  "functions": [
+    {"name": "관리자 대시보드",
+     "description": "관리자 첫 화면에 가입 승인 대기, 솔루션 승인 대기, 신청·승인 건수, 예산 배정·집행·잔액, 미답변 문의 등 운영 현황을 보여준다.",
+     "requirement_ids": ["SFR-05-13"],
+     "nfr_ids": ["DAR-01-04"],
+     "actors": ["시스템 관리자"],
+     "preconditions": ["관리자 권한으로 로그인"],
+     "inputs": [{"name": "기준 사업 연도", "description": "대시보드 기준", "required": false}],
+     "outputs": [{"name": "현황 지표", "description": "승인 대기, 신청·승인 건수, 예산 잔액, 미답변 문의", "required": true}],
+     "business_rules": ["지표 클릭 시 해당 처리 화면으로 이동한다 (가정)"],
+     "normal_flow": ["관리자가 로그인하면 대시보드가 열린다", "시스템이 현황 지표를 집계한다", "관리자가 지표를 눌러 처리 목록으로 이동한다"],
+     "exception_flows": [{"condition": "예산 미등록", "handling": "예산 지표에 '미등록' 표시"}],
+     "data_objects": ["기업", "지원 신청", "지원 예산", "문의"]},
+    {"name": "운영 통계 조회·다운로드",
+     "description": "관리자가 가입 기업, 신청·승인, 예산 집행, 만족도 등 운영 통계를 기간별로 조회하고 파일로 내려받는다.",
+     "requirement_ids": ["SFR-05-14"],
+     "nfr_ids": ["PER-01-02", "SER-03-07"],
+     "actors": ["시스템 관리자"],
+     "preconditions": ["관리자 권한"],
+     "inputs": [{"name": "통계 항목", "description": "가입·신청·예산 집행·만족도", "required": true},
+                {"name": "조회 기간", "description": "시작·종료일", "required": true},
+                {"name": "파일 형식", "description": "EXCEL·CSV", "required": false}],
+     "outputs": [{"name": "통계 정보", "description": "기간별 집계 표", "required": true},
+                 {"name": "통계 파일", "description": "다운로드 파일", "required": false}],
+     "business_rules": ["통계 다운로드는 파일 출력 작업으로 접속기록에 남긴다"],
+     "normal_flow": ["관리자가 통계 관리 메뉴를 연다", "통계 항목과 기간을 고른다", "시스템이 집계해 보여준다", "관리자가 다운로드를 선택하면 파일을 내려준다"],
+     "exception_flows": [{"condition": "기간 미입력", "handling": "입력 요청"}],
+     "data_objects": ["기업", "지원 신청", "지원 예산", "만족도 응답"]}
+  ]
+}

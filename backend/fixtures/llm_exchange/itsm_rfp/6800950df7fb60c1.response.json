@@ -1,0 +1,280 @@
+{
+ "functions": [
+  {
+   "name": "구성항목(CI) 관리",
+   "description": "정보시스템·서버·네트워크·보안장비·SW 등 구성항목을 등록·수정·조회하고 CI 간 관계(설치·의존 등)를 계층으로 관리한다.",
+   "requirement_ids": [
+    "SFR-008-01"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "구성 관리자"
+   ],
+   "preconditions": [
+    "CI 유형이 정의됨"
+   ],
+   "inputs": [
+    {
+     "name": "CI 유형",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "CI 기본정보",
+     "description": "명칭·식별번호·상태·담당",
+     "required": true
+    },
+    {
+     "name": "관계",
+     "description": "상위 CI·관계 유형",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "구성항목",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "CI 식별번호는 유일하다",
+    "폐기된 CI는 삭제하지 않고 상태를 바꾼다"
+   ],
+   "normal_flow": [
+    "관리자가 CI 유형을 선택한다",
+    "기본정보와 유형별 속성을 입력한다",
+    "관계를 지정한다",
+    "저장한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "식별번호 중복",
+     "handling": "저장 거부"
+    },
+    {
+     "condition": "순환 관계",
+     "handling": "관계 저장 거부"
+    }
+   ],
+   "data_objects": [
+    "구성항목",
+    "CI 관계"
+   ]
+  },
+  {
+   "name": "CI 유형·관리 속성 조정",
+   "description": "표준 CMDB 모델을 바탕으로 CI 유형별 관리 속성을 추가·삭제·수정한다(DB 스키마 변경 없이).",
+   "requirement_ids": [
+    "SFR-008-02"
+   ],
+   "nfr_ids": [
+    "COR-001-02"
+   ],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "CI 유형",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "속성 정의",
+     "description": "속성명·데이터 형식·필수 여부",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CI 유형 속성",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "속성 추가·삭제는 메타데이터로 관리해 테이블 구조를 바꾸지 않는다",
+    "삭제된 속성의 기존 값은 보존한다"
+   ],
+   "normal_flow": [
+    "관리자가 CI 유형을 선택한다",
+    "속성을 추가·수정한다",
+    "저장하면 입력 화면에 반영된다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "같은 이름 속성",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "CI 유형",
+    "CI 속성 정의",
+    "CI 속성 값"
+   ]
+  },
+  {
+   "name": "변경 승인 후 CI 갱신",
+   "description": "승인된 변경 요청을 실행하면 대상 CI 정보를 갱신하고 변경 이력을 남긴다.",
+   "requirement_ids": [
+    "SFR-008-03"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "변경 관리자",
+    "구성 관리자"
+   ],
+   "preconditions": [
+    "변경 요청이 최종 승인됨"
+   ],
+   "inputs": [
+    {
+     "name": "변경 요청",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "변경 후 값",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CI 변경 이력",
+     "description": "변경 전·후 값",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "승인되지 않은 변경으로는 CI를 수정할 수 없다",
+    "모든 CI 변경은 근거 변경 요청과 함께 기록한다"
+   ],
+   "normal_flow": [
+    "관리자가 승인된 변경 요청을 연다",
+    "대상 CI 값을 수정한다",
+    "변경 이력을 기록한다",
+    "변경 요청을 완료한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "미승인 변경",
+     "handling": "수정 차단"
+    }
+   ],
+   "data_objects": [
+    "변경 요청",
+    "구성항목",
+    "CI 변경 이력"
+   ]
+  },
+  {
+   "name": "관제시스템 구성정보 자동 수집",
+   "description": "EMS·NMS·SIEM 등 관제시스템에서 서버·네트워크·보안장비 구성정보를 주기적으로 수집해 CMDB와 비교·반영한다.",
+   "requirement_ids": [
+    "SFR-008-04"
+   ],
+   "nfr_ids": [
+    "SER-008-06",
+    "SER-008-07",
+    "SER-008-08",
+    "COR-001-05"
+   ],
+   "actors": [
+    "시스템",
+    "외부 시스템(관제)"
+   ],
+   "preconditions": [
+    "연계 대상과 허용 IP가 등록됨"
+   ],
+   "inputs": [
+    {
+     "name": "수집 대상",
+     "description": "관제시스템·주기",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "수집 결과",
+     "description": "신규·변경·불일치 CI 목록",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "허용된 IP의 정의된 형식 데이터만 받는다",
+    "SIEM에서는 보안로그를 받지 않는다",
+    "(가정) 불일치는 자동 반영하지 않고 구성 관리자 확인 후 반영한다"
+   ],
+   "normal_flow": [
+    "정해진 주기에 수집 작업을 시작한다",
+    "관제시스템에서 구성정보를 받는다",
+    "CMDB와 비교한다",
+    "차이를 수집 결과로 저장한다",
+    "구성 관리자가 확인 후 반영한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "연계 실패",
+     "handling": "재시도 후 실패 기록·알림"
+    }
+   ],
+   "data_objects": [
+    "구성정보 수집 이력",
+    "구성항목"
+   ]
+  },
+  {
+   "name": "IT자산–CI 연동",
+   "description": "IT 자산 정보와 구성항목을 연결해 자산 변경이 CI에, CI 변경이 자산에 반영되도록 동기화한다.",
+   "requirement_ids": [
+    "SFR-008-05"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "자산 관리자",
+    "시스템"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "자산",
+     "description": "자산번호·품목·도입일·위치",
+     "required": true
+    },
+    {
+     "name": "연결 CI",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "자산–CI 연결",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) IT 자산은 ITSM 안에서 관리하고 CI와 1:1로 연결한다 (질문 대기)"
+   ],
+   "normal_flow": [
+    "자산을 등록하거나 선택한다",
+    "연결할 CI를 지정한다",
+    "저장하면 공통 항목이 동기화된다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "이미 다른 자산과 연결된 CI",
+     "handling": "연결 거부"
+    }
+   ],
+   "data_objects": [
+    "IT 자산",
+    "구성항목"
+   ]
+  }
+ ]
+}

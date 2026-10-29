@@ -1,0 +1,320 @@
+{
+ "functions": [
+  {
+   "name": "권한 신청",
+   "description": "일반 사용자가 필요한 역할(권한)을 사유와 함께 신청하고, 승인 전까지 신청 내용을 수정한다.",
+   "requirement_ids": [
+    "SFR-003-13"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "요청자"
+   ],
+   "preconditions": [
+    "로그인"
+   ],
+   "inputs": [
+    {
+     "name": "신청 역할",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "신청 사유",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "권한 신청 건",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "이미 보유한 역할은 신청할 수 없다",
+    "승인 전까지만 수정·취소할 수 있다"
+   ],
+   "normal_flow": [
+    "사용자가 권한 신청 화면을 연다",
+    "역할과 권한 설명을 확인한다",
+    "사유를 입력해 신청한다",
+    "승인권자에게 알린다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "보유 중인 역할 신청",
+     "handling": "신청 거부"
+    }
+   ],
+   "data_objects": [
+    "권한 신청"
+   ]
+  },
+  {
+   "name": "권한 신청 승인·이력 조회",
+   "description": "승인권자가 권한 신청을 승인·반려하고, 신청·승인 이력을 조회한다.",
+   "requirement_ids": [
+    "SFR-003-13"
+   ],
+   "nfr_ids": [
+    "SER-008-04"
+   ],
+   "actors": [
+    "승인권자"
+   ],
+   "preconditions": [
+    "승인 권한 보유"
+   ],
+   "inputs": [
+    {
+     "name": "처리 구분",
+     "description": "승인·반려",
+     "required": true
+    },
+    {
+     "name": "의견",
+     "description": "반려 시 필수",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "처리 결과",
+     "description": "승인 시 사용자 역할 부여",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "승인 처리 전 2차 인증을 수행한다",
+    "승인 시 역할을 자동 부여한다"
+   ],
+   "normal_flow": [
+    "승인권자가 대기 목록을 연다",
+    "신청 내용을 확인한다",
+    "2차 인증 후 승인 또는 반려한다",
+    "결과를 신청자에게 알린다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "2차 인증 실패",
+     "handling": "처리 중단"
+    }
+   ],
+   "data_objects": [
+    "권한 신청",
+    "사용자 역할"
+   ]
+  },
+  {
+   "name": "사업 분류·프로젝트 관리",
+   "description": "사업 분류를 관리하고 분류별로 여러 프로젝트를 첨부파일과 함께 등록·조회한다.",
+   "requirement_ids": [
+    "SFR-003-14"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "사업 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "사업 분류",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "프로젝트 정보",
+     "description": "명칭·기간·담당",
+     "required": true
+    },
+    {
+     "name": "첨부파일",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "프로젝트 목록",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "프로젝트는 하나의 사업 분류에 속한다"
+   ],
+   "normal_flow": [
+    "관리자가 사업 분류를 선택한다",
+    "프로젝트를 등록한다",
+    "프로젝트 목록을 조회한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "필수값 누락",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "사업 분류",
+    "프로젝트",
+    "첨부파일"
+   ]
+  },
+  {
+   "name": "단위업무 진행현황 관리",
+   "description": "프로젝트의 단위 업무를 등록하고 진행 상태와 진척률을 관리한다.",
+   "requirement_ids": [
+    "SFR-003-15"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "사업 관리자"
+   ],
+   "preconditions": [
+    "프로젝트가 등록됨"
+   ],
+   "inputs": [
+    {
+     "name": "단위업무",
+     "description": "업무명·담당·계획일",
+     "required": true
+    },
+    {
+     "name": "진척률",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "진행 현황",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "진척률은 0~100이다"
+   ],
+   "normal_flow": [
+    "관리자가 프로젝트를 연다",
+    "단위업무를 등록·갱신한다",
+    "진행 현황을 조회한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "진척률 범위 오류",
+     "handling": "입력 거부"
+    }
+   ],
+   "data_objects": [
+    "단위업무"
+   ]
+  },
+  {
+   "name": "단계별 보고서 관리",
+   "description": "사업 단계별 보고서를 증빙 파일과 함께 등록·조회한다.",
+   "requirement_ids": [
+    "SFR-003-16"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "사업 관리자"
+   ],
+   "preconditions": [
+    "프로젝트가 등록됨"
+   ],
+   "inputs": [
+    {
+     "name": "단계",
+     "description": "착수·중간·완료 등",
+     "required": true
+    },
+    {
+     "name": "보고서",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "증빙 첨부",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "단계 보고서",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "보고서 양식이 있으면 양식을 따른다"
+   ],
+   "normal_flow": [
+    "관리자가 단계를 선택한다",
+    "보고서와 증빙을 등록한다",
+    "보고서 목록을 조회한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "첨부 실패",
+     "handling": "재업로드 안내"
+    }
+   ],
+   "data_objects": [
+    "단계 보고서",
+    "첨부파일"
+   ]
+  },
+  {
+   "name": "점검보고서 양식 관리",
+   "description": "장애·기술지원·정기점검 등 보고서 유형별 양식을 등록·수정한다.",
+   "requirement_ids": [
+    "SFR-003-17"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "보고서 유형",
+     "description": "장애·기술지원·정기점검",
+     "required": true
+    },
+    {
+     "name": "양식",
+     "description": "항목 구성 또는 양식 파일",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "보고서 양식",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "유형별로 사용 중인 양식은 하나다"
+   ],
+   "normal_flow": [
+    "관리자가 보고서 유형을 선택한다",
+    "양식을 등록·수정한다",
+    "사용 여부를 설정한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "사용 중인 양식 삭제",
+     "handling": "비활성화로 대체"
+    }
+   ],
+   "data_objects": [
+    "보고서 양식"
+   ]
+  }
+ ]
+}

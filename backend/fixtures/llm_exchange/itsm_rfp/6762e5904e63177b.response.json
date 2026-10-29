@@ -1,0 +1,485 @@
+{
+ "functions": [
+  {
+   "name": "워크플로우 단계 자동 진행",
+   "description": "워크플로우 엔진이 프로세스 정의에 따라 티켓의 단계를 전이하고 단계별 처리자를 지정한다.",
+   "requirement_ids": [
+    "SFR-007-01"
+   ],
+   "nfr_ids": [
+    "SFR-006-04"
+   ],
+   "actors": [
+    "시스템"
+   ],
+   "preconditions": [
+    "사용 중인 프로세스 정의가 있음"
+   ],
+   "inputs": [
+    {
+     "name": "단계 처리 결과",
+     "description": "현재 단계의 완료·반려 등",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "다음 단계",
+     "description": "전이된 단계와 처리자",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "전이 조건을 만족할 때만 다음 단계로 이동한다",
+    "모든 단계 전이를 처리 단계 이력에 남긴다"
+   ],
+   "normal_flow": [
+    "단계 처리 결과가 저장된다",
+    "엔진이 전이 조건을 평가한다",
+    "다음 단계와 처리자를 지정한다",
+    "처리자에게 알린다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "전이 조건 평가 오류",
+     "handling": "오류 로그 기록 후 관리자 알림"
+    }
+   ],
+   "data_objects": [
+    "처리 단계 이력",
+    "서비스 요청"
+   ]
+  },
+  {
+   "name": "기한 기준 하이라이트",
+   "description": "요청일·처리일 기준으로 기한이 임박하거나 지난 건을 목록에서 강조 표시한다.",
+   "requirement_ids": [
+    "SFR-007-02"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "처리 담당자",
+    "운영 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "기준",
+     "description": "요청일 또는 처리일",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "강조 목록",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) 기한은 희망 완료일 또는 SLA 처리기한을 쓴다"
+   ],
+   "normal_flow": [
+    "사용자가 목록 기준을 선택한다",
+    "기한 대비 상태를 계산한다",
+    "임박·지연 건을 색으로 강조한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "기한 정보 없음",
+     "handling": "강조하지 않음"
+    }
+   ],
+   "data_objects": [
+    "서비스 요청"
+   ]
+  },
+  {
+   "name": "프로세스 플로우차트 보기",
+   "description": "티켓의 프로세스 흐름과 현재 단계를 플로우차트로 보여준다.",
+   "requirement_ids": [
+    "SFR-007-03"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "사용자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "티켓",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "플로우차트",
+     "description": "완료·현재·예정 단계 표시",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "티켓 생성 당시 프로세스 버전 기준으로 그린다"
+   ],
+   "normal_flow": [
+    "사용자가 티켓에서 흐름 보기를 누른다",
+    "프로세스 정의와 단계 이력을 읽는다",
+    "플로우차트를 표시한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "정의 버전 없음",
+     "handling": "단계 이력만 목록으로 표시"
+    }
+   ],
+   "data_objects": [
+    "프로세스 정의",
+    "처리 단계 이력"
+   ]
+  },
+  {
+   "name": "프로세스 오류 로그 진단",
+   "description": "워크플로우 실행 중 발생한 오류 로그를 조회해 문제를 진단한다.",
+   "requirement_ids": [
+    "SFR-007-04"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "조회 조건",
+     "description": "기간·프로세스·티켓",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "오류 로그 목록",
+     "description": "발생 시각·단계·오류 내용",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "오류 로그에는 개인정보를 남기지 않는다"
+   ],
+   "normal_flow": [
+    "관리자가 오류 로그 화면을 연다",
+    "조건으로 조회한다",
+    "오류 상세와 관련 티켓을 확인한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "로그 없음",
+     "handling": "빈 목록 안내"
+    }
+   ],
+   "data_objects": [
+    "프로세스 오류 로그"
+   ]
+  },
+  {
+   "name": "커스텀 필드 그룹·공개 범위 관리",
+   "description": "커스텀 필드를 그룹으로 묶고, 보안을 위해 필드별 열람 가능 역할(공개 범위)을 지정한다.",
+   "requirement_ids": [
+    "SFR-007-05",
+    "SFR-007-08"
+   ],
+   "nfr_ids": [
+    "SER-008-03"
+   ],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [
+    "커스텀 필드가 정의됨"
+   ],
+   "inputs": [
+    {
+     "name": "필드 그룹",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "공개 역할",
+     "description": "필드별 열람 허용 역할",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "필드 구성",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "공개 범위가 없으면 모든 역할에 공개한다",
+    "비공개 필드는 화면·내보내기 모두에서 숨긴다"
+   ],
+   "normal_flow": [
+    "관리자가 필드 그룹을 만든다",
+    "필드를 그룹에 배정한다",
+    "필드별 공개 역할을 지정한다",
+    "저장한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "필수 필드를 비공개 지정",
+     "handling": "경고 후 확인"
+    }
+   ],
+   "data_objects": [
+    "커스텀 필드",
+    "커스텀 필드 그룹"
+   ]
+  },
+  {
+   "name": "부재·대리인 지정",
+   "description": "사용자가 부재 기간과 대리인을 등록하면 그 기간의 업무와 결재가 대리인에게 표시된다.",
+   "requirement_ids": [
+    "SFR-007-06"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "사용자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "부재 기간",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "대리인",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "부재 설정",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "대리인은 대상 업무의 처리 권한이 있어야 한다",
+    "대리 처리 건은 대리 여부를 기록한다"
+   ],
+   "normal_flow": [
+    "사용자가 부재 설정을 연다",
+    "기간과 대리인을 지정한다",
+    "저장하면 기간 동안 업무가 대리인에게 표시된다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "대리인 권한 없음",
+     "handling": "지정 거부"
+    }
+   ],
+   "data_objects": [
+    "부재·대리 설정"
+   ]
+  },
+  {
+   "name": "조건 기반 자동화 규칙 관리",
+   "description": "유형·긴급도 등 조건과 배정·알림·상태변경 등 동작으로 구성한 자동화 규칙을 등록하고, 조건이 맞으면 자동 실행한다.",
+   "requirement_ids": [
+    "SFR-007-07"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "시스템 관리자",
+    "시스템"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "조건",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "동작",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "우선순위",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "자동화 규칙",
+     "description": "실행 결과 이력 포함",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "여러 규칙이 맞으면 우선순위 순으로 실행한다"
+   ],
+   "normal_flow": [
+    "관리자가 규칙을 등록한다",
+    "티켓 이벤트가 발생한다",
+    "조건에 맞는 규칙을 찾는다",
+    "동작을 실행하고 결과를 기록한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "동작 실행 실패",
+     "handling": "오류 로그 기록"
+    }
+   ],
+   "data_objects": [
+    "자동화 규칙"
+   ]
+  },
+  {
+   "name": "점검 항목 결과 입력·확인",
+   "description": "점검 항목별 결과를 입력하고 담당자가 확인 처리한다.",
+   "requirement_ids": [
+    "SFR-007-09"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "점검 엔지니어",
+    "운영 담당자"
+   ],
+   "preconditions": [
+    "점검 서식이 지정됨"
+   ],
+   "inputs": [
+    {
+     "name": "항목별 결과",
+     "description": "정상·이상·비고",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "점검 결과",
+     "description": "담당자 확인 여부 포함",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "이상 항목은 비고가 필수다"
+   ],
+   "normal_flow": [
+    "엔지니어가 점검 항목 결과를 입력한다",
+    "제출한다",
+    "담당자가 확인 처리한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "이상 항목 비고 누락",
+     "handling": "제출 거부"
+    }
+   ],
+   "data_objects": [
+    "점검 항목 결과"
+   ]
+  },
+  {
+   "name": "업무 병렬 분할 할당",
+   "description": "하나의 요청을 N개의 하위 작업으로 나눠 부문별 담당자에게 동시에 할당하고 각 상태를 관리한다.",
+   "requirement_ids": [
+    "SFR-007-10"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "서비스데스크 담당자",
+    "처리 담당자"
+   ],
+   "preconditions": [
+    "요청이 배정 단계"
+   ],
+   "inputs": [
+    {
+     "name": "하위 작업 목록",
+     "description": "작업명·담당 부문·담당자",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "하위 작업",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "모든 하위 작업이 완료되어야 원 요청을 완료할 수 있다"
+   ],
+   "normal_flow": [
+    "담당자가 분할을 선택한다",
+    "하위 작업과 담당자를 지정한다",
+    "담당자별로 처리한다",
+    "모두 완료되면 원 요청을 완료한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "하위 작업 반려",
+     "handling": "원 요청 담당자에게 재조정 요청"
+    }
+   ],
+   "data_objects": [
+    "하위 작업",
+    "서비스 요청"
+   ]
+  },
+  {
+   "name": "희망 완료일 자동 재계산",
+   "description": "처리 단계·유형 변경 등 변경 내용에 따라 희망 처리 완료일을 자동으로 다시 계산하고 이력을 남긴다.",
+   "requirement_ids": [
+    "SFR-007-11"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "시스템"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "변경 내용",
+     "description": "유형·긴급도·단계 변경",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "변경된 완료일",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) 요청 유형·긴급도별 처리기한으로 재계산한다 (질문 대기)",
+    "완료일 변경 사유와 이전 값을 기록한다"
+   ],
+   "normal_flow": [
+    "변경이 발생한다",
+    "처리기한 규칙으로 완료일을 계산한다",
+    "완료일을 갱신하고 이력을 남긴다",
+    "요청자에게 알린다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "규칙 없음",
+     "handling": "기존 완료일 유지"
+    }
+   ],
+   "data_objects": [
+    "서비스 요청",
+    "완료일 변경 이력"
+   ]
+  }
+ ]
+}

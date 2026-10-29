@@ -1,0 +1,30 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "ECR-001", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "장비구성",
+     "title": "운영/중계 서버 이중화 구성", "description": "운영/중계 서버 2식을 도입하여 이중화로 구성한다.", "priority": "MUST",
+     "acceptance_criteria": ["운영/중계 서버 2식이 이중화 구성으로 설치됨"],
+     "evidence": [{"source_block_id": "B0075", "quote": "도입품목 : 운영/중계 서버"}, {"source_block_id": "B0075", "quote": "도입수량 : 2식(이중화)"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "ECR-001", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "장비구성",
+     "title": "서버 기본 규격", "description": "서버는 CPU Xeon 8 Core 이상, Memory 16GB 이상, HDD 960GB*2(Raid5) 이상, NIC 10G SFP 2port·1G 4port 이상의 규격을 충족한다.", "priority": "MUST",
+     "acceptance_criteria": ["CPU Xeon 8 Core 이상", "Memory 16GB 이상, HDD 960GB*2(Raid5) 이상", "NIC 10G SFP 2port, 1G 4port 이상"],
+     "evidence": [{"source_block_id": "B0075", "quote": "CPU : Xeon 8 Core 이상"}, {"source_block_id": "B0075", "quote": "NIC : 10G SFP 2port, 1G 4port 이상"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "ECR-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "장비구성",
+     "title": "운영 SW 설치·연동 지원", "description": "상용 OS 및 운영에 필요한 SW(OS 보안 포함)를 설치하고 관제(Sysview)·백업(Tina)·OS보안(Redcastle)·2차인증(mSABOR) 솔루션과의 연동을 지원한다.", "priority": "MUST",
+     "acceptance_criteria": ["상용 OS와 운영 SW 설치 완료", "관제·백업·OS보안·2차인증 솔루션 연동 확인"],
+     "evidence": [{"source_block_id": "B0075", "quote": "상용OS 및 운영에 필요한 SW(OS보안 포함) 설치 및 연동 지원"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "ECR-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업지원",
+     "title": "개발 도구·솔루션 준비", "description": "시스템 구축에 필요한 개발 도구와 솔루션을 제안사 비용으로 준비·구성한다.", "priority": "MUST",
+     "acceptance_criteria": ["개발 도구·솔루션 구성 내역 제출"],
+     "evidence": [{"source_block_id": "B0075", "quote": "시스템 구축에 필요한 개발 도구 및 솔루션 구성"}],
+     "status": "CONFIRMED"},
+    {"key": "R5", "source_key": "ECR-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "제약",
+     "title": "라이선스 적법성", "description": "도입 SW는 제조사 정책을 따르며 라이선스 수량 부족, 저작권 문제가 없어야 한다.", "priority": "MUST",
+     "acceptance_criteria": ["라이선스 증서 제출"],
+     "evidence": [{"source_block_id": "B0075", "quote": "License 수량 부족, 저작권 등의 문제가 없어야 함"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

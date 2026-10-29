@@ -1,0 +1,30 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "PSR-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업지원",
+     "title": "검수 후 12개월 무상 하자보수", "description": "최종 검수 후 12개월간 납품 HW·SW·응용프로그램의 결함을 무상으로 조치한다.", "priority": "MUST",
+     "acceptance_criteria": ["하자보수계획서 제출", "하자보수기간 결함 무상 조치"],
+     "evidence": [{"source_block_id": "B0125", "quote": "최종 검수 완료 후 12개월간 무상 하자보수를 실시하며"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "PSR-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업지원",
+     "title": "하자보수 범위", "description": "하자보수는 공급 제품 전 시스템, 환경변화에 따른 변경·최적화, 상용 제품 버전 업그레이드, 장애 처리, 정상 운영을 위한 기술지원을 포함한다.", "priority": "MUST",
+     "acceptance_criteria": ["하자보수 범위가 계획서에 명시"],
+     "evidence": [{"source_block_id": "B0125", "quote": "공급된 상용 제품에 대한 Version Upgrade"}, {"source_block_id": "B0125", "quote": "장애발생에 대한 처리(Trouble Shooting)"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "PSR-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업지원",
+     "title": "하자보수·장애처리 체계", "description": "사업 종료 후 하자보수·장애처리 지원체계와 절차를 구체적으로 제시하고, 지원팀이 장애 예방과 신속 처리를 수행한다.", "priority": "MUST",
+     "acceptance_criteria": ["하자보수 조직·절차 문서"],
+     "evidence": [{"source_block_id": "B0125", "quote": "하자보수/장애처리 지원체계 및 절차를 구체적으로 제시하여야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "PSR-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업지원",
+     "title": "장애 대응 전문인력 상시 확보", "description": "장애 발생 시 즉각 원인분석·복구를 위해 지원부서와 전문인력을 상시 확보하고 장애조치 계획을 제시한다.", "priority": "MUST",
+     "acceptance_criteria": ["장애조치 계획·비상 연락체계"],
+     "evidence": [{"source_block_id": "B0125", "quote": "지원부서 및 전문인력을 확보하여 항시 운영 가능하도록 해야 하며"}],
+     "status": "CONFIRMED"},
+    {"key": "R5", "source_key": "PSR-004", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "사업관리",
+     "title": "공동수급 시 하자보수 책임", "description": "공동수급 시 대표사업자가 개발 응용 애플리케이션의 하자보수 책임을 지며, 제안서에 공동수급 하자보수 체계를 명시한다.", "priority": "MUST",
+     "acceptance_criteria": ["공동수급 하자보수 체계 명시"],
+     "evidence": [{"source_block_id": "B0125", "quote": "공동수급 시 대표사업자는 개발한 응용 어플리케이션에 대한 하자보수 책임을 가지며"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

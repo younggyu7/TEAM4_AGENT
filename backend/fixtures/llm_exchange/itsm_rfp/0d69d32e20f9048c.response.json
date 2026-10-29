@@ -1,0 +1,256 @@
+{
+ "functions": [
+  {
+   "name": "정기점검 일정 등록",
+   "description": "장비(구성항목)별로 월·분기·반기·연 점검 주기와 담당 업체·엔지니어를 등록해 점검 일정을 만든다.",
+   "requirement_ids": [
+    "SFR-009-01"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "운영 담당자"
+   ],
+   "preconditions": [
+    "장비가 CI로 등록됨"
+   ],
+   "inputs": [
+    {
+     "name": "장비",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "점검 주기",
+     "description": "월·분기·반기·연",
+     "required": true
+    },
+    {
+     "name": "점검 서식",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "담당 엔지니어",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "정기점검 계획",
+     "description": "주기별 예정일",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "주기에 따라 다음 예정일을 자동 계산한다"
+   ],
+   "normal_flow": [
+    "담당자가 장비를 선택한다",
+    "주기와 서식을 지정한다",
+    "저장하면 예정 점검이 생성된다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "서식 미지정",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "정기점검 계획",
+    "구성항목"
+   ]
+  },
+  {
+   "name": "정기점검 서식 관리",
+   "description": "장비 유형별 점검 항목으로 구성된 점검 서식을 등록·수정한다.",
+   "requirement_ids": [
+    "SFR-009-02"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "운영 담당자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "서식명",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "점검 항목",
+     "description": "항목명·판정 기준",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "점검 서식",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "사용 중인 서식은 수정 시 새 버전으로 저장한다"
+   ],
+   "normal_flow": [
+    "담당자가 서식을 만든다",
+    "점검 항목을 추가한다",
+    "저장한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "항목 없음",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "점검 서식",
+    "점검 항목"
+   ]
+  },
+  {
+   "name": "정기점검 결과 등록",
+   "description": "방문 엔지니어가 서식에 따라 점검을 진행하고 항목별 결과를 등록한다.",
+   "requirement_ids": [
+    "SFR-009-02"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "점검 엔지니어"
+   ],
+   "preconditions": [
+    "예정된 점검이 있음"
+   ],
+   "inputs": [
+    {
+     "name": "항목별 결과",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "점검일",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "첨부",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "정기점검 결과",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "이상 항목이 있으면 조치 요청(서비스 요청) 생성을 안내한다"
+   ],
+   "normal_flow": [
+    "엔지니어가 예정 점검을 연다",
+    "항목별 결과를 입력한다",
+    "제출하면 점검이 완료된다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "항목 결과 누락",
+     "handling": "제출 거부"
+    }
+   ],
+   "data_objects": [
+    "정기점검 결과",
+    "점검 항목 결과"
+   ]
+  },
+  {
+   "name": "장비별 점검 결과 조회",
+   "description": "장비별 점검 이력과 결과를 조회한다.",
+   "requirement_ids": [
+    "SFR-009-03"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "운영 담당자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "장비",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "점검 이력",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [],
+   "normal_flow": [
+    "담당자가 장비를 선택한다",
+    "점검 이력을 표시한다",
+    "결과 상세를 연다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "이력 없음",
+     "handling": "빈 목록 안내"
+    }
+   ],
+   "data_objects": [
+    "정기점검 결과"
+   ]
+  },
+  {
+   "name": "월별 점검 현황·결과서 출력",
+   "description": "월별 점검 예정·완료·미완료 현황을 조회하고 결과서를 출력하거나 Excel로 내려받는다.",
+   "requirement_ids": [
+    "SFR-009-04",
+    "SFR-009-05"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "운영 담당자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "대상 월",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "월별 현황·결과서",
+     "description": "화면·출력·Excel",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "결과서는 등록된 보고서 양식을 따른다"
+   ],
+   "normal_flow": [
+    "담당자가 월을 선택한다",
+    "현황을 조회한다",
+    "결과서를 출력하거나 Excel로 받는다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "해당 월 계획 없음",
+     "handling": "빈 현황 안내"
+    }
+   ],
+   "data_objects": [
+    "정기점검 계획",
+    "정기점검 결과"
+   ]
+  }
+ ]
+}

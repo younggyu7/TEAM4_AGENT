@@ -1,0 +1,4078 @@
+{
+  "meta": {
+    "name": "document_analyst 튜닝용 골든셋 (고객요구사항6)",
+    "version": "0.1",
+    "split": "tuning",
+    "created_date": "2026-10-28",
+    "status": "draft_pending_domain_review",
+    "expected_outputs_reviewed_by_human": false,
+    "purpose": "파싱·논리 요구사항 단위·원문 품질·인용문 검증/복구 규칙 튜닝",
+    "total_cases": 93,
+    "total_reference_units": 73,
+    "case_counts": {
+      "전체 추출 목록": 1,
+      "요구사항 추출 및 내용 보존": 73,
+      "청킹 완결성": 4,
+      "예외 조건의 정상 인용": 1,
+      "부정 표현의 정상 인용": 1,
+      "여러 요구사항에 있는 같은 문장": 1,
+      "가려진 원문의 정상 인용": 1,
+      "다른 블록의 원문 복구": 2,
+      "여러 위치에 있는 원문 복구": 1,
+      "제외/포함 변조": 1,
+      "부정 표현 변조": 1,
+      "대상 변조": 1,
+      "조건 변조": 1,
+      "문서에 없는 근거": 1,
+      "문서 품질 검사": 3
+    },
+    "evaluation_policy": "strict_quote_integrity_v1",
+    "provenance": "AI 작성. 정답 원문은 원본 엑셀(인천공항_요구사항.xlsx, 상세요구사항 415건)의 앞 73건 셀 글자. 정제본 PDF는 이 73건을 그대로 옮긴 것임을 줄 단위로 확인. 예외 2건: SFT-063은 PDF에서 셀이 잘려 세 번째 항목 뒤 7줄과 '* 입주자포털…' 문장이 없음(정답에서 뺌), SFT-068은 마지막 3줄 위에 다른 표가 겹쳐 있음(정답에 포함). 담당자 검수 전."
+  },
+  "documents": [
+    {
+      "document_id": "PDF6",
+      "file_name": "고객요구사항6.pdf",
+      "source_path": "data/고객요구사항6.pdf",
+      "sha256": "c2af88581c5b86f33159d43600c1d9f9f071f7a418c0dfda6f2c14acb56bfdbc",
+      "format": "PDF",
+      "pdf_page_count": 15,
+      "expected_logical_units": 73,
+      "original_source": "인천공항_요구사항.xlsx (2.상세요구사항 시트 앞 73건)",
+      "locator_note": "pdf_page_1based=파일 기준 1부터"
+    }
+  ],
+  "normalization": {
+    "unicode": "NFC",
+    "ignore_whitespace": true,
+    "preserve": [
+      "숫자",
+      "단위",
+      "부정 표현",
+      "예외 조건",
+      "원문 ID",
+      "날짜/버전"
+    ]
+  },
+  "reference_units": [
+    {
+      "unit_key": "PDF6:SFT-001",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-001",
+      "title": "(공통-시설관리)공통",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 1,
+          "printed_page": null,
+          "anchor": "SFT-001 (공통-시설관리)공통"
+        }
+      ],
+      "reference_text": "정의 시스템 전반에 공통으로 적용되어야 할 기능\n○ 공통기능\n- 다양한 웹 브라우저(크롬, 엣지 등) 접속 지원 등 사용자 측면에서의 편의성 제공\n- 모바일(구현기능)을 제외한 모든 기능은 웹 기반으로 제공\n- 조직이나 사업소 확장 적용을 위한 기술적인 사항 보장 필요\n- 멀티 서비스를 지원할 수 있는 시스템 구성 방안 기능 제공\n- 추후 서비스 추가를 감안하여 확장성을 고려한 시스템 구성 기능 제공\n- 자주 사용하는 매뉴에 대한 즐겨찾기 기능 제공\n- 현재 사용하는 매뉴와 업무적인 관련성 있는 매뉴를 연결하고 볼수 있는 기능 제공\n- 사용자별로 화면에 세부Tab정보를 설정가능한 기능 제공\n- 사용자별로 화면에 있는 필드들의 순서, 사용여부를 설정하면 해당 사용자만 설정한 형태로 보이는 기능 제공\n- 사용자별로 그리드에 높이, 컬럼에 순서,너비,사용여부를 설정하면 해당 사용자만 설정한 형태로 보이는 기능 제공\n- 그리드형태에 모든 데이터는 Excel로 다운로드 받을 수 있는 기능 제공\n- 그리드형태에 모든 데이터는 타이틀클릭시 정렬 기능 제공\n- 화면에 데이터 비교를 위해 모든화면은 추가적인 팝업화면으로 볼수 있는 기능 제공\n- 화면에 데이터 비교를 위해 모든화면은 분할화면으로 볼수 있는 기능 제공\n- 화면의 기본 컨텐츠 구성단위로 화면일부를 접고 펼치는 기능 제공\n- 매뉴는 접기/펼치는 기능이 가능해야하고 사용자별로 접기 또는 펼치기 셋팅 기능 제공\n- 전화번호, 이메일, 거래처 전화번호, 주소, 전화번호 등 개인정보는 데이터베이스에 암호화하여 관리하고 사용시 복호화해서 사용하는 기능 제공\n- 모든 개인정보에 대한 접속이력관리 기능 제공\n- 모든 업로드 파일에 대한 개인정보 필터링 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-002",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-002",
+      "title": "(공통-시설관리)통합센터 > 로그인",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 1,
+          "printed_page": null,
+          "anchor": "SFT-002 (공통-시설관리)통합센터 > 로그인"
+        }
+      ],
+      "reference_text": "정의 로그인 관리 기능\n○ 로그인 관리 기능\n- 로그인 비밀번호는 암호화하여 관리하는 기능 제공\n- 비밀번호는 주기적으로 변경되어야 하는 규칙 적용 기능 제공\n- 비밀번호는 최근 사용한 비밀번호는 사용할 수 없는 규칙 적용 기능 제공\n- 비밀번호는 문자 구성(영문, 숫자, 특수문자 등), 자릿수 등 비밀번호 규칙 적용 기능 제공\n○ 로그인 비밀번호 초기화 기능\n- 비밀번호 입력 실패시 휴대폰으로 일회용 패스워드 발송 및 이를 활용한 신규 비밀번호 설정기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-003",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-003",
+      "title": "(공통-시설관리)통합센터 > 대시보드",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 1,
+          "printed_page": null,
+          "anchor": "SFT-003 (공통-시설관리)통합센터 > 대시보드"
+        }
+      ],
+      "reference_text": "정의 통합센터에서 개인별, 관리자별 표시되는 대시보드 설정기능\n○ 대시보드 설정 기능\n- 개인 사용자가 설정한 대시보드를 볼수 있는 기능 제공\n- 시스템 관리자가 설정한 대시보를 볼수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-004",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-004",
+      "title": "(공통-시설관리)통합센터 > 업무그룹",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 1,
+          "printed_page": null,
+          "anchor": "SFT-004 (공통-시설관리)통합센터 > 업무그룹"
+        }
+      ],
+      "reference_text": "정의 사용자의 본인 업무 바로가기 기능\n○ 바로가기 설정 기능\n- 사용자가 본인이 하는 업무를 메뉴로 만들어서 볼수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-005",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-005",
+      "title": "(공통-시설관리)통합센터 > 시설통합센터",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 1,
+          "printed_page": null,
+          "anchor": "SFT-005 (공통-시설관리)통합센터 > 시설통합센터"
+        }
+      ],
+      "reference_text": "정의 시설물 검색기능 제공\n○ Tree 형태의 시설 검색기능\n- 시설물을 위치 Tree형태의 사용자 직관적으로 검색하는 기능\n- 시설물을 종류 Tree형태의 사용자 직관적으로 검색하는 기능\n- 사용자가 특정조건을 이용하여 시설물을 검색하는 기능\n- 검색한 시설에 대한 정보 접근 간소화 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-006",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-006",
+      "title": "(공통-시설관리)통합센터 > 설비작업센터",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 2,
+          "printed_page": null,
+          "anchor": "SFT-006 (공통-시설관리)통합센터 > 설비작업센터"
+        }
+      ],
+      "reference_text": "정의 시설물 관련작업 바로가기 및 상세정보 조회 기능\n○ Tree 형태의 설비 검색기능\n- 시설물을 위치 Tree형태의 사용자 직관적으로 검색하는 기능\n- 시설물을 종류 Tree형태의 사용자 직관적으로 검색하는 기능\n- 사용자가 특정조건을 이용하여 시설물을 검색하는 기능\n- 검색한 시설물에 대한 최근 작업, 점검, 자재사용정보를 바로 볼수 있는 기능 제공\n- 최근 시설물 정보를 선택하면 상세정보를 볼수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-007",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-007",
+      "title": "(공통-시설관리)통합센터 > 작업통합센터",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 2,
+          "printed_page": null,
+          "anchor": "SFT-007 (공통-시설관리)통합센터 > 작업통합센터"
+        }
+      ],
+      "reference_text": "정의 주요 작업 정보 및 접근 기능\n○ 작업자 위주의 작업정보 접근 기능\n- 사용자의 주요 작업정보 등에 대한 요약 기능 제공\n- 사용자가 진행할 작업에 대한 접근 간소화 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-008",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-008",
+      "title": "(공통-시설관리)통합센터 > Process센터",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 2,
+          "printed_page": null,
+          "anchor": "SFT-008 (공통-시설관리)통합센터 > Process센터"
+        }
+      ],
+      "reference_text": "정의 업무절차 프로세스 다이어그램 제공\n○ Process 배치 기능\n- 업무절차를 업무 프로세스 다이어그램으로 표현하는 기능 제공\n- 각 프로세스에 해당하는 연결 작업을 확인하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-009",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-009",
+      "title": "(공통-시설관리)통합센터 > 시설Layout센터",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 2,
+          "printed_page": null,
+          "anchor": "SFT-009 (공통-시설관리)통합센터 > 시설Layout센터"
+        }
+      ],
+      "reference_text": "정의 시설 배치현황 레이아웃 형태 표시기능\n○ Lay-out 기능\n- 시설 배치현황을 직관적인 레이아웃 형태로 표시하는 기능 제공\n- 시설 선택시 시설에 대한 정보 접근 간소화 기능 제공\n- 신규 시설 Layout을 등록하는 기능 제공\n- 등록된 Layout에서 시설연결정보를 사용자가 직접 수정할 수 있는 기능 제공\n- 소화기 시설물에 대한 레이아웃 기능제공\n- 소화기 시설물에 대한 점검계획이 레이아웃에 표시되는 기능제공\n- 소화기 시설물 레이아웃에서 미점검 시설을 확인하고 점검을 실시할 수 있는 기능 제공\n- 소화전 시설물에 대한 레이아웃 기능제공\n- 소화전 시설물에 대한 점검계획이 레이아웃에 표시되는 기능제공\n- 소화전 시설물 레이아웃에서 미점검 시설을 확인하고 점검을 실시할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-010",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-010",
+      "title": "(공통-시설관리)시설관리 > 계측기",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 2,
+          "printed_page": null,
+          "anchor": "SFT-010 (공통-시설관리)시설관리 > 계측기"
+        }
+      ],
+      "reference_text": "정의 계측기 관리 기능\n○ 계측기 관리 기능\n- 다양한 계측설비의 유형을 조회 및 등록할 수 있는 기능 제공\n- 계측설비 리스트를 엑셀로 작성하여 일괄 업로드 할수 있는 기능 제공\n- 교정이 필요한 계측설비의 경우 교정주기를 관리하고 교정주기에 맞는 스케쥴을 생성할 수 있는 기능 제공\n- 위험도 평가기준에 따른 계측기의 위험도 평가를 실시하고 평가결과를 조회할 수 있는 기능 제공\n- 계측기의 회계자산번호 정보를 제공할 수 있는 기능 제공\n- 계측기에 대한 사용자 매뉴얼을 보관, 관리 할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-011",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-011",
+      "title": "(공통-시설관리)시설관리 > 순환자재시설",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": null,
+          "anchor": "SFT-011 (공통-시설관리)시설관리 > 순환자재시설"
+        }
+      ],
+      "reference_text": "정의 순환자재시설 관리기능\n○순환자재시설 관리기능\n- 수리순환되는 시설에 대한 시설물을 조회, 등록할 수 있는 기능 제공\n- 수리순환되는 시설에 대한 이동이력을 조회할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-012",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-012",
+      "title": "(공통-시설관리)시설관리 > Unit",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": null,
+          "anchor": "SFT-012 (공통-시설관리)시설관리 > Unit"
+        }
+      ],
+      "reference_text": "정의 Unit 관리기능\n○ Unit 관리기능\n- Unit정보를 시설물의 위치Tree형태의 계층구조로 조회할 수 있는 기능 제공\n- Unit정보를 시설물의 종류Tree형태의 계층구조로 조회할 수 있는 기능 제공\n- Unit정보를 검색조건을 통해 조회할 수 있는 기능 제공\n- Unit의 세부정보 및 Unit사진을 등록, 조회 할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-013",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-013",
+      "title": "(공통-시설관리)시설관리 > 하자관리 > 하자관리",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": null,
+          "anchor": "SFT-013 (공통-시설관리)시설관리 > 하자관리 > 하자관리"
+        }
+      ],
+      "reference_text": "정의 하자관리 기능\n○ 하자관리 기능\n- 계약정보 수신하여 계약정보를 기준으로 하자관리할 대상을 조회, 등록하는 기능 제공\n- 하자관리대상은 공종별로 관리할 수 있는 기능 제공\n- 하자검사조사를 실시할 공종별 조사계획을 조회,등록할 수 있는 기능 제공\n- 하자검사조사를 실시할 공종별 조사계획에 대한 검사대상을 조회, 등록할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-014",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-014",
+      "title": "(공통-시설관리)시설관리 > 하자관리 > 하자조사",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": null,
+          "anchor": "SFT-014 (공통-시설관리)시설관리 > 하자관리 > 하자조사"
+        }
+      ],
+      "reference_text": "정의 하자조사 기능\n○ 하자조사 기능\n- 계획한 하자조사 계획을 조회, 조사결과를 등록할 수 있는 기능 제공\n- 계획한 하자조사 계획에 대한 검사대상 시설을 조회, 등록를 등록할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-015",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-015",
+      "title": "(공통-시설관리)항행시설 > 시설현황 > 활주로별 시설 관리 기능",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": null,
+          "anchor": "SFT-015 (공통-시설관리)항행시설 > 시설현황 > 활주로별 시설 관리 기능"
+        }
+      ],
+      "reference_text": "정의 활주로별 시설 관리 기능\n○ 인천국제공항의 활주로정보를 관리하는 기능\n- 활주로 정보를 등록/조회/수정/삭제하는 기능 제공\n- 해당 활주로에 설치된 항공정보통신시설, 항행안전무선시설, 항공등화시설을 관리하는 기능 제공\n- 활주로정보를 엑셀로 다운로드하는 기능 제공\n○ 활주로 정보을 기반으로 항행 시설을 관리하는 기능\n- 활주로별 항공정보통신시설, 항행안전무선시설을 등록/조회/수정/삭제하는 기능 제공\n- 활주로별 항공등화시설을 확인하는 기능 제공\n- 활주로별 정보를 엑셀로 다운로드하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-016",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-016",
+      "title": "(공통-시설관리)항행시설 > 시설현황 > 시설/자산전체현황",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 4,
+          "printed_page": null,
+          "anchor": "SFT-016 (공통-시설관리)항행시설 > 시설현황 > 시설/자산전체현황"
+        }
+      ],
+      "reference_text": "정의 시설/자산전체현황 관리기능\n○ 항행안전시설, 장착품, 장애물, 부대시설 등 모든 시설의 현황을 관리하고 개별 시설의 정보를 관리하는 기능\n- 위치/시설종류/검색조건 등의 형태로 시설의 정보를 조회하는 기능 제공\n- 시설의 정보를 조회/등록/조회/수정/삭제하는 기능 제공\n- 시설에 대한 장애/점검/수리 등의 작업을 통합하여 조회 가능\n- QR코드화되어 관리가능 하며 현장에 부착할 수 있게 출력기능 제공\n- 시설 현황정보(위치, 고장/점검이력, 사양, 기술문서 등)를 한번에 확인 기능 제공\n- 시설 중심으로 연관된 정보들의 통합된 작업(점검, 수리, 자재사용 등) 실행 기능 제공\n- 시설 기준정보, 예비품 등 모든 정보는 워드, 엑셀 및 HWP(한글) 양식 출력 기능 제공\n- 시설고장, 보전비용 등 각종 지표 관리 기능 제공\n- 시설에 대한 폐기/이동 이력관리 기능 제공\n- 시설별 전자매뉴얼, 도면, 기타 이미지 등을 보관, 관리할 수 있는 기능 제공\n- 시설 별 점검항목, 점검주기, 수치점검(상한,하한) 등의 관리 기능 제공\n- 시설의 기준정보 변경에 따른 이력관리 기능 제공\n- 기준 정보 미 등록에 대한 알림 기능 제공\n- 모바일(안드로이드) 업무환경 제공\n- 시설목록을 엑셀로 다운로드 하는 기능 제공\n- 시설정보 등록 및 수정 시 계약관리시스템(CFMS)와 승인여부 인터페이스 구축",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-017",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-017",
+      "title": "(공통-시설관리)항행시설 > 시설현황 > 장착품(Part)정보",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 4,
+          "printed_page": null,
+          "anchor": "SFT-017 (공통-시설관리)항행시설 > 시설현황 > 장착품(Part)정보"
+        }
+      ],
+      "reference_text": "정의 장착품(Part)정보 관리기능\n○ 장착품의 대표정보를 관리하는 기능\n- 장착품의 대표정보를 정보를 등록/조회/수정/삭제하는 기능 제공\n- 장착품의 장착정보/수리정보/예비정보를 관리하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-018",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-018",
+      "title": "(공통-시설관리)항행시설 > 시설현황 > 장착품현황",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 4,
+          "printed_page": null,
+          "anchor": "SFT-018 (공통-시설관리)항행시설 > 시설현황 > 장착품현황"
+        }
+      ],
+      "reference_text": "정의 장착품현황 관리기능\n○ 장착품의 현황을 관리하고 개별 시설의 정보를 관리하는 기능\n- 장착품정보를 등록/조회/수정/삭제하는 기능  제공\n- 장착/수리/탈착 상태정보 관리 기능 제공\n- 장착/수리/탈착 이력정보 관리 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-019",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-019",
+      "title": "(공통-시설관리)항행시설 > 시설현황 > 측정장비현황",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 4,
+          "printed_page": null,
+          "anchor": "SFT-019 (공통-시설관리)항행시설 > 시설현황 > 측정장비현황"
+        }
+      ],
+      "reference_text": "정의 측정장비현황 관리기능\n○ 측정장비의 현황을 관리하고 개별 시설의 정보를 관리하는 기능\n- 측정장비정보를 등록/조회/수정/삭제하는 기능  제공\n- 검교정주기를 관리하여 검교정작업일정을 자동 생성하는 기능 제공\n- 검교정이력정보를 관리하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-020",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-020",
+      "title": "(공통-시설관리)항행시설 > 시설현황 > 장애물현황",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": null,
+          "anchor": "SFT-020 (공통-시설관리)항행시설 > 시설현황 > 장애물현황"
+        }
+      ],
+      "reference_text": "정의 장애물현황 관리기능\n○ 항행안전시설 관련 장애물의 현황을 관리하고 개별 시설의 정보를 관리하는 기능\n- 장애물정보를 등록/조회/수정/삭제하는 기능 제공\n- 장애물정보에는 좌표, 높이, 고도, 규격 등의 세부정보가 포함",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-021",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-021",
+      "title": "(공통-시설관리)항행시설 > 시설현황 > 부대시설현황",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": null,
+          "anchor": "SFT-021 (공통-시설관리)항행시설 > 시설현황 > 부대시설현황"
+        }
+      ],
+      "reference_text": "정의 부대시설현황 관리현황\n○ 부대시설의 정보현황을 관리하고 개별 시설의 정보를 관리하는 기능\n- 부대시설에는 낙뢰보호기, 지중통신시설물 등 부대시설정보를 관리하는 기능 제공\n- 부대시설정보를 등록/조회/수정/삭제하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-022",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-022",
+      "title": "(공통-시설관리)항행시설 > 시설현황 > 정보통신시설현황",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": null,
+          "anchor": "SFT-022 (공통-시설관리)항행시설 > 시설현황 > 정보통신시설현황"
+        }
+      ],
+      "reference_text": "정의 정보통신시설현황 관리기능\n○ 정보통신시설의 현황을 관리하고 개별 시설의 정보를 관리하는 기능\n- 정보통신시설정보를 등록/조회/수정/삭제하는 기능 제공\n- 현황을 엑셀로 다운로드 하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-023",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-023",
+      "title": "(공통-시설관리)항행시설 > 시설현황 > 시설등급평가",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": null,
+          "anchor": "SFT-023 (공통-시설관리)항행시설 > 시설현황 > 시설등급평가"
+        }
+      ],
+      "reference_text": "정의 시설등급평가 관리기능\n○ 시설의 등급을 평가하고 관리하는 기능\n- 개별 시설의 평가점수를 등록/조회/수정/삭제하는 기능 제공\n- 각 항목의 평가점수를 바탕으로 시설의 등급을 결정하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-024",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-024",
+      "title": "(공통-시설관리)항행시설 > 종합현황 > 항행안전시설관리",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": null,
+          "anchor": "SFT-024 (공통-시설관리)항행시설 > 종합현황 > 항행안전시설관리"
+        }
+      ],
+      "reference_text": "정의 항행안전시설관리 기능\n○ 현장별 시설정보, 점검현황, 점검계획 등 정보현황을 관리하는 기능\n- 현장별 설치된 항행안전시설, 측정장비, 예비품, 부대시설 정보현황을 조회하는 기능 제공\n- 현장별 성능점검, 성능확인점검, 예방점검계획서 정보현황을 조회하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-025",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-025",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 점검표준 > 점검작업표준정의",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": null,
+          "anchor": "SFT-025 (공통-시설관리)항행시설 > 예방점검 > 점검표준 > 점검작업표준정의"
+        }
+      ],
+      "reference_text": "정의 점검표준 관리기능\n○ 시설별 예방점검작업의 표준을 관리하는 기능\n- 표준점검항목 정보를 등록/조회/수정/삭제하는 기능 제공\n- 표준점검항목의 점검절차 정보를 등록/조회/수정/삭제하는 기능 제공\n- 작업별 정비절차 정보를 등록/조회/수정/삭제하는 기능 제공\n- 작업별정비절차의 정비절차 정보를 등록/조회/수정/삭제하는 기능 제공\n- 투입되는 부품 정보를 등록/조회/수정/삭제하는 기능 제공\n- 예방점검 결과 양식을 변경하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-026",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-026",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검항목관리",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": null,
+          "anchor": "SFT-026 (공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검항목관리"
+        }
+      ],
+      "reference_text": "정의 평상점검항목관리 기능\n○ 평상점검 대상시설 및 점검항목을 관리하는 기능\n- 횟수별 점검오더를 발행하고 알람을 주는 기능 제공\n- 점검항목을 설정하고 점검오더를 발행하는 기능 제공\n- 개정이력을 관리하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-027",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-027",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검계획",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": null,
+          "anchor": "SFT-027 (공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검계획"
+        }
+      ],
+      "reference_text": "정의 평상점검계획 관리기능\n○ 평상점검의 계획을 관리하는 기능\n- 평상점검계획을 월간으로 조회 기능 제공\n- 계획 변경 및 확정 기능 제공\n- 점검계획 전자결재 상신 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-028",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-028",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검실행",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": null,
+          "anchor": "SFT-028 (공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검실행"
+        }
+      ],
+      "reference_text": "정의 평상점검실행 관리기능\n○ 평상점검의 결과를 입력하는 기능\n- 점검항목별 점검결과를 입력하는 기능 제공\n- 점검결과를 출력하는 기능 제공\n- 점검결과 전자결재 상신 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-029",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-029",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 기술성능기록부",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": null,
+          "anchor": "SFT-029 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 기술성능기록부"
+        }
+      ],
+      "reference_text": "정의 기술성능기록부 관리기능\n○ 항행안전시설 및 정보통신시설의 예방점검 관련 성능기준치를 관리하는 기능\n- 예방점검 관련 시설의 성능기준치의 등록/조회/수정/삭제하는 기능 제공\n- 기술성능기록부의 개정이력을 관리하는 기능 제공\n- 기술성능기록부의 출력기능, 엑셀 다운로드 기능 제공\n- 기술성능기록부의 변경사항은 비행검사 사후점검의 결과데이터와 연동되는 기능 제공\n- 기술성능기록부의 양식을 변경하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-030",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-030",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검항목",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": null,
+          "anchor": "SFT-030 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검항목"
+        }
+      ],
+      "reference_text": "정의 정기(성능)점검항목 관리기능\n○ 정기점검 대상시설 및 점검항목을 관리하는 기능\n- 시설 별 점검항목, 기준치, 점검주기, 기준일, 점검기한, 점검절차의 등록/조회/수정/삭제하는 기능 제공\n- 점검주기 별 점검계획 자동 생성 기능 제공\n- 생성된 점검계획을 사용자에게 알려주는 기능 제공\n- 점검항목 개정이력 관리 기능 제공\n- 특별점검정의 생성 기능 제공\n- 점검 결과 기본값 설정 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-031",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-031",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검계획(연간/월간/기간)",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": null,
+          "anchor": "SFT-031 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검계획(연간/월간/기간)"
+        }
+      ],
+      "reference_text": "정의 정기(성능)점검계획  관리기능\n○ 정기점검작업을 연간으로 계획하는 기능\n- 성능점검정의에서 생성된 성능점검계획을 연간으로 조회기능\n- 조회된 계획 변경 및 확정 기능 제공\n- 특별검사일정 생성 기능 제공\n- 확정된 점검계획 내용을 전자결재에 상신하는 기능 제공\n○ 정기점검작업을 월간으로 계획하는 기능\n- 성능점검정의에서 생성된 성능점검계획을 월간으로 조회기능\n- 조회된 계획 변경 및 확정 기능 제공\n- 특별검사일정 생성 기능 제공\n- 확정된 점검계획 내용을 전자결재에 상신하는 기능 제공\n○ 정기점검작업을 기간으로 계획하는 기능\n- 성능점검정의에서 생성된 성능점검계획을 특정 기간으로 조회기능\n- 조회된 계획 변경 및 확정 기능 제공\n- 특별검사일정 생성 기능 제공\n- 확정된 점검계획 내용을 전자결재에 상신하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-032",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-032",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검실행",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 7,
+          "printed_page": null,
+          "anchor": "SFT-032 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검실행"
+        }
+      ],
+      "reference_text": "정의 정기(성능)점검실행 관리기능\n○ 확정된 정기점검계획의 결과를 관리하는 기능\n- 월간카렌더를 통한 점검계획을 조회하는 기능 제공\n- 점검결과를 등록하고 점검항목 별 점검값을 입력하는 기능 제공\n- 필요 시 사진 등 첨부파일을 등록할 수 있는 기능 제공\n- 정기(성능)점검결과 출력을 할 수 있는 기능 제공\n- 이상점검 항목을 이상점검처리로 연계되는 기능 제공\n- 점검결과 전자결재 상신 기능\n- 점검결과 출력의 양식을 변경하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-033",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-033",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 이상점검이력",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 7,
+          "printed_page": null,
+          "anchor": "SFT-033 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 이상점검이력"
+        }
+      ],
+      "reference_text": "정의 이상점검이력 관리기능\n○ 점검 결과 중 이상점검항목을 관리하는 기능\n- 점검결과 중 이상점검 목록을 조회할 수 있는 기능 제공\n- 간편 조치 시 조치내용 입력할 수 있는 기능 제공\n- 이상점검결과와 연계된 작업오더 생성하는 기능 제공\n- 이상점검의 기준을 관리(조회, 수정)하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-034",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-034",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검결과기재",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 7,
+          "printed_page": null,
+          "anchor": "SFT-034 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검결과기재"
+        }
+      ],
+      "reference_text": "정의 정기(성능)점검결과기재 관리기능\n○ 점검결과를 관리, 상신하는 기능\n- 정기(성능)점검 결과를 전자결재에 상신하는 기능\n- 결재내용을 등록/조회/수정/삭제할 수 있는 기능 제공\n- 결재내용 중 작성할 정기(성능)점검내역을 조회하고 등록할 수 있는 기능 제공\n- 정기(성능)점검내역에 점검계획을 추가할 수 있는 기능 제공\n- 정기(성능)점검내역에 항목별 점검결과를 추가할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-035",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-035",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 예방점검이력",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 7,
+          "printed_page": null,
+          "anchor": "SFT-035 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 예방점검이력"
+        }
+      ],
+      "reference_text": "정의 예방점검이력 관리기능\n○ 정기(성능)점검 이력을 조회하는 기능\n- 정기(성능)점검 결과이력을 조회할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-036",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-036",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검항목",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 8,
+          "printed_page": null,
+          "anchor": "SFT-036 (공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검항목"
+        }
+      ],
+      "reference_text": "정의 성능확인점검항목 관리기능\n○ 성능확인점검 대상시설 및 점검항목을 관리하는 기능\n- 시설 별 점검항목, 기준치, 점검주기, 기준일, 점검기한, 점검절차의 등록/조회/수정/삭제하는 기능 제공\n- 점검주기 별 점검계획 자동 생성 기능 제공\n- 생성된 점검계획을 사용자에게 알려주는 기능 제공\n- 점검항목 개정이력 관리 기능 제공\n- 비정기점검정의 생성 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-037",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-037",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검계획(연간/월간/기간)",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 8,
+          "printed_page": null,
+          "anchor": "SFT-037 (공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검계획(연간/월간/기간)"
+        }
+      ],
+      "reference_text": "정의 성능확인점검계획 관리기능\n○ 성능확인점검작업을 연간으로 계획하는 기능\n- 성능점검정의에서 생성된 성능점검계획을 연간으로 조회기능\n- 조회된 계획 변경 및 확정 기능 제공\n- 특별검사일정(비정기점검) 생성 기능 제공\n- 확정된 점검계획 내용을 전자결재에 상신하는 기능 제공\n○ 성능확인점검작업을 월간으로 계획하는 기능\n- 성능점검정의에서 생성된 성능점검계획을 연간으로 조회기능\n- 조회된 계획 변경 및 확정 기능 제공\n- 특별검사일정(비정기점검) 생성 기능 제공\n- 확정된 점검계획 내용을 전자결재에 상신하는 기능 제공\n○ 성능확인점검작업을 기간으로 계획하는 기능\n- 성능점검정의에서 생성된 성능점검계획을 연간으로 조회기능\n- 조회된 계획 변경 및 확정 기능 제공\n- 특별검사일정(비정기점검) 생성 기능 제공\n- 확정된 점검계획 내용을 전자결재에 상신하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-038",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-038",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검실행",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 8,
+          "printed_page": null,
+          "anchor": "SFT-038 (공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검실행"
+        }
+      ],
+      "reference_text": "정의 성능확인점검실행 관리기능 -> 성능확인점검 결과 관리기능\n○ 확정된 성능확인점검계획의 결과를 관리하는 기능\n- 월간카렌더를 통한 점검계획을 조회하는 기능 제공\n- 점검결과를 등록하고 점검항목 별 점검값을 입력하는 기능 제공\n- 필요 시 사진 등 첨부파일을 등록할 수 있는 기능 제공\n- 성능확인점검결과 출력을 할 수 있는 기능 제공\n- 점검결과 전자결재 상신 기능",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-039",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-039",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검결재",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 8,
+          "printed_page": null,
+          "anchor": "SFT-039 (공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검결재"
+        }
+      ],
+      "reference_text": "정의 성능확인점검결재 관리기능\n○ 성능확인점검 결과를 전자결재에 상신하는 기능\n- 결재내용을 등록/조회/수정/삭제할 수 있는 기능 제공\n- 결재내용 중 작성할 성능확인점검내역을 조회하고 등록할 수 있는 기능 제공\n- 성능확인점검내역에 점검계획을 추가할 수 있는 기능 제공\n- 성능확인점검내역에 항목별 점검결과를 추가할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-040",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-040",
+      "title": "(공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검책임자관리",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": null,
+          "anchor": "SFT-040 (공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검책임자관리"
+        }
+      ],
+      "reference_text": "정의 성능확인점검책임자관리 기능\n○ 성능확인점검 책임자를 관리하는 기능\n- 책임자를 등록/조회/수정/삭제하는 기능 제공\n- 성능확인점검 계획의 세부정보 중 책임자정보에 입력될 수 있도록 연계기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-041",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-041",
+      "title": "(공통-시설관리)항행시설 > NOTAM관리 > NOTAM관리",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": null,
+          "anchor": "SFT-041 (공통-시설관리)항행시설 > NOTAM관리 > NOTAM관리"
+        }
+      ],
+      "reference_text": "정의 NOTAM관리 기능\n○ 항공시보에 공지할 NoTAM 정보현황을 관리하는 기능\n- 항공시보에 공지할 NoTAM의 등록/조회/수정/삭제하는 기능 제공\n- NoTAM 등록의 전자결재 상신 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-042",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-042",
+      "title": "(공통-시설관리)항행시설 > NOTAM관리 > Non-NOTAM관리",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": null,
+          "anchor": "SFT-042 (공통-시설관리)항행시설 > NOTAM관리 > Non-NOTAM관리"
+        }
+      ],
+      "reference_text": "정의 Non-NOTAM관리 기능\n○ 특별점검 내용 중 Non-NoTAM으로 관리할 점검내용 관리 기능\n- Non-NoTAM의 등록/조회/수정/삭제하는 기능 제공\n- Non-NoTAM 내용에 기록할 특별점검내역 조회하는 기능 제공\n- Non-NoTAM내용 전자결재 상신 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-043",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-043",
+      "title": "(공통-시설관리)항행시설 > 전파혼신신고",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": null,
+          "anchor": "SFT-043 (공통-시설관리)항행시설 > 전파혼신신고"
+        }
+      ],
+      "reference_text": "정의 전파혼신신고 관리기능\n○ 전파혼신 내역과 관련사항을 보고하는 기능\n- 전파혼신 발생 시 보고할 내용의 등록/조회/수정/삭제기능 제공\n- 전파혼신내용 전자결재 상신 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-044",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-044",
+      "title": "(공통-시설관리)항행시설 > 안전컨설팅",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": null,
+          "anchor": "SFT-044 (공통-시설관리)항행시설 > 안전컨설팅"
+        }
+      ],
+      "reference_text": "정의 안전컨설팅 관리기능\n○ 안전컨설팅 실행내역을 관리하는 기능\n- 안전컨설팅 내용을 등록/조회/수정/삭제하는 기능 제공\n- 안전컨설팅내용 전자결재 상신 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-045",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-045",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사정의",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": null,
+          "anchor": "SFT-045 (공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사정의"
+        }
+      ],
+      "reference_text": "정의 비행검사정의 관리기능\n○ 비행검사 대상시설, 검사주기를 관리하는 기능\n- 년간/월간/주간 비행검사 일정을 설정하고 점검오더를 발행하고 알람을 주는 기능 제공\n- 비행검사 일정이 확정되면 사전점검항목을 설정하고 점검오더를 발행하는 기능 제공\n- 수검 후 사후점검항목을 설정하고 점검오더를 발행하는 기능 제공\n- 결과레포트 점검항목을 설정하고 점검오더를 발행하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-046",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-046",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사계획(연간/월간/기간)",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 10,
+          "printed_page": null,
+          "anchor": "SFT-046 (공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사계획(연간/월간/기간)"
+        }
+      ],
+      "reference_text": "정의 비행검사계획 관리기능\n○ 비행검사 일정을 연간으로 관리하는 기능\n- 비행검사정의에서 생성된 비행검사계획을 연간 카렌더로 조회하는 기능 제공\n- 조회된 계획 변경 및 확정 기능 제공\n- 수검계획에 대하여 사전점검/사후점검/결과리포트 점검오더(계획)을 등록하는 기능 제공\n- 비행검사 계획정보에 대하여 전자결재 상신 기능 제공\n○ 비행검사 일정을 월간으로 관리하는 기능\n- 비행검사정의에서 생성된 비행검사계획을 월간 카렌더로 조회하는 기능 제공\n- 조회된 계획 변경 및 확정 기능 제공\n- 수검계획에 대하여 사전점검/사후점검/결과리포트 점검오더(계획)을 등록하는 기능 제공\n- 비행검사 계획정보에 대하여 전자결재 상신 기능 제공\n○ 비행검사 일정을 조회조건으로 관리하는 기능\n- 비행검사정의에서 생성된 비행검사계획을 조건에 따라 조회하는 기능 제공\n- 조회된 계획 변경 및 확정 기능 제공\n- 수검계획에 대하여 사전점검/사후점검/결과리포트 점검오더(계획)을 등록하는 기능 제공\n- 비행검사 계획정보에 대하여 전자결재 상신 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-047",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-047",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사실행",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 10,
+          "printed_page": null,
+          "anchor": "SFT-047 (공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사실행"
+        }
+      ],
+      "reference_text": "정의 비행검사실행 관리기능 -> 비행검사 결과 관리기능\n○ 확정된 비행검사 계획을 조회하고 결과를 관리하는 기능\n- 연간/월간/주간카렌더/조회조건 등 확정된 비행검사 계획을 조회하는 기능 제공\n- 본검사(수검), 사전검사, 사후검사, 결과레포트 별 점검결과 입력기능 제공\n- 비행검사 이력을 관리하는 기능 제공\n- 비행검사 결과정보에 대하여 전자결재 상신 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-048",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-048",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사결재",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 10,
+          "printed_page": null,
+          "anchor": "SFT-048 (공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사결재"
+        }
+      ],
+      "reference_text": "정의 비행검사결재 관리기능\n○ 비행검사 결과를 결재하는 기능\n- 비행검사 결과의 결재정보를 등록/조회/수정/삭제하는 기능 제공\n- 검사결과의 점검목록 검색 및 추가기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-049",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-049",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사게시판",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 10,
+          "printed_page": null,
+          "anchor": "SFT-049 (공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사게시판"
+        }
+      ],
+      "reference_text": "정의 비행검사게시판 관리기능\n○ 비행검사 계획을 조회하고 결과에 대한 질의내용 및 답변을 관리하는 기능\n- 년간/월간카렌더 별 비행검사계획을 조회하는 기능 제공\n- 계획에 대한 질의내용 및 답변의 등록/조회/수정/삭제하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-050",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-050",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 관리검사 > 관리검사일정계획",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 10,
+          "printed_page": null,
+          "anchor": "SFT-050 (공통-시설관리)항행시설 > 검사관리 > 관리검사 > 관리검사일정계획"
+        }
+      ],
+      "reference_text": "정의 관리검사일정계획 관리기능\n○ 비행장 및 항공등화시설의 관리검사 일정을 관리하는 기능\n- 관리검사 계획의 등록/조회/수정/삭제하는 기능 제공\n- 관리검사 계획 별 현장/지적사항/수범사례 를 등록/조회/수정/삭제하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-051",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-051",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 관리검사 > 관리검사진행",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 11,
+          "printed_page": null,
+          "anchor": "SFT-051 (공통-시설관리)항행시설 > 검사관리 > 관리검사 > 관리검사진행"
+        }
+      ],
+      "reference_text": "정의 관리검사진행 관리기능\n○ 관리검사 진행상황을 관리하는 기능\n- 관리검사 진행상황 상태를 관리하는 기능 제공\n- 관리검사에 진행한 성능검사(정기검사) 내역관리 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-052",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-052",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 관리검사 > 지적사항진행",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 11,
+          "printed_page": null,
+          "anchor": "SFT-052 (공통-시설관리)항행시설 > 검사관리 > 관리검사 > 지적사항진행"
+        }
+      ],
+      "reference_text": "정의 지적사항진행 관리기능\n○ 관리검사 지적사항을 관리하는 기능\n- 관리검사 지적사항의 등록/조회/수정/삭제하는 기능 제공\n- 지적사항 상태 및 조치내용을 관리하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-053",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-053",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사정의",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 11,
+          "printed_page": null,
+          "anchor": "SFT-053 (공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사정의"
+        }
+      ],
+      "reference_text": "정의 무선국검사정의 관리기능\n○ 무선국검사 대상시설, 검사주기를 관리하는 기능\n- 년간/월간/주간 비행검사 일정을 설정하고 점검오더를 발행하고 알람을 주는 기능 제공\n- 무선국검사 일정이 확정되면 사전점검항목을 설정하고 점검오더를 발행하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-054",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-054",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사계획(연간/월간/기간)",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 11,
+          "printed_page": null,
+          "anchor": "SFT-054 (공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사계획(연간/월간/기간)"
+        }
+      ],
+      "reference_text": "정의 무선국검사계획 관리기능\n○ 무선국검사 일정을 연간으로 관리하는 기능\n- 무선국검사정의에서 생성된 무선국검사계획을 연간 카렌더로 조회하는 기능 제공\n- 조회된 계획 변경 및 확정 기능 제공\n- 수검계획에 대하여 사전점검 점검오더(계획)을 등록하는 기능 제공\n- 특별검사일정 생성하고 점검오더를 발행하는 기능 제공\n- 무선국검사 계획정보에 대하여 전자결재 상신 기능 제공\n○ 무선국검사 일정을 월간으로 관리하는 기능\n- 무선국검사정의에서 생성된 무선국검사계획을 월간 카렌더로 조회하는 기능 제공\n- 조회된 계획 변경 및 확정 기능 제공\n- 수검계획에 대하여 사전점검 점검오더(계획)을 등록하는 기능 제공\n- 특별검사일정 생성하고 점검오더를 발행하는 기능 제공\n- 무선국검사 계획정보에 대하여 전자결재 상신 기능 제공\n○ 무선국검사 일정을 조회조건으로 관리하는 기능\n- 무선국검사정의에서 생성된 무선국검사계획을 조건에 따라 조회하는 기능 제공\n- 조회된 계획 변경 및 확정 기능 제공\n- 수검계획에 대하여 사전점검 점검오더(계획)을 등록하는 기능 제공\n- 특별검사일정 생성하고 점검오더를 발행하는 기능 제공\n- 무선국검사 계획정보에 대하여 전자결재 상신 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-055",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-055",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사실행",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 11,
+          "printed_page": null,
+          "anchor": "SFT-055 (공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사실행"
+        }
+      ],
+      "reference_text": "정의 무선국검사실행 관리기능\n○ 확정된 무선국검사 계획을 조회하고 결과를 관리하는 기능\n- 연간/월간/주간카렌더/조회조건 등 확정된 무선국검사 계획을 조회하는 기능 제공\n- 본검사(수검), 사전검사 별 점검결과 입력기능 제공\n- 무선국검사 이력을 관리하는 기능 제공\n- 무선국검사 결과정보에 대하여 전자결재 상신 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-056",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-056",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사결재",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 12,
+          "printed_page": null,
+          "anchor": "SFT-056 (공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사결재"
+        }
+      ],
+      "reference_text": "정의 무선국검사결재 관리기능\n○ 무선국검사 결과를 결재하는 기능\n- 무선국검사 결과의 결재정보를 등록/조회/수정/삭제하는 기능 제공\n- 검사결과의 점검목록 검색 및 추가기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-057",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-057",
+      "title": "(공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국허가증",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 12,
+          "printed_page": null,
+          "anchor": "SFT-057 (공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국허가증"
+        }
+      ],
+      "reference_text": "정의 무선국허가증 관리기능\n○ 무선국허가증을 관리하는 기능\n- 무선국허가증 정보를 등록/조회/수정/삭제하는 기능 제공\n- 무선국허가증에 등록된 항행안전시설의 목록을 등록/조회/수정/삭제하는 기능 제공\n- 무선국허가증에 등록된 항행안전설의 세부정보에 무선국허가증 상세정보를 연동하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-058",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-058",
+      "title": "(공통-시설관리)항행시설 > 검사",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 12,
+          "printed_page": null,
+          "anchor": "SFT-058 (공통-시설관리)항행시설 > 검사"
+        }
+      ],
+      "reference_text": "정의 검사관 기능\n○ 내외부 검사 진행을 위한 검사별 검사관 전용 권한 분리 및 기능 제공\n- 각종 검사별 모의 검사 진행기능 제공\n- 각종 검사별 실제 검사 진행을 위한 조회, 출력 기능 제공\n- 검사관 전용 메뉴, 기능, 데이터에 대한 사용자의 커스터마이징 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-059",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-059",
+      "title": "(공통-시설관리)Event > Event접수",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 12,
+          "printed_page": null,
+          "anchor": "SFT-059 (공통-시설관리)Event > Event접수"
+        }
+      ],
+      "reference_text": "정의 Event접수 기능\n○ Event 요청부터 완료까지 진행정보를 관리하는 기능\n- 민원, 청원, 장애 등의 내용을 등록/조회/수정/삭제하는 기능 제공\n- 위치체계/시설종류체계/월카렌다 형식으로 Event내역 조회하는 기능 제공\n- Event정보를 확인하고 작업계획을 수립하는 기능 제공\n- 발생현황 SMS 송신 기능 제공\n- 입주차포털(TSP), 안전작업관리(SMIS) 연계 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-060",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-060",
+      "title": "(공통-시설관리)시설현황 > 정보통신시설현황",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 12,
+          "printed_page": null,
+          "anchor": "SFT-060 (공통-시설관리)시설현황 > 정보통신시설현황"
+        }
+      ],
+      "reference_text": "정의 정보통신시설현황 관리기능\n○ 정보통신시설의 현황을 관리하고 개별 시설의 정보를 관리하는 기능\n- 정보통신시설정보를 등록/조회/수정/삭제하는 기능 제공\n- 현황을 엑셀로 다운로드 하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-061",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-061",
+      "title": "(공통-시설관리)시설현황 > 시설등급평가",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 13,
+          "printed_page": null,
+          "anchor": "SFT-061 (공통-시설관리)시설현황 > 시설등급평가"
+        }
+      ],
+      "reference_text": "정의 시설등급평가 관리기능\n○ 시설의 등급을 평가하고 관리하는 기능\n- 개별 시설의 평가점수를 등록/조회/수정/삭제하는 기능 제공\n- 각 항목의 평가점수를 바탕으로 시설의 등급을 결정하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-062",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-062",
+      "title": "(공통-시설관리)Event > Event보고서",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 13,
+          "printed_page": null,
+          "anchor": "SFT-062 (공통-시설관리)Event > Event보고서"
+        }
+      ],
+      "reference_text": "정의 Event보고서 관리기능\n○ Event의 각 단계별 보고서를 관리하는 기능\n- 이벤트 발생/중간/조치 등 각 단계별 보고서를 등록/조회/수정/삭제하는 기능 제공\n- 보고서 이력을 관리하는 기능 제공\n- SMS/SNS 송신하는 기능 제공\n- 전자결재 상신하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-063",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-063",
+      "title": "(공통-시설관리)작업관리 > 작업일정(월간/주간)",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 13,
+          "printed_page": null,
+          "anchor": "SFT-063 (공통-시설관리)작업관리 > 작업일정(월간/주간)"
+        }
+      ],
+      "reference_text": "정의 작업일정 관리기능\n○ 작업계획을 월간으로 조회하고 작업결과를 입력하는 기능\n- 월카렌더로 작업수/미작업수/완료작업수를 비교하여 조회할 수 있는 기능 제공\n- 작업계획 작업유형별로 생성하는 기능 제공\n- 작업일자 및 시간, 작업내용을 입력하는 기능 제공\n- 운영중지작업, 운영중작업, 수리교체작업, 기타작업 등 작업유형별 세부항목을 관리하는 기능 제공\n- 작업 별 작업자, 투입자재를 관리할 수 있는 기능 제공\n- 자재 출고정보와 연계하는 기능 제공\n- 작업완료 시 시설의 이력으로 반영되는 기능 제공\n- 작업계획내용을 전자결재로 상신하는 기능 제공\n- 입주자포털(TSP), 안전작업관리(SMIS) 연계 기능 제공\n○ 작업계획을 주간으로 조회하고 작업결과를 입력하는 기능\n- 주카렌더로 작업수/미작업수/완료작업수를 비교하여 조회할 수 있는 기능 제공\n- 작업계획 작업유형별로 생성하는 기능 제공\n- 작업일자 및 시간, 작업내용을 입력하는 기능 제공\n- 운영중지작업, 운영중작업, 수리교체작업, 기타작업 등 작업유형별 세부항목을 관리하는 기능 제공\n- 작업 별 작업자, 투입자재를 관리할 수 있는 기능 제공\n- 자재 출고정보와 연계하는 기능 제공\n- 작업완료 시 시설의 이력으로 반영되는 기능 제공\n- 작업계획내용을 전자결재로 상신하는 기능 제공\n- 입주자포털(TSP), 안전작업관리(SMIS) 연계 기능 제공\n○ 작업계획을 검색조건으로 조회하고 작업결과를 입력하는 기능\n- 검색조건으로 작업목록을 조회할 수 있는 기능 제공\n- 작업일자 및 시간, 작업내용을 입력하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀. PDF에서 셀이 잘려 PDF에 남은 부분까지만 정답으로 둠",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-064",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-064",
+      "title": "(공통-시설관리)작업관리 > 작업실행",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 13,
+          "printed_page": null,
+          "anchor": "SFT-064 (공통-시설관리)작업관리 > 작업실행"
+        }
+      ],
+      "reference_text": "정의 작업실행 관리기능\n○ 작업실행내역을 조회하고 관리하는 기능\n- 작업을 검색조건을 통해 연간,월간,위치Tree,종류Tree 의 형태로 조회할 수 있는 기능 제공\n- 작업지시에서는 작업내용, 자재, 작업공수 등을 입력할 수 있는 기능 제공\n- 작업완료 후 추가작업이 필요한 경우 후속작업과의 관계를 알 수 있는 기능 제공\n- 작업 시작, 종료 입력을 통해 고장 수리 시간 집계 기능 제공\n- 이전작업 이력을 복사해서 신규작업 생성 기능 제공\n- 작업의 세부내용은 고장,개선,예방,배관,윤활,기타등 작업의 유형별로 별도 관리항목을 관리할수 있는 기능 제공\n- 작업의 세부내용은 외주, 직영작업이 별도 관리항목으로 관리할 수 있는 기능 제공\n- 작업은 작업자별로 시작,종료시간을 관리할 수 있는 기능 제공\n- 작업은 사용한 투입자재를 관리할수 있고, 자재 출고와 연계되어 관리될 수 있는 기능 제공\n- 작업은 작업전후 사진을 관리할 수 있는 기능 제공\n- 작업은 작업완료시 점검항목에 대한 점검결과를 관리할 수 있는 기능 제공\n- 작업은 상세한 문서가 있을 경우 관련문서를 관리할 수 있는 기능 제공\n- 작업 완료 후 이력이 자동으로 해당 시설에 대한 이력으로 반영되는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-065",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-065",
+      "title": "(공통-시설관리)작업관리 > 장애작업관리",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 14,
+          "printed_page": null,
+          "anchor": "SFT-065 (공통-시설관리)작업관리 > 장애작업관리"
+        }
+      ],
+      "reference_text": "정의 장애작업관리 기능\n○ 작업계획을 검색조건으로 조회하고 작업결과를 입력하는 기능\n- 검색조건으로 작업목록을 조회할 수 있는 기능 제공\n- 작업일자 및 시간, 작업내용을 입력하는 기능 제공\n- 작업계획 작업유형별로 생성하는 기능 제공\n- 운영중지작업, 운영중작업, 기타작업 등 작업유형별 세부항목을 관리하는 기능 제공\n- 작업 별 작업자, 투입자재를 관리할 수 있는 기능 제공\n- 자재 출고정보와 연계하는 기능 제공\n- 작업완료 시 시설의 이력으로 반영되는 기능 제공\n- 작업내용을 전자결재로 상신하는 기능 제공\n- 입주차포털(TSP), 안전작업관리(SMIS) 연계 기능 제공\n* 입주자포털, 안전작업관리 등 시스템 연계 기능이 상대 시스템 원인에 의하여 불가능 할 경우 공사에 관련 보고를 하고, 공사와 협의하여 연계기능의 제외 혹은 보완 방안을 결정함",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-066",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-066",
+      "title": "(공통-시설관리)작업관리 > 수리교체관리",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 14,
+          "printed_page": null,
+          "anchor": "SFT-066 (공통-시설관리)작업관리 > 수리교체관리"
+        }
+      ],
+      "reference_text": "정의 수리교체관리 기능\n○ 수리/교체작업계획을 검색조건으로 조회하고 작업결과를 입력하는 기능\n- 검색조건으로 작업목록을 조회할 수 있는 기능 제공\n- 작업일자 및 시간, 작업내용을 입력하는 기능 제공\n- 수리교체작업 작업계획을 생성하는 기능 제공\n- 기타작업 세부항목을 관리하는 기능 제공\n- 작업 별 작업자, 투입자재를 관리할 수 있는 기능 제공\n- 자재 출고정보와 연계하는 기능 제공\n- 작업완료 시 시설의 이력으로 반영되는 기능 제공\n- 작업내용을 전자결재로 상신하는 기능 제공\n- 입주차포털(TSP), 안전작업관리(SMIS) 연계 기능 제공\n* 입주자포털, 안전작업관리 등 시스템 연계 기능이 상대 시스템 원인에 의하여 불가능 할 경우 공사에 관련 보고를 하고, 공사와 협의하여 연계기능의 제외 혹은 보완 방안을 결정함",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-067",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-067",
+      "title": "(공통-시설관리)작업관리 > 작업그룹",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 14,
+          "printed_page": null,
+          "anchor": "SFT-067 (공통-시설관리)작업관리 > 작업그룹"
+        }
+      ],
+      "reference_text": "정의 작업그룹 관리기능\n○ 작업을 그룹별로 묶어서 관리하는 기능\n- 작업을 공사형태로 묶어서 조회,생성하는 기능 제공\n- 그룹작업은 일별, 시간대별로 분리하여 관리할수 있는 기능 제공\n- 그룹작업은 단위시설별로 상세 작업항목으로 관리될 수 있게 기능 제공\n- 상세 작업항목은 일별의 경우 일자별 간트차트형, 시간은 시간대별 간트차트형으로로 일정을 확인 할 수 있는 기능 제공\n- 그룹작업 확정시 기존 작업결과와 연계된 형태로 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-068",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-068",
+      "title": "(공통-시설관리)작업관리 > 등기구관리",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 14,
+          "printed_page": null,
+          "anchor": "SFT-068 (공통-시설관리)작업관리 > 등기구관리"
+        }
+      ],
+      "reference_text": "정의 등기구관리 기능\n○ 등기구관리\n- 등기구에 대한 분류를 설정하고 분류에 따른 등기구 목록을 조회하는 기능 제공\n- 등기구에 대한 세부내용을 등록하는 기능 제공\n- 등기구에 대한 사용자재을 조회,등록하는 기능 제공\n- 등기구에 대한 교체이력(사진포함)을 조회,등록하는 기능 제공\n- 등기구 수리에 대한 작업내역(사진포함)을 조회,등록하는 기능 제공\n○ 등기구작업\n- 등기구 작업에 대한 목록을 등기구분류, 검색조건에 따라 조회하는 기능 제공\n- 등기구 작업에 대한 교체작업(사진포함)을 등록하는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀. PDF에서는 마지막 3줄 위에 다른 표(산출물 목록)가 겹쳐 있으나 글자는 파일에 있음",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-069",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-069",
+      "title": "(공통-시설관리)작업관리 > 수목이식작업",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 15,
+          "printed_page": null,
+          "anchor": "SFT-069 (공통-시설관리)작업관리 > 수목이식작업"
+        }
+      ],
+      "reference_text": "정의 수목이식작업 관리기능\n○ 수목이식작업을 관리하는 기능\n- 수목이식 작업에 대한 목록을 위치별, 종류별, 검색조건에 따라 조회하는 기능 제공\n- 수목이식 작업에 대한 세부내용을 등록하는 기능 제공\n- 수목이식 작업내용에는 수목종류에 대한 이식수량, 이식작업사진등을 관리할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-070",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-070",
+      "title": "(공통-시설관리)작업관리 > 고사목작업",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 15,
+          "printed_page": null,
+          "anchor": "SFT-070 (공통-시설관리)작업관리 > 고사목작업"
+        }
+      ],
+      "reference_text": "정의 고사목작업 관리기능\n○ 고사목 작업을 관리하는 기능\n- 고사목 작업에 대한 목록을 위치별, 종류별, 검색조건에 따라 조회하는 기능 제공\n- 고사목 작업에 대한 세부내용을 등록하는 기능 제공\n- 고사목 작업내용에는 수목종류에 대한 작업수량,작업사진등을 관리할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-071",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-071",
+      "title": "(공통-시설관리)작업관리 > 폐기물처리",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 15,
+          "printed_page": null,
+          "anchor": "SFT-071 (공통-시설관리)작업관리 > 폐기물처리"
+        }
+      ],
+      "reference_text": "정의 폐기물처리 관리기능\n○ 폐기물처리작업을 조회하고 관리하는 기능\n- 폐기물 처리에 대한 이력을 검색조건에 따라 조회하는 기능 제공\n- 폐기물 처리 결과를 등록할 수 있는 기능 제공\n- 폐기물 처리 작업시 처리관련 문서를 관리할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-072",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-072",
+      "title": "(공통-시설관리)정기점검 > 정기점검주기",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 15,
+          "printed_page": null,
+          "anchor": "SFT-072 (공통-시설관리)정기점검 > 정기점검주기"
+        }
+      ],
+      "reference_text": "정의 정기점검주기 관리기능\n○ 정기점검주기정보를 검색하고 관리하는 기능\n- 정기점검주기의 정보를 검색조건, 위치Tree, 종류Tree형태의 계층구조로 조회할 수 있는 기능 제공\n- 일별, 주별, 월별, 분기별, 연별 등 예방점검 주기 설정 기능 제공\n- 시설 등급 결과에 따라 권장점검주기를 제시하는 기능 제공\n- 하나의 점검주기에 동일한 시설을 여러개 설정할 수 있는 기능 제공\n- 예방점검 주기는 최초 시작일 기준으로 계획이 자동 생성되는 기능 제공\n- 점검종류(정기, 법정등 - )별로 점검항목 등을 등록 관리 기능 제공\n- 점검 항목별 기본값과 선택 가능한 값을 관리하는 기능 제공\n- 시설에 대한 점검항목을 생성하고 점검순서를 지정할 수 있는 기능 제공\n- 점검항목/방법에 대해서 이미지나 사진 형태로 설명할수 있는 기능 제공\n- 시설점검에 대한 표준시간을 활용하여 점검시간, 이동시간등을 활용할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF6:SFT-073",
+      "document_id": "PDF6",
+      "requirement_id": "SFT-073",
+      "title": "(공통-시설관리)정기점검 > 정기점검계획",
+      "category_original": "기능요구사항",
+      "locations": [
+        {
+          "pdf_page_1based": 15,
+          "printed_page": null,
+          "anchor": "SFT-073 (공통-시설관리)정기점검 > 정기점검계획"
+        }
+      ],
+      "reference_text": "정의 정기점검계획 관리기능\n○ 정기점검계획을 관리하는 기능\n- 점검 계획은 년간, 월간 캘린더를 통해 직관적으로 확인할 수 있는 기능 제공\n- 정기 계획은 검색조건, 위치Tree, 종류Tree형태의 계층구조로 조회할 수 있는 기능 제공\n- 점검캘린더에서 계획중, 완료중인 점검을 직관적으로 확인할 수 있는 기능 제공\n- 점검계획은 일정을 변경하고 일정을 확정하는 기능 제공\n- 점검계획에서 실적을 바로 등록하고 완료할 수 있는 기능 제공\n- 점검일정 추가가 필요한 경우 점검일정을 추가할 수 있는 기능 제공",
+      "reference_text_provenance": "원본 엑셀(인천공항_요구사항.xlsx) '2.상세요구사항' 시트의 정의·세부내용 셀",
+      "logical_source_count": 1
+    }
+  ],
+  "cases": [
+    {
+      "id": "FULL-PDF6",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6",
+        "only": null,
+        "max_sources": null
+      },
+      "expected_output": {
+        "expected_unit_keys": [
+          "PDF6:SFT-001",
+          "PDF6:SFT-002",
+          "PDF6:SFT-003",
+          "PDF6:SFT-004",
+          "PDF6:SFT-005",
+          "PDF6:SFT-006",
+          "PDF6:SFT-007",
+          "PDF6:SFT-008",
+          "PDF6:SFT-009",
+          "PDF6:SFT-010",
+          "PDF6:SFT-011",
+          "PDF6:SFT-012",
+          "PDF6:SFT-013",
+          "PDF6:SFT-014",
+          "PDF6:SFT-015",
+          "PDF6:SFT-016",
+          "PDF6:SFT-017",
+          "PDF6:SFT-018",
+          "PDF6:SFT-019",
+          "PDF6:SFT-020",
+          "PDF6:SFT-021",
+          "PDF6:SFT-022",
+          "PDF6:SFT-023",
+          "PDF6:SFT-024",
+          "PDF6:SFT-025",
+          "PDF6:SFT-026",
+          "PDF6:SFT-027",
+          "PDF6:SFT-028",
+          "PDF6:SFT-029",
+          "PDF6:SFT-030",
+          "PDF6:SFT-031",
+          "PDF6:SFT-032",
+          "PDF6:SFT-033",
+          "PDF6:SFT-034",
+          "PDF6:SFT-035",
+          "PDF6:SFT-036",
+          "PDF6:SFT-037",
+          "PDF6:SFT-038",
+          "PDF6:SFT-039",
+          "PDF6:SFT-040",
+          "PDF6:SFT-041",
+          "PDF6:SFT-042",
+          "PDF6:SFT-043",
+          "PDF6:SFT-044",
+          "PDF6:SFT-045",
+          "PDF6:SFT-046",
+          "PDF6:SFT-047",
+          "PDF6:SFT-048",
+          "PDF6:SFT-049",
+          "PDF6:SFT-050",
+          "PDF6:SFT-051",
+          "PDF6:SFT-052",
+          "PDF6:SFT-053",
+          "PDF6:SFT-054",
+          "PDF6:SFT-055",
+          "PDF6:SFT-056",
+          "PDF6:SFT-057",
+          "PDF6:SFT-058",
+          "PDF6:SFT-059",
+          "PDF6:SFT-060",
+          "PDF6:SFT-061",
+          "PDF6:SFT-062",
+          "PDF6:SFT-063",
+          "PDF6:SFT-064",
+          "PDF6:SFT-065",
+          "PDF6:SFT-066",
+          "PDF6:SFT-067",
+          "PDF6:SFT-068",
+          "PDF6:SFT-069",
+          "PDF6:SFT-070",
+          "PDF6:SFT-071",
+          "PDF6:SFT-072",
+          "PDF6:SFT-073"
+        ],
+        "expected_logical_units": 73,
+        "preserve_original_ids": true,
+        "no_unlisted_requirement_units": true
+      },
+      "metadata": {
+        "type": "전체 추출 목록",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "counting_policy": "논리 요구사항 기준. 물리 블록/검색 청크 개수를 뜻하지 않음."
+      }
+    },
+    {
+      "id": "EXT-S001",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-001",
+        "requirement_id": "SFT-001",
+        "title": "(공통-시설관리)공통",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 1,
+            "printed_page": null,
+            "anchor": "SFT-001 (공통-시설관리)공통"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S002",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-002",
+        "requirement_id": "SFT-002",
+        "title": "(공통-시설관리)통합센터 > 로그인",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 1,
+            "printed_page": null,
+            "anchor": "SFT-002 (공통-시설관리)통합센터 > 로그인"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S003",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-003",
+        "requirement_id": "SFT-003",
+        "title": "(공통-시설관리)통합센터 > 대시보드",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 1,
+            "printed_page": null,
+            "anchor": "SFT-003 (공통-시설관리)통합센터 > 대시보드"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-003",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S004",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-004",
+        "requirement_id": "SFT-004",
+        "title": "(공통-시설관리)통합센터 > 업무그룹",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 1,
+            "printed_page": null,
+            "anchor": "SFT-004 (공통-시설관리)통합센터 > 업무그룹"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-004",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S005",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-005",
+        "requirement_id": "SFT-005",
+        "title": "(공통-시설관리)통합센터 > 시설통합센터",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 1,
+            "printed_page": null,
+            "anchor": "SFT-005 (공통-시설관리)통합센터 > 시설통합센터"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-005",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S006",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-006",
+        "requirement_id": "SFT-006",
+        "title": "(공통-시설관리)통합센터 > 설비작업센터",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 2,
+            "printed_page": null,
+            "anchor": "SFT-006 (공통-시설관리)통합센터 > 설비작업센터"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-006",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S007",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-007",
+        "requirement_id": "SFT-007",
+        "title": "(공통-시설관리)통합센터 > 작업통합센터",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 2,
+            "printed_page": null,
+            "anchor": "SFT-007 (공통-시설관리)통합센터 > 작업통합센터"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-007",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S008",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-008",
+        "requirement_id": "SFT-008",
+        "title": "(공통-시설관리)통합센터 > Process센터",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 2,
+            "printed_page": null,
+            "anchor": "SFT-008 (공통-시설관리)통합센터 > Process센터"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-008",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S009",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-009",
+        "requirement_id": "SFT-009",
+        "title": "(공통-시설관리)통합센터 > 시설Layout센터",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 2,
+            "printed_page": null,
+            "anchor": "SFT-009 (공통-시설관리)통합센터 > 시설Layout센터"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-009",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S010",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-010",
+        "requirement_id": "SFT-010",
+        "title": "(공통-시설관리)시설관리 > 계측기",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 2,
+            "printed_page": null,
+            "anchor": "SFT-010 (공통-시설관리)시설관리 > 계측기"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-010",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S011",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-011",
+        "requirement_id": "SFT-011",
+        "title": "(공통-시설관리)시설관리 > 순환자재시설",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": null,
+            "anchor": "SFT-011 (공통-시설관리)시설관리 > 순환자재시설"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-011",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S012",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-012",
+        "requirement_id": "SFT-012",
+        "title": "(공통-시설관리)시설관리 > Unit",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": null,
+            "anchor": "SFT-012 (공통-시설관리)시설관리 > Unit"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-012",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S013",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-013",
+        "requirement_id": "SFT-013",
+        "title": "(공통-시설관리)시설관리 > 하자관리 > 하자관리",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": null,
+            "anchor": "SFT-013 (공통-시설관리)시설관리 > 하자관리 > 하자관리"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-013",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S014",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-014",
+        "requirement_id": "SFT-014",
+        "title": "(공통-시설관리)시설관리 > 하자관리 > 하자조사",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": null,
+            "anchor": "SFT-014 (공통-시설관리)시설관리 > 하자관리 > 하자조사"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-014",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S015",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-015",
+        "requirement_id": "SFT-015",
+        "title": "(공통-시설관리)항행시설 > 시설현황 > 활주로별 시설 관리 기능",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": null,
+            "anchor": "SFT-015 (공통-시설관리)항행시설 > 시설현황 > 활주로별 시설 관리 기능"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-015",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S016",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-016",
+        "requirement_id": "SFT-016",
+        "title": "(공통-시설관리)항행시설 > 시설현황 > 시설/자산전체현황",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 4,
+            "printed_page": null,
+            "anchor": "SFT-016 (공통-시설관리)항행시설 > 시설현황 > 시설/자산전체현황"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-016",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S017",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-017",
+        "requirement_id": "SFT-017",
+        "title": "(공통-시설관리)항행시설 > 시설현황 > 장착품(Part)정보",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 4,
+            "printed_page": null,
+            "anchor": "SFT-017 (공통-시설관리)항행시설 > 시설현황 > 장착품(Part)정보"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-017",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S018",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-018",
+        "requirement_id": "SFT-018",
+        "title": "(공통-시설관리)항행시설 > 시설현황 > 장착품현황",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 4,
+            "printed_page": null,
+            "anchor": "SFT-018 (공통-시설관리)항행시설 > 시설현황 > 장착품현황"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-018",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S019",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-019",
+        "requirement_id": "SFT-019",
+        "title": "(공통-시설관리)항행시설 > 시설현황 > 측정장비현황",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 4,
+            "printed_page": null,
+            "anchor": "SFT-019 (공통-시설관리)항행시설 > 시설현황 > 측정장비현황"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-019",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S020",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-020",
+        "requirement_id": "SFT-020",
+        "title": "(공통-시설관리)항행시설 > 시설현황 > 장애물현황",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": null,
+            "anchor": "SFT-020 (공통-시설관리)항행시설 > 시설현황 > 장애물현황"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-020",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S021",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-021",
+        "requirement_id": "SFT-021",
+        "title": "(공통-시설관리)항행시설 > 시설현황 > 부대시설현황",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": null,
+            "anchor": "SFT-021 (공통-시설관리)항행시설 > 시설현황 > 부대시설현황"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-021",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S022",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-022",
+        "requirement_id": "SFT-022",
+        "title": "(공통-시설관리)항행시설 > 시설현황 > 정보통신시설현황",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": null,
+            "anchor": "SFT-022 (공통-시설관리)항행시설 > 시설현황 > 정보통신시설현황"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-022",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S023",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-023",
+        "requirement_id": "SFT-023",
+        "title": "(공통-시설관리)항행시설 > 시설현황 > 시설등급평가",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": null,
+            "anchor": "SFT-023 (공통-시설관리)항행시설 > 시설현황 > 시설등급평가"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-023",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S024",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-024",
+        "requirement_id": "SFT-024",
+        "title": "(공통-시설관리)항행시설 > 종합현황 > 항행안전시설관리",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": null,
+            "anchor": "SFT-024 (공통-시설관리)항행시설 > 종합현황 > 항행안전시설관리"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-024",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S025",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-025",
+        "requirement_id": "SFT-025",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 점검표준 > 점검작업표준정의",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": null,
+            "anchor": "SFT-025 (공통-시설관리)항행시설 > 예방점검 > 점검표준 > 점검작업표준정의"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-025",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S026",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-026",
+        "requirement_id": "SFT-026",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검항목관리",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": null,
+            "anchor": "SFT-026 (공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검항목관리"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-026",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S027",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-027",
+        "requirement_id": "SFT-027",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검계획",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": null,
+            "anchor": "SFT-027 (공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검계획"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-027",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S028",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-028",
+        "requirement_id": "SFT-028",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검실행",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": null,
+            "anchor": "SFT-028 (공통-시설관리)항행시설 > 예방점검 > 평상점검 > 평상점검실행"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-028",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S029",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-029",
+        "requirement_id": "SFT-029",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 기술성능기록부",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": null,
+            "anchor": "SFT-029 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 기술성능기록부"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-029",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S030",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-030",
+        "requirement_id": "SFT-030",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검항목",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": null,
+            "anchor": "SFT-030 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검항목"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-030",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S031",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-031",
+        "requirement_id": "SFT-031",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검계획(연간/월간/기간)",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": null,
+            "anchor": "SFT-031 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검계획(연간/월간/기간)"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-031",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S032",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-032",
+        "requirement_id": "SFT-032",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검실행",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 7,
+            "printed_page": null,
+            "anchor": "SFT-032 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검실행"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-032",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S033",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-033",
+        "requirement_id": "SFT-033",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 이상점검이력",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 7,
+            "printed_page": null,
+            "anchor": "SFT-033 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 이상점검이력"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-033",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S034",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-034",
+        "requirement_id": "SFT-034",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검결과기재",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 7,
+            "printed_page": null,
+            "anchor": "SFT-034 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 정기(성능)점검결과기재"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-034",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S035",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-035",
+        "requirement_id": "SFT-035",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 예방점검이력",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 7,
+            "printed_page": null,
+            "anchor": "SFT-035 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 예방점검이력"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-035",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S036",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-036",
+        "requirement_id": "SFT-036",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검항목",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 8,
+            "printed_page": null,
+            "anchor": "SFT-036 (공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검항목"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-036",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S037",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-037",
+        "requirement_id": "SFT-037",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검계획(연간/월간/기간)",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 8,
+            "printed_page": null,
+            "anchor": "SFT-037 (공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검계획(연간/월간/기간)"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-037",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S038",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-038",
+        "requirement_id": "SFT-038",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검실행",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 8,
+            "printed_page": null,
+            "anchor": "SFT-038 (공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검실행"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-038",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S039",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-039",
+        "requirement_id": "SFT-039",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검결재",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 8,
+            "printed_page": null,
+            "anchor": "SFT-039 (공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검결재"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-039",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S040",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-040",
+        "requirement_id": "SFT-040",
+        "title": "(공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검책임자관리",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": null,
+            "anchor": "SFT-040 (공통-시설관리)항행시설 > 예방점검 > 성능확인점검 > 성능확인점검책임자관리"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-040",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S041",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-041",
+        "requirement_id": "SFT-041",
+        "title": "(공통-시설관리)항행시설 > NOTAM관리 > NOTAM관리",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": null,
+            "anchor": "SFT-041 (공통-시설관리)항행시설 > NOTAM관리 > NOTAM관리"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-041",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S042",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-042",
+        "requirement_id": "SFT-042",
+        "title": "(공통-시설관리)항행시설 > NOTAM관리 > Non-NOTAM관리",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": null,
+            "anchor": "SFT-042 (공통-시설관리)항행시설 > NOTAM관리 > Non-NOTAM관리"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-042",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S043",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-043",
+        "requirement_id": "SFT-043",
+        "title": "(공통-시설관리)항행시설 > 전파혼신신고",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": null,
+            "anchor": "SFT-043 (공통-시설관리)항행시설 > 전파혼신신고"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-043",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S044",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-044",
+        "requirement_id": "SFT-044",
+        "title": "(공통-시설관리)항행시설 > 안전컨설팅",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": null,
+            "anchor": "SFT-044 (공통-시설관리)항행시설 > 안전컨설팅"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-044",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S045",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-045",
+        "requirement_id": "SFT-045",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사정의",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": null,
+            "anchor": "SFT-045 (공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사정의"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-045",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S046",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-046",
+        "requirement_id": "SFT-046",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사계획(연간/월간/기간)",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 10,
+            "printed_page": null,
+            "anchor": "SFT-046 (공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사계획(연간/월간/기간)"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-046",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S047",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-047",
+        "requirement_id": "SFT-047",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사실행",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 10,
+            "printed_page": null,
+            "anchor": "SFT-047 (공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사실행"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-047",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S048",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-048",
+        "requirement_id": "SFT-048",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사결재",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 10,
+            "printed_page": null,
+            "anchor": "SFT-048 (공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사결재"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-048",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S049",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-049",
+        "requirement_id": "SFT-049",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사게시판",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 10,
+            "printed_page": null,
+            "anchor": "SFT-049 (공통-시설관리)항행시설 > 검사관리 > 비행검사 > 비행검사게시판"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-049",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S050",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-050",
+        "requirement_id": "SFT-050",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 관리검사 > 관리검사일정계획",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 10,
+            "printed_page": null,
+            "anchor": "SFT-050 (공통-시설관리)항행시설 > 검사관리 > 관리검사 > 관리검사일정계획"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-050",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S051",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-051",
+        "requirement_id": "SFT-051",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 관리검사 > 관리검사진행",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 11,
+            "printed_page": null,
+            "anchor": "SFT-051 (공통-시설관리)항행시설 > 검사관리 > 관리검사 > 관리검사진행"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-051",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S052",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-052",
+        "requirement_id": "SFT-052",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 관리검사 > 지적사항진행",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 11,
+            "printed_page": null,
+            "anchor": "SFT-052 (공통-시설관리)항행시설 > 검사관리 > 관리검사 > 지적사항진행"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-052",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S053",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-053",
+        "requirement_id": "SFT-053",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사정의",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 11,
+            "printed_page": null,
+            "anchor": "SFT-053 (공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사정의"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-053",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S054",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-054",
+        "requirement_id": "SFT-054",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사계획(연간/월간/기간)",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 11,
+            "printed_page": null,
+            "anchor": "SFT-054 (공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사계획(연간/월간/기간)"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-054",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S055",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-055",
+        "requirement_id": "SFT-055",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사실행",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 11,
+            "printed_page": null,
+            "anchor": "SFT-055 (공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사실행"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-055",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S056",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-056",
+        "requirement_id": "SFT-056",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사결재",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 12,
+            "printed_page": null,
+            "anchor": "SFT-056 (공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국검사결재"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-056",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S057",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-057",
+        "requirement_id": "SFT-057",
+        "title": "(공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국허가증",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 12,
+            "printed_page": null,
+            "anchor": "SFT-057 (공통-시설관리)항행시설 > 검사관리 > 무선국검사 > 무선국허가증"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-057",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S058",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-058",
+        "requirement_id": "SFT-058",
+        "title": "(공통-시설관리)항행시설 > 검사",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 12,
+            "printed_page": null,
+            "anchor": "SFT-058 (공통-시설관리)항행시설 > 검사"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-058",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S059",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-059",
+        "requirement_id": "SFT-059",
+        "title": "(공통-시설관리)Event > Event접수",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 12,
+            "printed_page": null,
+            "anchor": "SFT-059 (공통-시설관리)Event > Event접수"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-059",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S060",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-060",
+        "requirement_id": "SFT-060",
+        "title": "(공통-시설관리)시설현황 > 정보통신시설현황",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 12,
+            "printed_page": null,
+            "anchor": "SFT-060 (공통-시설관리)시설현황 > 정보통신시설현황"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-060",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S061",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-061",
+        "requirement_id": "SFT-061",
+        "title": "(공통-시설관리)시설현황 > 시설등급평가",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 13,
+            "printed_page": null,
+            "anchor": "SFT-061 (공통-시설관리)시설현황 > 시설등급평가"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-061",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S062",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-062",
+        "requirement_id": "SFT-062",
+        "title": "(공통-시설관리)Event > Event보고서",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 13,
+            "printed_page": null,
+            "anchor": "SFT-062 (공통-시설관리)Event > Event보고서"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-062",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S063",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-063",
+        "requirement_id": "SFT-063",
+        "title": "(공통-시설관리)작업관리 > 작업일정(월간/주간)",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 13,
+            "printed_page": null,
+            "anchor": "SFT-063 (공통-시설관리)작업관리 > 작업일정(월간/주간)"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-063",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S064",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-064",
+        "requirement_id": "SFT-064",
+        "title": "(공통-시설관리)작업관리 > 작업실행",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 13,
+            "printed_page": null,
+            "anchor": "SFT-064 (공통-시설관리)작업관리 > 작업실행"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-064",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S065",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-065",
+        "requirement_id": "SFT-065",
+        "title": "(공통-시설관리)작업관리 > 장애작업관리",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 14,
+            "printed_page": null,
+            "anchor": "SFT-065 (공통-시설관리)작업관리 > 장애작업관리"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-065",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S066",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-066",
+        "requirement_id": "SFT-066",
+        "title": "(공통-시설관리)작업관리 > 수리교체관리",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 14,
+            "printed_page": null,
+            "anchor": "SFT-066 (공통-시설관리)작업관리 > 수리교체관리"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-066",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S067",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-067",
+        "requirement_id": "SFT-067",
+        "title": "(공통-시설관리)작업관리 > 작업그룹",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 14,
+            "printed_page": null,
+            "anchor": "SFT-067 (공통-시설관리)작업관리 > 작업그룹"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-067",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S068",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-068",
+        "requirement_id": "SFT-068",
+        "title": "(공통-시설관리)작업관리 > 등기구관리",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 14,
+            "printed_page": null,
+            "anchor": "SFT-068 (공통-시설관리)작업관리 > 등기구관리"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-068",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S069",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-069",
+        "requirement_id": "SFT-069",
+        "title": "(공통-시설관리)작업관리 > 수목이식작업",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 15,
+            "printed_page": null,
+            "anchor": "SFT-069 (공통-시설관리)작업관리 > 수목이식작업"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-069",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S070",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-070",
+        "requirement_id": "SFT-070",
+        "title": "(공통-시설관리)작업관리 > 고사목작업",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 15,
+            "printed_page": null,
+            "anchor": "SFT-070 (공통-시설관리)작업관리 > 고사목작업"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-070",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S071",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-071",
+        "requirement_id": "SFT-071",
+        "title": "(공통-시설관리)작업관리 > 폐기물처리",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 15,
+            "printed_page": null,
+            "anchor": "SFT-071 (공통-시설관리)작업관리 > 폐기물처리"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-071",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S072",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-072",
+        "requirement_id": "SFT-072",
+        "title": "(공통-시설관리)정기점검 > 정기점검주기",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 15,
+            "printed_page": null,
+            "anchor": "SFT-072 (공통-시설관리)정기점검 > 정기점검주기"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-072",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-S073",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-073",
+        "requirement_id": "SFT-073",
+        "title": "(공통-시설관리)정기점검 > 정기점검계획",
+        "category_original": "기능요구사항",
+        "locations": [
+          {
+            "pdf_page_1based": 15,
+            "printed_page": null,
+            "anchor": "SFT-073 (공통-시설관리)정기점검 > 정기점검계획"
+          }
+        ],
+        "content_reference_key": "PDF6:SFT-073",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "C22",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-068",
+        "must_include_together": [
+          "등기구 수리에 대한 작업내역(사진포함)을 조회,등록",
+          "등기구분류, 검색조건에 따라 조회",
+          "교체작업(사진포함)을 등록"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "다른 표가 겹쳐 가려진 마지막 3줄도 같은 요구사항에 온전히 들어가야 함",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C23",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-063",
+        "must_include_together": [
+          "월카렌더로 작업수/미작업수/완료작업수",
+          "주카렌더로 작업수/미작업수/완료작업수",
+          "검색조건으로 작업목록을 조회"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "월간·주간·검색조건 세 항목이 한 요구사항에 유지",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C24",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-065",
+        "must_include_together": [
+          "상대 시스템 원인에 의하여 불가능 할 경우",
+          "연계기능의 제외 혹은 보완 방안을 결정"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "연계 불가 시 예외 처리 문장 유지",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C25",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "unit_key": "PDF6:SFT-001",
+        "must_include_together": [
+          "모바일(구현기능)을 제외한 모든 기능은 웹 기반으로 제공",
+          "데이터베이스에 암호화하여 관리하고 사용시 복호화"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "공통 요구사항의 예외 조건과 암호화 조건 유지",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "R42",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "모바일(구현기능)을 제외한 모든 기능은 웹 기반으로 제공",
+        "original_locator": {
+          "requirement_id": "SFT-001",
+          "locations": [
+            {
+              "pdf_page_1based": 1,
+              "printed_page": null,
+              "anchor": "SFT-001 (공통-시설관리)공통"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF6:SFT-001"
+        ],
+        "expected_quote": "모바일(구현기능)을 제외한 모든 기능은 웹 기반으로 제공",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "예외 조건의 정상 인용",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R43",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "비밀번호는 최근 사용한 비밀번호는 사용할 수 없는 규칙 적용 기능 제공",
+        "original_locator": {
+          "requirement_id": "SFT-002",
+          "locations": [
+            {
+              "pdf_page_1based": 1,
+              "printed_page": null,
+              "anchor": "SFT-002 (공통-시설관리)통합센터 > 로그인"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF6:SFT-002"
+        ],
+        "expected_quote": "비밀번호는 최근 사용한 비밀번호는 사용할 수 없는 규칙 적용 기능 제공",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "부정 표현의 정상 인용",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R44",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "현황을 엑셀로 다운로드 하는 기능 제공",
+        "original_locator": {
+          "requirement_id": "SFT-060",
+          "locations": [
+            {
+              "pdf_page_1based": 12,
+              "printed_page": null,
+              "anchor": "SFT-060 (공통-시설관리)시설현황 > 정보통신시설현황"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF6:SFT-060"
+        ],
+        "expected_quote": "현황을 엑셀로 다운로드 하는 기능 제공",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "여러 요구사항에 있는 같은 문장",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "SFT-022에도 같은 문장이 있음. 주장한 위치(SFT-060)에서 그대로 확인돼야 함."
+      }
+    },
+    {
+      "id": "R45",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "등기구 수리에 대한 작업내역(사진포함)을 조회,등록하는 기능 제공",
+        "original_locator": {
+          "requirement_id": "SFT-068",
+          "locations": [
+            {
+              "pdf_page_1based": 14,
+              "printed_page": null,
+              "anchor": "SFT-068 (공통-시설관리)작업관리 > 등기구관리"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF6:SFT-068"
+        ],
+        "expected_quote": "등기구 수리에 대한 작업내역(사진포함)을 조회,등록하는 기능 제공",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "가려진 원문의 정상 인용",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "PDF에서 다른 표가 덮고 있지만 글자는 파일에 있음. 원문 그대로의 인용문이므로 확인돼야 함."
+      }
+    },
+    {
+      "id": "R46",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "교정이 필요한 계측설비의 경우 교정주기를 관리하고 교정주기에 맞는 스케쥴을 생성",
+        "original_locator": {
+          "requirement_id": "SFT-019",
+          "locations": [
+            {
+              "pdf_page_1based": 4,
+              "printed_page": null,
+              "anchor": "SFT-019 (공통-시설관리)항행시설 > 시설현황 > 측정장비현황"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "PDF6:SFT-010"
+        ],
+        "expected_quote": "교정이 필요한 계측설비의 경우 교정주기를 관리하고 교정주기에 맞는 스케쥴을 생성",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "다른 블록의 원문 복구",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R47",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "일별의 경우 일자별 간트차트형, 시간은 시간대별 간트차트형",
+        "original_locator": {
+          "requirement_id": "SFT-063",
+          "locations": [
+            {
+              "pdf_page_1based": 13,
+              "printed_page": null,
+              "anchor": "SFT-063 (공통-시설관리)작업관리 > 작업일정(월간/주간)"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "PDF6:SFT-067"
+        ],
+        "expected_quote": "일별의 경우 일자별 간트차트형, 시간은 시간대별 간트차트형",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "다른 블록의 원문 복구",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R48",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "점검주기 별 점검계획 자동 생성 기능 제공",
+        "original_locator": {
+          "requirement_id": "SFT-029",
+          "locations": [
+            {
+              "pdf_page_1based": 6,
+              "printed_page": null,
+              "anchor": "SFT-029 (공통-시설관리)항행시설 > 예방점검 > 정기(성능)점검 > 기술성능기록부"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "PDF6:SFT-030",
+          "PDF6:SFT-036"
+        ],
+        "expected_quote": "점검주기 별 점검계획 자동 생성 기능 제공",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "여러 위치에 있는 원문 복구",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R49",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "모바일(구현기능)을 포함한 모든 기능은 웹 기반으로 제공",
+        "original_locator": {
+          "requirement_id": "SFT-001",
+          "locations": [
+            {
+              "pdf_page_1based": 1,
+              "printed_page": null,
+              "anchor": "SFT-001 (공통-시설관리)공통"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "제외/포함 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "원문은 '제외한'."
+      }
+    },
+    {
+      "id": "R50",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "비밀번호는 최근 사용한 비밀번호는 사용할 수 있는 규칙 적용 기능 제공",
+        "original_locator": {
+          "requirement_id": "SFT-002",
+          "locations": [
+            {
+              "pdf_page_1based": 1,
+              "printed_page": null,
+              "anchor": "SFT-002 (공통-시설관리)통합센터 > 로그인"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "부정 표현 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "원문은 '사용할 수 없는'."
+      }
+    },
+    {
+      "id": "R51",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "발생현황 SNS 송신 기능 제공",
+        "original_locator": {
+          "requirement_id": "SFT-059",
+          "locations": [
+            {
+              "pdf_page_1based": 12,
+              "printed_page": null,
+              "anchor": "SFT-059 (공통-시설관리)Event > Event접수"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "대상 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "원문은 'SMS 송신'. 조건어·숫자가 아니라 전송 수단(대상)이 바뀐 경우."
+      }
+    },
+    {
+      "id": "R52",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "전화번호, 이메일, 거래처 전화번호, 주소, 전화번호 등 개인정보는 데이터베이스에 평문으로 관리",
+        "original_locator": {
+          "requirement_id": "SFT-001",
+          "locations": [
+            {
+              "pdf_page_1based": 1,
+              "printed_page": null,
+              "anchor": "SFT-001 (공통-시설관리)공통"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "조건 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "원문은 '암호화하여 관리하고 사용시 복호화'."
+      }
+    },
+    {
+      "id": "R53",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF6",
+        "quote": "시설물 위치는 드론 촬영 영상으로 실시간 갱신하는 기능 제공",
+        "original_locator": {
+          "requirement_id": "SFT-005",
+          "locations": [
+            {
+              "pdf_page_1based": 1,
+              "printed_page": null,
+              "anchor": "SFT-005 (공통-시설관리)통합센터 > 시설통합센터"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "문서에 없는 근거",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "Q15",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "issue_type": "overlapping_content",
+        "affected_unit_keys": [
+          "PDF6:SFT-068"
+        ],
+        "expectation": "review",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "SFT-068 세부내용 마지막 3줄 위에 다른 표(산출물 목록: 착수계·과업수행계획서 등)가 겹쳐 글자가 섞임. 해당 요구사항을 짚어 확인 요청 경고가 나와야 함."
+      }
+    },
+    {
+      "id": "Q16",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "issue_type": "no_duplicate_ids",
+        "affected_unit_keys": [],
+        "expectation": "negative",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "SFT-001~073이 한 번씩만 쓰임. 중복 경고를 만들지 않음."
+      }
+    },
+    {
+      "id": "Q17",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF6"
+      },
+      "expected_output": {
+        "issue_type": "no_text_layer_absent_pages",
+        "affected_unit_keys": [],
+        "expectation": "negative",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "15쪽 모두 텍스트층이 있음. 텍스트층 없음 경고를 만들지 않음."
+      }
+    }
+  ],
+  "coverage_limits": [
+    "기능 요구사항(SFT)만 있는 문서. 비기능·사업관리 요구사항 사례는 없음.",
+    "원문에 '입주차포털(TSP)'(SFT-059·065·066)과 '입주자포털(TSP)'(SFT-063)이 섞여 있음. 원문 그대로 정답에 둠."
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "SER-002", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "사무실·장비 설치장소 출입보안", "description": "사무실과 주요 장비 설치 장소의 출입 보안을 실시한다.", "priority": "MUST",
+     "acceptance_criteria": ["출입 통제 기록"],
+     "evidence": [{"source_block_id": "B0106", "quote": "사무실, 주요장비 설치장소에 대한 출입보안 실시"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "SER-002", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "PC·저장매체 반출입 통제", "description": "개인 소유 PC와 보조기억장치의 반입·반출을 통제한다.", "priority": "MUST",
+     "acceptance_criteria": ["자료 반출입 대장"],
+     "evidence": [{"source_block_id": "B0106", "quote": "개인소유의 PC 및 보조기억장치 반입·반출 통제 실시"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "SER-002", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "개발공간 인터넷 제한", "description": "개발 공간의 인터넷 연결을 일부 제한한다.", "priority": "MUST",
+     "acceptance_criteria": ["개발망 인터넷 제한 설정"],
+     "evidence": [{"source_block_id": "B0106", "quote": "개발공간의 인터넷 연결 일부 제한"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "SER-002", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "문서 보관·안전 폐기", "description": "생성 문서는 잠금장치가 있는 곳에 보관하고 폐기 문서는 안전하게 폐기한다.", "priority": "MUST",
+     "acceptance_criteria": ["문서 폐기 대장"],
+     "evidence": [{"source_block_id": "B0106", "quote": "생성된 문서는 별도 시건장치가 된 곳에 안전하게 보관"}, {"source_block_id": "B0106", "quote": "폐기되는 문서는 안전한 방법으로 폐기되도록 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R5", "source_key": "SER-002", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "보안",
+     "title": "문서 보안등급별 권한관리", "description": "사업 문서에 보안등급을 부여하고 등급에 따라 접근 권한을 다르게 관리한다.", "priority": "MUST",
+     "acceptance_criteria": ["문서 보안등급 분류표"],
+     "evidence": [{"source_block_id": "B0106", "quote": "문서에 보안등급을 부여하고 등급에 따라 차별화된 권한관리 실시"}],
+     "status": "ASSUMED"}
+  ],
+  "questions": []
+}

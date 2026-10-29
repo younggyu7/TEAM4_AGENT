@@ -1,0 +1,650 @@
+{
+ "entities": [
+  {
+   "name": "approval_line_step",
+   "attributes": [
+    {
+     "name": "approval_line_step_id",
+     "label": "approval_line_step ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "approval_line_id",
+     "label": "결재선",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "approval_line",
+     "allowed_values": [],
+     "description": "결재선"
+    },
+    {
+     "name": "step_order",
+     "label": "결재 순서",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "결재 순서"
+    },
+    {
+     "name": "approver_role_id",
+     "label": "결재 역할",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "role",
+     "allowed_values": [],
+     "description": "결재 역할"
+    },
+    {
+     "name": "approver_user_id",
+     "label": "지정 결재자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "지정 결재자"
+    },
+    {
+     "name": "approval_type",
+     "label": "결재 유형",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "APPROVE",
+      "AGREE",
+      "NOTIFY"
+     ],
+     "description": "결재 유형"
+    },
+    {
+     "name": "allow_delegate",
+     "label": "대결 허용",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대결 허용"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "approval",
+   "attributes": [
+    {
+     "name": "approval_id",
+     "label": "approval ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "approval_line_id",
+     "label": "결재선",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "approval_line",
+     "allowed_values": [],
+     "description": "결재선"
+    },
+    {
+     "name": "target_type",
+     "label": "대상 유형",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대상 유형"
+    },
+    {
+     "name": "target_id",
+     "label": "대상 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대상 ID"
+    },
+    {
+     "name": "requester_id",
+     "label": "요청자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "요청자"
+    },
+    {
+     "name": "current_step_order",
+     "label": "현재 결재 순서",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "현재 결재 순서"
+    },
+    {
+     "name": "status",
+     "label": "결재 상태",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "IN_PROGRESS",
+      "APPROVED",
+      "REJECTED",
+      "CANCELED"
+     ],
+     "description": "결재 상태"
+    },
+    {
+     "name": "requested_at",
+     "label": "요청 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "요청 일시"
+    },
+    {
+     "name": "completed_at",
+     "label": "완료 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "완료 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "approval_history",
+   "attributes": [
+    {
+     "name": "approval_history_id",
+     "label": "approval_history ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "approval_id",
+     "label": "결재",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "approval",
+     "allowed_values": [],
+     "description": "결재"
+    },
+    {
+     "name": "approval_line_step_id",
+     "label": "결재선 단계",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "approval_line_step",
+     "allowed_values": [],
+     "description": "결재선 단계"
+    },
+    {
+     "name": "approver_id",
+     "label": "결재자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "결재자"
+    },
+    {
+     "name": "decision",
+     "label": "결정",
+     "data_type": "varchar",
+     "length": 14,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "APPROVED",
+      "REJECTED",
+      "AUTO_APPROVED"
+     ],
+     "description": "결정"
+    },
+    {
+     "name": "delegated_yn",
+     "label": "대결 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대결 여부"
+    },
+    {
+     "name": "second_auth_yn",
+     "label": "2차 인증 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "2차 인증 여부"
+    },
+    {
+     "name": "comment",
+     "label": "의견",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "의견"
+    },
+    {
+     "name": "decided_at",
+     "label": "결재 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "결재 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    }
+   ]
+  },
+  {
+   "name": "knowledge_article",
+   "attributes": [
+    {
+     "name": "knowledge_article_id",
+     "label": "knowledge_article ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "title",
+     "label": "제목",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "제목"
+    },
+    {
+     "name": "content",
+     "label": "본문",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "본문"
+    },
+    {
+     "name": "category",
+     "label": "분류",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "분류"
+    },
+    {
+     "name": "visibility_scope",
+     "label": "공개 범위",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "PUBLIC",
+      "INTERNAL",
+      "OPERATOR"
+     ],
+     "description": "공개 범위"
+    },
+    {
+     "name": "source_request_id",
+     "label": "출처 요청",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "service_request",
+     "allowed_values": [],
+     "description": "출처 요청"
+    },
+    {
+     "name": "author_id",
+     "label": "작성자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "작성자"
+    },
+    {
+     "name": "view_count",
+     "label": "조회수",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "조회수"
+    },
+    {
+     "name": "status",
+     "label": "상태",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "DRAFT",
+      "PUBLISHED",
+      "ARCHIVED"
+     ],
+     "description": "상태"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "faq",
+   "attributes": [
+    {
+     "name": "faq_id",
+     "label": "faq ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "category",
+     "label": "분류",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "분류"
+    },
+    {
+     "name": "question",
+     "label": "질문",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "질문"
+    },
+    {
+     "name": "answer",
+     "label": "답변",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "답변"
+    },
+    {
+     "name": "published_yn",
+     "label": "게시 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "게시 여부"
+    },
+    {
+     "name": "author_id",
+     "label": "작성자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "작성자"
+    },
+    {
+     "name": "sort_order",
+     "label": "정렬 순서",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "정렬 순서"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  }
+ ]
+}

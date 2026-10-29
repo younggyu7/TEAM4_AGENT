@@ -1,0 +1,334 @@
+{
+ "functions": [
+  {
+   "name": "SSO 계정·조직 동기화",
+   "description": "통합인증(SSO)의 인사·조직 정보를 받아 ITSM 사용자 계정과 부서를 자동으로 생성·변경·비활성화한다.",
+   "requirement_ids": [
+    "SFR-002-02",
+    "SFR-002-01"
+   ],
+   "nfr_ids": [
+    "SER-008-05",
+    "SER-008-06",
+    "COR-001-05"
+   ],
+   "actors": [
+    "시스템",
+    "외부 시스템(SSO)"
+   ],
+   "preconditions": [
+    "SSO 연계 설정 완료"
+   ],
+   "inputs": [
+    {
+     "name": "인사·조직 데이터",
+     "description": "사번, 성명, 부서, 직위, 재직 상태",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "동기화 결과",
+     "description": "생성·변경·비활성 건수와 오류",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "사번 기준 1인 1계정을 유지한다",
+    "퇴사자는 삭제하지 않고 비활성화한다",
+    "연동 개인정보는 정의된 형식만 받고 암호화 구간으로 전송한다"
+   ],
+   "normal_flow": [
+    "정해진 주기에 동기화를 시작한다",
+    "SSO에서 변경 데이터를 받는다",
+    "부서를 먼저 반영한다",
+    "사번 기준으로 계정을 생성·변경·비활성화한다",
+    "결과를 동기화 이력에 기록한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "SSO 연결 실패",
+     "handling": "재시도 후 실패 이력 기록·관리자 알림"
+    },
+    {
+     "condition": "부서 코드 없음",
+     "handling": "해당 계정 반영 보류"
+    }
+   ],
+   "data_objects": [
+    "사용자 계정",
+    "부서",
+    "계정 동기화 이력"
+   ]
+  },
+  {
+   "name": "로컬 계정 관리",
+   "description": "SSO에 없는 외주·유지보수 인력 계정을 관리자가 생성하고 사용 기간을 관리한다.",
+   "requirement_ids": [
+    "SFR-002-01"
+   ],
+   "nfr_ids": [
+    "DAR-001-02",
+    "SER-003-03"
+   ],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [
+    "관리자 권한"
+   ],
+   "inputs": [
+    {
+     "name": "사용자 정보",
+     "description": "성명, 소속 업체, 연락처",
+     "required": true
+    },
+    {
+     "name": "사용 만료일",
+     "description": "계정 사용 종료일",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "로컬 계정",
+     "description": "생성된 계정과 초기 비밀번호 안내",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) SSO에 없는 인력만 로컬 계정을 만든다 (질문 대기)",
+    "비밀번호는 단방향 해시(SHA-512 이상)로만 저장한다",
+    "만료일이 지나면 자동 비활성화한다"
+   ],
+   "normal_flow": [
+    "관리자가 계정 생성 화면을 연다",
+    "사용자 정보와 만료일을 입력한다",
+    "중복 여부를 확인한다",
+    "계정을 생성한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "같은 인원의 계정이 이미 있음",
+     "handling": "생성 거부"
+    }
+   ],
+   "data_objects": [
+    "사용자 계정"
+   ]
+  },
+  {
+   "name": "SSO 로그인",
+   "description": "SSO 인증 후 별도 로그인 없이 ITSM에 접속하고, 필요한 경우 2차 인증을 수행한다.",
+   "requirement_ids": [
+    "SFR-002-03"
+   ],
+   "nfr_ids": [
+    "SFR-002-04",
+    "SER-008-02"
+   ],
+   "actors": [
+    "사용자",
+    "외부 시스템(SSO)"
+   ],
+   "preconditions": [
+    "활성 계정 보유"
+   ],
+   "inputs": [
+    {
+     "name": "SSO 인증 토큰",
+     "description": "통합인증 결과",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "세션",
+     "description": "로그인 세션과 권한",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "중복 로그인 허용 설정을 따른다",
+    "로그인 성공·실패를 접속 이력에 기록한다"
+   ],
+   "normal_flow": [
+    "사용자가 ITSM에 접속한다",
+    "SSO 인증 결과를 확인한다",
+    "계정 상태와 잠금 여부를 확인한다",
+    "2차 인증 대상이면 2차 인증을 수행한다",
+    "세션을 만들고 접속 이력을 기록한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "계정 비활성·잠금",
+     "handling": "접속 차단 안내"
+    },
+    {
+     "condition": "중복 로그인 불허 상태에서 기존 세션 존재",
+     "handling": "기존 세션 종료 또는 신규 차단"
+    }
+   ],
+   "data_objects": [
+    "사용자 계정",
+    "접속 이력"
+   ]
+  },
+  {
+   "name": "부서·담당별 권한 부여",
+   "description": "부서와 담당 업무에 따라 사용자에게 역할을 일괄 또는 개별로 부여하고 보유 권한을 조회한다.",
+   "requirement_ids": [
+    "SFR-002-05"
+   ],
+   "nfr_ids": [
+    "SIR-001-01"
+   ],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [
+    "역할이 정의됨"
+   ],
+   "inputs": [
+    {
+     "name": "대상",
+     "description": "부서 또는 사용자",
+     "required": true
+    },
+    {
+     "name": "역할",
+     "description": "부여할 역할",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "사용자 역할",
+     "description": "부여 결과",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "권한은 역할 단위로 부여한다",
+    "부여·회수 이력을 남긴다"
+   ],
+   "normal_flow": [
+    "관리자가 부서 또는 사용자를 선택한다",
+    "역할을 선택한다",
+    "부여를 저장한다",
+    "사용자별 보유 권한을 확인한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "중복 부여",
+     "handling": "무시하고 안내"
+    }
+   ],
+   "data_objects": [
+    "역할",
+    "사용자 역할",
+    "부서"
+   ]
+  },
+  {
+   "name": "로그인 보안 정책 설정",
+   "description": "중복 로그인 허용 여부, 암호 조합 규칙, 로그인 실패 잠금 횟수 등 사용자 보안 정책을 설정한다.",
+   "requirement_ids": [
+    "SFR-002-06",
+    "SFR-002-07"
+   ],
+   "nfr_ids": [
+    "SER-003-03"
+   ],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "중복 로그인 허용",
+     "description": "허용/불허",
+     "required": true
+    },
+    {
+     "name": "암호 규칙",
+     "description": "최소 길이·조합·변경 주기",
+     "required": true
+    },
+    {
+     "name": "잠금 기준",
+     "description": "연속 실패 횟수",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "보안 정책",
+     "description": "적용된 정책",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "정책 변경 이력을 남긴다"
+   ],
+   "normal_flow": [
+    "관리자가 보안 정책 화면을 연다",
+    "항목을 수정한다",
+    "저장하면 즉시 적용된다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "최소 길이가 기준 미만",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "보안 정책 설정"
+   ]
+  },
+  {
+   "name": "접속 이력 조회·잠금 해제",
+   "description": "사용자 접속 이력을 조회하고 잠긴 계정을 해제한다.",
+   "requirement_ids": [
+    "SFR-002-07"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "조회 조건",
+     "description": "사용자·기간·결과",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "접속 이력 목록",
+     "description": "일시·IP·성공 여부",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "잠금 해제는 관리자만 할 수 있다"
+   ],
+   "normal_flow": [
+    "관리자가 접속 이력 화면을 연다",
+    "조건으로 조회한다",
+    "필요 시 잠긴 계정을 해제한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "조회 결과 없음",
+     "handling": "빈 목록 안내"
+    }
+   ],
+   "data_objects": [
+    "접속 이력",
+    "사용자 계정"
+   ]
+  }
+ ]
+}

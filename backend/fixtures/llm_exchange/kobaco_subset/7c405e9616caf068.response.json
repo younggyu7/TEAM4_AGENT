@@ -1,0 +1,659 @@
+{
+ "entities": [
+  {
+   "name": "account_group",
+   "attributes": [
+    {
+     "name": "account_group_id",
+     "label": "account_group ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "group_code",
+     "label": "그룹 코드",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "그룹 코드"
+    },
+    {
+     "name": "group_name",
+     "label": "그룹명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "그룹명"
+    },
+    {
+     "name": "group_type",
+     "label": "그룹 유형",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "INTERNAL",
+      "CONTRACTOR"
+     ],
+     "description": "공사 직원 / 사업참여(용역) 인원"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "user_account",
+   "attributes": [
+    {
+     "name": "user_account_id",
+     "label": "user_account ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "login_id",
+     "label": "로그인 ID",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "로그인 ID"
+    },
+    {
+     "name": "user_name",
+     "label": "성명",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "성명"
+    },
+    {
+     "name": "account_group_id",
+     "label": "계정 그룹",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "account_group",
+     "allowed_values": [],
+     "description": "계정 그룹"
+    },
+    {
+     "name": "role_code",
+     "label": "역할",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "DESK_AGENT",
+      "OPERATOR",
+      "BUSINESS_OWNER",
+      "ADMIN"
+     ],
+     "description": "서비스데스크 요원(1차) / 운영담당자(2차) / 공사 업무담당자(3차) / 관리자"
+    },
+    {
+     "name": "status",
+     "label": "계정 상태",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "ACTIVE",
+      "REVOKED",
+      "DISPOSED"
+     ],
+     "description": "불필요 시 즉시 해지(REVOKED) 후 파기(DISPOSED) — SER-004"
+    },
+    {
+     "name": "allowed_ip",
+     "label": "허가 IP",
+     "data_type": "varchar",
+     "length": 45,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "관리자 경로 접근 허가 IP (SER-004)"
+    },
+    {
+     "name": "allowed_mac",
+     "label": "허가 MAC",
+     "data_type": "varchar",
+     "length": 17,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "관리자 경로 접근 허가 MAC (SER-004)"
+    },
+    {
+     "name": "revoked_at",
+     "label": "권한 해지 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "권한 해지 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "work_area",
+   "attributes": [
+    {
+     "name": "work_area_id",
+     "label": "work_area ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "area_code",
+     "label": "업무 구분 코드",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "업무 구분 코드"
+    },
+    {
+     "name": "area_name",
+     "label": "업무 구분명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "업무 구분명"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "사용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "work_area_assignee",
+   "attributes": [
+    {
+     "name": "work_area_assignee_id",
+     "label": "work_area_assignee ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "work_area_id",
+     "label": "업무 구분",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "work_area",
+     "allowed_values": [],
+     "description": "업무 구분"
+    },
+    {
+     "name": "assignee_id",
+     "label": "기본 담당자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "user_account",
+     "allowed_values": [],
+     "description": "기본 담당자"
+    },
+    {
+     "name": "tier",
+     "label": "처리 단계",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "1·2·3차"
+    },
+    {
+     "name": "priority",
+     "label": "배정 우선순위",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "배정 우선순위"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  },
+  {
+   "name": "incident",
+   "attributes": [
+    {
+     "name": "incident_id",
+     "label": "incident ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "incident_no",
+     "label": "인시던트 번호",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "인시던트 번호"
+    },
+    {
+     "name": "channel",
+     "label": "접수 채널",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "EMAIL",
+      "MESSENGER",
+      "PHONE",
+      "PORTAL"
+     ],
+     "description": "접수 채널"
+    },
+    {
+     "name": "incident_type",
+     "label": "인시던트 유형",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "FAILURE",
+      "INQUIRY",
+      "SIGNUP",
+      "ID_PW_LOST",
+      "REQUEST"
+     ],
+     "description": "인시던트 유형"
+    },
+    {
+     "name": "requester_user_id",
+     "label": "요청자(내부)",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "user_account",
+     "allowed_values": [],
+     "description": "내부 직원이면 계정 연결"
+    },
+    {
+     "name": "requester_name",
+     "label": "요청자명",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "요청자명"
+    },
+    {
+     "name": "requester_contact",
+     "label": "요청자 연락처",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "외부 고객 연락처 — 개인정보 암호화 저장"
+    },
+    {
+     "name": "external_yn",
+     "label": "외부 고객 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "외부 고객 여부"
+    },
+    {
+     "name": "work_area_id",
+     "label": "업무 구분",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "work_area",
+     "allowed_values": [],
+     "description": "업무 구분"
+    },
+    {
+     "name": "title",
+     "label": "제목",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "제목"
+    },
+    {
+     "name": "content",
+     "label": "내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "내용"
+    },
+    {
+     "name": "current_tier",
+     "label": "현재 처리 단계",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "1·2·3차"
+    },
+    {
+     "name": "assignee_id",
+     "label": "현재 담당자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "user_account",
+     "allowed_values": [],
+     "description": "현재 담당자"
+    },
+    {
+     "name": "status",
+     "label": "상태",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "RECEIVED",
+      "ASSIGNED",
+      "IN_PROGRESS",
+      "ESCALATED",
+      "RESOLVED",
+      "CLOSED"
+     ],
+     "description": "상태"
+    },
+    {
+     "name": "received_by_id",
+     "label": "접수 요원",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "user_account",
+     "allowed_values": [],
+     "description": "접수 요원"
+    },
+    {
+     "name": "received_at",
+     "label": "접수 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "접수 일시"
+    },
+    {
+     "name": "resolved_at",
+     "label": "완료 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "완료 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  }
+ ]
+}

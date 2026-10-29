@@ -1,0 +1,558 @@
+{
+ "entities": [
+  {
+   "name": "menu",
+   "attributes": [
+    {
+     "name": "menu_id",
+     "label": "메뉴 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "메뉴 대리키"
+    },
+    {
+     "name": "menu_code",
+     "label": "메뉴 코드",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "메뉴 식별 코드"
+    },
+    {
+     "name": "menu_name",
+     "label": "메뉴명",
+     "data_type": "varchar",
+     "length": 100,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "메뉴 이름"
+    },
+    {
+     "name": "menu_url",
+     "label": "메뉴 URL",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "화면 경로"
+    },
+    {
+     "name": "menu_area",
+     "label": "메뉴 영역",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "PORTAL",
+      "ADMIN"
+     ],
+     "description": "포털·관리자 구분"
+    },
+    {
+     "name": "sort_order",
+     "label": "정렬 순서",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "표시 순서"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "메뉴 사용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "role_menu_permission",
+   "attributes": [
+    {
+     "name": "role_menu_permission_id",
+     "label": "역할 메뉴 권한 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "역할 메뉴 권한 대리키"
+    },
+    {
+     "name": "app_role_id",
+     "label": "역할",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_role",
+     "allowed_values": [],
+     "description": "권한 대상 역할"
+    },
+    {
+     "name": "menu_id",
+     "label": "메뉴",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "menu",
+     "allowed_values": [],
+     "description": "권한 대상 메뉴"
+    },
+    {
+     "name": "can_read",
+     "label": "조회 권한",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "조회 허용"
+    },
+    {
+     "name": "can_create",
+     "label": "등록 권한",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "등록 허용"
+    },
+    {
+     "name": "can_update",
+     "label": "수정 권한",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 허용"
+    },
+    {
+     "name": "can_delete",
+     "label": "삭제 권한",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "삭제 허용"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "allowed_ip",
+   "attributes": [
+    {
+     "name": "allowed_ip_id",
+     "label": "허용 IP ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "허용 IP 대리키"
+    },
+    {
+     "name": "ip_cidr",
+     "label": "IP·대역",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "단일 IP 또는 CIDR 대역"
+    },
+    {
+     "name": "description",
+     "label": "설명",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "용도"
+    },
+    {
+     "name": "use_yn",
+     "label": "사용 여부",
+     "data_type": "boolean",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "허용 목록 적용 여부"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "password_reset_request",
+   "attributes": [
+    {
+     "name": "password_reset_request_id",
+     "label": "재설정 요청 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "재설정 요청 대리키"
+    },
+    {
+     "name": "app_user_id",
+     "label": "사용자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "재설정 대상 계정"
+    },
+    {
+     "name": "token_hash",
+     "label": "토큰 해시",
+     "data_type": "varchar",
+     "length": 255,
+     "nullable": false,
+     "primary_key": false,
+     "unique": true,
+     "references": "",
+     "allowed_values": [],
+     "description": "재설정 링크 토큰의 해시값"
+    },
+    {
+     "name": "expires_at",
+     "label": "만료일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "토큰 만료 시각"
+    },
+    {
+     "name": "used_at",
+     "label": "사용일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "재설정 완료 시각 (미사용이면 비어 있음)"
+    },
+    {
+     "name": "request_ip",
+     "label": "요청 IP",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "요청한 클라이언트 IP"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  },
+  {
+   "name": "access_log",
+   "attributes": [
+    {
+     "name": "access_log_id",
+     "label": "접속기록 ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "접속기록 대리키"
+    },
+    {
+     "name": "app_user_id",
+     "label": "접속자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "app_user",
+     "allowed_values": [],
+     "description": "접속 사용자 (아이디 불일치 실패 시 비어 있음)"
+    },
+    {
+     "name": "login_id",
+     "label": "시도 아이디",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "접속에 쓴 아이디"
+    },
+    {
+     "name": "action_type",
+     "label": "작업 종류",
+     "data_type": "varchar",
+     "length": 30,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "LOGIN",
+      "LOGOUT",
+      "FILE_VIEW",
+      "FILE_PRINT",
+      "DOWNLOAD",
+      "PERMISSION_CHANGE"
+     ],
+     "description": "로그인·로그아웃·파일 열람·출력·다운로드·권한 변경"
+    },
+    {
+     "name": "target_system",
+     "label": "접속 대상",
+     "data_type": "varchar",
+     "length": 200,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "정보시스템·응용프로그램 등 접속 대상"
+    },
+    {
+     "name": "target_resource",
+     "label": "대상 자원",
+     "data_type": "varchar",
+     "length": 500,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "열람·출력한 파일·화면"
+    },
+    {
+     "name": "result",
+     "label": "작업 결과",
+     "data_type": "varchar",
+     "length": 10,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "SUCCESS",
+      "FAIL"
+     ],
+     "description": "성공·실패"
+    },
+    {
+     "name": "client_ip",
+     "label": "접속 IP",
+     "data_type": "varchar",
+     "length": 50,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "클라이언트 IP"
+    },
+    {
+     "name": "occurred_at",
+     "label": "작업일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "작업 시각 (시스템 시간 동기화 기준)"
+    },
+    {
+     "name": "created_at",
+     "label": "생성일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 생성 시각"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "행 수정 시각"
+    }
+   ]
+  }
+ ]
+}

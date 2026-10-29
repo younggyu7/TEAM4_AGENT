@@ -1,0 +1,253 @@
+{
+ "functions": [
+  {
+   "name": "운영 현황 대시보드 조회",
+   "description": "서비스별·업무별·프로세스별 현황과 실시간 IT서비스 현황, 통계 화면을 조회한다.",
+   "requirement_ids": [
+    "SFR-005-01",
+    "SFR-005-02",
+    "SFR-005-03"
+   ],
+   "nfr_ids": [
+    "SFR-005-05",
+    "PER-002-02"
+   ],
+   "actors": [
+    "운영 관리자"
+   ],
+   "preconditions": [
+    "대시보드 조회 권한"
+   ],
+   "inputs": [
+    {
+     "name": "대시보드",
+     "description": "조회할 대시보드",
+     "required": true
+    },
+    {
+     "name": "기간",
+     "description": "",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "현황 위젯",
+     "description": "건수·상태·통계",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "실시간 위젯은 일정 주기로 자동 갱신한다"
+   ],
+   "normal_flow": [
+    "관리자가 대시보드를 연다",
+    "위젯별 데이터를 조회한다",
+    "화면 해상도에 맞춰 배치한다",
+    "주기적으로 갱신한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "데이터 조회 지연",
+     "handling": "처리 중 표시"
+    }
+   ],
+   "data_objects": [
+    "대시보드",
+    "서비스 요청"
+   ]
+  },
+  {
+   "name": "성과지표 위젯 모니터링",
+   "description": "SLA 등 주요 성과지표를 위젯으로 표시하고 목표 대비 실적을 모니터링한다.",
+   "requirement_ids": [
+    "SFR-005-04"
+   ],
+   "nfr_ids": [],
+   "actors": [
+    "운영 관리자"
+   ],
+   "preconditions": [
+    "지표 실적 데이터 존재"
+   ],
+   "inputs": [
+    {
+     "name": "지표",
+     "description": "",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "지표 위젯",
+     "description": "목표·실적·달성 여부",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "(가정) 대시보드 성과지표는 SLA 핵심 지표를 사용한다 (질문 대기)"
+   ],
+   "normal_flow": [
+    "관리자가 지표 위젯을 배치한다",
+    "지표 실적을 표시한다",
+    "목표 미달 시 강조한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "실적 없음",
+     "handling": "미집계 표시"
+    }
+   ],
+   "data_objects": [
+    "위젯",
+    "지표 실적"
+   ]
+  },
+  {
+   "name": "서비스데스크 접수·처리 분석",
+   "description": "기간별 접수·처리·지연 건수와 처리 시간을 분석한다.",
+   "requirement_ids": [
+    "SFR-005-06"
+   ],
+   "nfr_ids": [
+    "PER-003-03"
+   ],
+   "actors": [
+    "운영 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "분석 기간",
+     "description": "",
+     "required": true
+    },
+    {
+     "name": "분석 기준",
+     "description": "유형·담당자·부서",
+     "required": false
+    }
+   ],
+   "outputs": [
+    {
+     "name": "분석 결과",
+     "description": "건수·평균 처리시간·지연율",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "대량 집계는 처리 중 안내를 표시한다"
+   ],
+   "normal_flow": [
+    "관리자가 기간과 기준을 선택한다",
+    "요청 데이터를 집계한다",
+    "차트와 표로 표시한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "기간이 너무 김",
+     "handling": "처리 중 안내 후 결과 표시"
+    }
+   ],
+   "data_objects": [
+    "서비스 요청"
+   ]
+  },
+  {
+   "name": "대시보드 구성 편집",
+   "description": "관리자가 코드 수정 없이 대시보드의 위젯을 추가·삭제·배치 변경한다.",
+   "requirement_ids": [
+    "SFR-005-07"
+   ],
+   "nfr_ids": [
+    "SFR-005-05"
+   ],
+   "actors": [
+    "시스템 관리자"
+   ],
+   "preconditions": [],
+   "inputs": [
+    {
+     "name": "위젯",
+     "description": "종류·데이터·위치·크기",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "대시보드 구성",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "대시보드별 공개 역할을 지정한다"
+   ],
+   "normal_flow": [
+    "관리자가 편집 모드로 들어간다",
+    "위젯을 끌어 놓아 배치한다",
+    "저장한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "데이터 소스 없는 위젯",
+     "handling": "저장 거부"
+    }
+   ],
+   "data_objects": [
+    "대시보드",
+    "위젯"
+   ]
+  },
+  {
+   "name": "관제 이벤트 실시간 모니터링",
+   "description": "관제시스템에서 들어온 이벤트를 실시간으로 표시하고 필요 시 장애 요청으로 전환한다.",
+   "requirement_ids": [
+    "SFR-005-08"
+   ],
+   "nfr_ids": [
+    "SER-008-07"
+   ],
+   "actors": [
+    "운영 관리자",
+    "외부 시스템(관제)"
+   ],
+   "preconditions": [
+    "관제 연동 설정"
+   ],
+   "inputs": [
+    {
+     "name": "이벤트",
+     "description": "발생 시각·대상·등급",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "이벤트 현황",
+     "description": "",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "보안로그는 수신·저장하지 않는다",
+    "(가정) 중대 등급 이벤트는 장애 요청 생성을 제안한다"
+   ],
+   "normal_flow": [
+    "관제시스템이 이벤트를 보낸다",
+    "이벤트를 저장하고 화면에 표시한다",
+    "관리자가 확인하거나 장애 요청으로 전환한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "연동 중단",
+     "handling": "연동 상태 경고 표시"
+    }
+   ],
+   "data_objects": [
+    "관제 이벤트",
+    "서비스 요청"
+   ]
+  }
+ ]
+}

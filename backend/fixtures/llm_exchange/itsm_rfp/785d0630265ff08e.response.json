@@ -1,0 +1,58 @@
+{
+ "functions": [
+  {
+   "name": "SSO 사용자 정보 기반 역할 적용",
+   "description": "SSO 인증으로 확인한 사용자의 부서·직무 정보로 ITSM 역할을 매핑해 접근권한을 적용한다.",
+   "requirement_ids": [
+    "SIR-001-03"
+   ],
+   "nfr_ids": [
+    "SIR-001-01",
+    "SER-008-06",
+    "SER-003-01"
+   ],
+   "actors": [
+    "시스템",
+    "외부 시스템(SSO)"
+   ],
+   "preconditions": [
+    "부서·직무별 기본 역할 매핑이 정의됨"
+   ],
+   "inputs": [
+    {
+     "name": "SSO 사용자 정보",
+     "description": "사번·부서·직무",
+     "required": true
+    }
+   ],
+   "outputs": [
+    {
+     "name": "적용 역할",
+     "description": "세션에 적용된 역할 목록",
+     "required": true
+    }
+   ],
+   "business_rules": [
+    "역할 기반(RBAC)으로만 권한을 부여한다",
+    "(가정) 부서·직무별 기본 역할은 관리자가 매핑 표로 관리한다"
+   ],
+   "normal_flow": [
+    "SSO 인증 결과를 받는다",
+    "사용자 부서·직무를 확인한다",
+    "기본 역할 매핑과 개별 부여 역할을 합친다",
+    "세션에 역할을 적용한다"
+   ],
+   "exception_flows": [
+    {
+     "condition": "매핑 없는 부서",
+     "handling": "일반 사용자 역할만 적용"
+    }
+   ],
+   "data_objects": [
+    "사용자 계정",
+    "사용자 역할",
+    "부서 역할 매핑"
+   ]
+  }
+ ]
+}

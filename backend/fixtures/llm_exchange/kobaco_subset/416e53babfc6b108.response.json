@@ -1,0 +1,25 @@
+{
+  "requirements": [
+    {"key": "R1", "source_key": "DAR-001", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "데이터",
+     "title": "업무절차 반영·확장성 있는 DB 구조", "description": "DB 구조는 업무처리절차를 반영해 유기적으로 구조화하고 향후 변동에 따른 확장성을 고려한다.", "priority": "MUST",
+     "acceptance_criteria": ["테이블명세서·ERD가 업무 절차와 대응"],
+     "evidence": [{"source_block_id": "B0244", "quote": "DB구조 설계는 업무처리절차를 반영하여 유기적으로 구조화하고, 향후 변동에 따른 확장성을 충분히 고려"}],
+     "status": "CONFIRMED"},
+    {"key": "R2", "source_key": "DAR-001", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "데이터",
+     "title": "테이블·컬럼 중복 최소화", "description": "효율적인 운영과 공간 낭비 방지를 위해 테이블·컬럼 중복을 최소화한다.", "priority": "MUST",
+     "acceptance_criteria": ["중복 테이블·컬럼 점검 결과"],
+     "evidence": [{"source_block_id": "B0244", "quote": "테이블, 컬럼 등의 중복을 최소화해야 함"}],
+     "status": "CONFIRMED"},
+    {"key": "R3", "source_key": "DAR-001", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "데이터",
+     "title": "정합성·성능 최적 설계와 검증 방안", "description": "데이터 정합성을 유지하면서 최적 성능을 내도록 사전 DB 설계를 최적화하고 검증 방안을 제시한다.", "priority": "MUST",
+     "acceptance_criteria": ["정합성·성능 검증 방안 제출"],
+     "evidence": [{"source_block_id": "B0244", "quote": "데이터의 정합성을 유지하면서 최적의 성능을 발휘할 수 있도록 설계되어야 하며, 이에 대한 검증 방안 제시필요"}],
+     "status": "CONFIRMED"},
+    {"key": "R4", "source_key": "DAR-001", "type": "NON_FUNCTIONAL", "scope": "PROJECT", "category": "데이터",
+     "title": "공공데이터 품질관리 컨설팅 결과 반영", "description": "발주처가 실시하는 공공데이터 품질관리 컨설팅 결과를 유지관리 대상 시스템 전반에 반영한다.", "priority": "MUST",
+     "acceptance_criteria": ["컨설팅 지적사항 반영 결과"],
+     "evidence": [{"source_block_id": "B0244", "quote": "발주처가 자체적으로 실시하는 공공데이터 품질관리 컨설팅 결과를 유지관리대상 시스템 전반에 반영해야 함"}],
+     "status": "CONFIRMED"}
+  ],
+  "questions": []
+}

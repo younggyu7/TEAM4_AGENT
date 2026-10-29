@@ -1,0 +1,20 @@
+{
+  "functions": [
+    {"name": "접속기록 조회",
+     "description": "시스템이 남긴 접속기록(접속자, 접속 대상, 작업 종류, 작업시간, 성공·실패)을 관리자가 기간·사용자·작업 종류로 조회한다. 기록은 로그인·로그아웃·파일 열람·출력 시 자동으로 남는다.",
+     "requirement_ids": ["SER-03-08"],
+     "nfr_ids": ["SER-03-07", "SER-03-04", "PER-01-02"],
+     "actors": ["시스템 관리자", "시스템"],
+     "preconditions": ["관리자 권한으로 허용 IP에서 로그인"],
+     "inputs": [{"name": "조회 기간", "description": "시작·종료 일시", "required": true},
+                {"name": "사용자", "description": "접속자 아이디", "required": false},
+                {"name": "작업 종류", "description": "LOGIN·LOGOUT·FILE_VIEW·FILE_PRINT 등", "required": false},
+                {"name": "작업 결과", "description": "SUCCESS·FAIL", "required": false}],
+     "outputs": [{"name": "접속기록 목록", "description": "접속자, 접속 대상, 작업 종류, 작업시간, 결과, 접속 IP", "required": true}],
+     "business_rules": ["접속기록은 최소 1년 이상 보관한다", "접속기록은 수정·삭제할 수 없다", "관리 대상 시스템의 시간은 동기화한다"],
+     "normal_flow": ["사용자 작업(로그인·로그아웃·파일 열람·출력) 시 시스템이 접속기록을 저장한다", "관리자가 접속기록 조회 화면에서 조건을 입력한다", "시스템이 조건에 맞는 기록을 시간 역순으로 보여준다", "관리자가 필요 시 결과를 내려받는다"],
+     "exception_flows": [{"condition": "조회 기간이 너무 김", "handling": "기간 축소 안내 (가정: 최대 1년)"},
+                         {"condition": "권한 없는 사용자 접근", "handling": "접근 거부 및 기록"}],
+     "data_objects": ["접속기록", "사용자 계정"]}
+  ]
+}

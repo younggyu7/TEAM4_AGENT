@@ -1,0 +1,328 @@
+{
+ "entities": [
+  {
+   "name": "consultation_log",
+   "attributes": [
+    {
+     "name": "consultation_log_id",
+     "label": "consultation_log ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "incident_id",
+     "label": "인시던트",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "incident",
+     "allowed_values": [],
+     "description": "인시던트"
+    },
+    {
+     "name": "agent_id",
+     "label": "상담 요원",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "user_account",
+     "allowed_values": [],
+     "description": "상담 요원"
+    },
+    {
+     "name": "consult_content",
+     "label": "상담 내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "상담 내용"
+    },
+    {
+     "name": "consulted_at",
+     "label": "상담 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "상담 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    }
+   ]
+  },
+  {
+   "name": "incident_history",
+   "attributes": [
+    {
+     "name": "incident_history_id",
+     "label": "incident_history ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "incident_id",
+     "label": "인시던트",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "incident",
+     "allowed_values": [],
+     "description": "인시던트"
+    },
+    {
+     "name": "tier",
+     "label": "처리 단계",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "1·2·3차"
+    },
+    {
+     "name": "action",
+     "label": "처리 동작",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "PROCESS",
+      "ESCALATE",
+      "REVIEW",
+      "RETURN",
+      "RESOLVE"
+     ],
+     "description": "처리 동작"
+    },
+    {
+     "name": "actor_id",
+     "label": "처리자",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "user_account",
+     "allowed_values": [],
+     "description": "처리자"
+    },
+    {
+     "name": "to_user_id",
+     "label": "이관 대상",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "user_account",
+     "allowed_values": [],
+     "description": "이관 대상"
+    },
+    {
+     "name": "review_result",
+     "label": "적정성 검토 결과",
+     "data_type": "varchar",
+     "length": 12,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [
+      "APPROPRIATE",
+      "INAPPROPRIATE"
+     ],
+     "description": "3차 담당자의 2차 처리 결과 검토"
+    },
+    {
+     "name": "comment",
+     "label": "처리 내용",
+     "data_type": "text",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "처리 내용"
+    },
+    {
+     "name": "acted_at",
+     "label": "처리 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "처리 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    }
+   ]
+  },
+  {
+   "name": "monthly_desk_stat",
+   "attributes": [
+    {
+     "name": "monthly_desk_stat_id",
+     "label": "monthly_desk_stat ID",
+     "data_type": "bigint",
+     "length": 0,
+     "nullable": false,
+     "primary_key": true,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "대리키"
+    },
+    {
+     "name": "stat_month",
+     "label": "집계 월(YYYY-MM)",
+     "data_type": "varchar",
+     "length": 7,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "집계 월(YYYY-MM)"
+    },
+    {
+     "name": "incident_type",
+     "label": "인시던트 유형",
+     "data_type": "varchar",
+     "length": 20,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "인시던트 유형"
+    },
+    {
+     "name": "received_count",
+     "label": "접수 건수",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "접수 건수"
+    },
+    {
+     "name": "resolved_count",
+     "label": "처리 건수",
+     "data_type": "integer",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "처리 건수"
+    },
+    {
+     "name": "avg_resolution_minutes",
+     "label": "평균 처리시간(분)",
+     "data_type": "decimal",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "평균 처리시간(분)"
+    },
+    {
+     "name": "confirmed_at",
+     "label": "확정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "확정 일시"
+    },
+    {
+     "name": "created_at",
+     "label": "생성 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": false,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "생성 일시"
+    },
+    {
+     "name": "updated_at",
+     "label": "수정 일시",
+     "data_type": "timestamp",
+     "length": 0,
+     "nullable": true,
+     "primary_key": false,
+     "unique": false,
+     "references": "",
+     "allowed_values": [],
+     "description": "수정 일시"
+    }
+   ]
+  }
+ ]
+}
