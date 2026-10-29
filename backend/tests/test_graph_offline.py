@@ -3,6 +3,8 @@
 - 정상 경로: 문서분석 → 요구사항 → 기능 명세 → 데이터 모델 → (모델 오류 → 수정) → 검토 → 완료 → 제공 → DB 검증
 - 재질문 경로: 차단 질문 → 실행 중단(interrupt) → 답변으로 재개 → 관련 기능만 부분 재설계
 """
+import re
+
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
@@ -195,6 +197,76 @@ def test_no_system_function_requirements_is_not_a_failure(sample_doc):
     assert state["functions"] == [] and state["data_model"] is None
     assert state["completion"]["satisfied"], "설계할 기능이 없으면 기능·데이터 조건은 해당 없음으로 통과"
     assert state["design_version"] == "1" and not state.get("db_validation"), "모델이 없으면 DB 검증은 건너뜀"
+
+
+def test_gap_redesign_rounds_are_limited_per_stage(sample_doc):
+    """재설계가 다른 요구사항에서 새 누락을 만들어도 FUNC_FIX_ATTEMPTS 라운드를 넘겨 다시 설계하지 않는다."""
+    from app.core.config import override_settings
+    from app.agents.flow.state import finding
+
+    _, graph, config = _start(sample_doc, "defer")
+    override_settings(func_fix_attempts=1)
+    state = dict(graph.get_state(config).values)
+    gap = finding("REQ_WITHOUT_FUNCTION", "ERROR", "누락", "function_designer", "REQ-NEW", "requirement_reviewer")
+    state["issues"] = [*state["issues"], gap.model_copy(update={"issue_id": "ISS-9999", "status": "OPEN"}).model_dump()]
+    assert coordinator.decide(state)[0].action == "function_designer", "라운드가 남으면 누락을 재설계"
+    round_done = {"step": 99, "action": "function_designer", "mode": "partial",
+                  "reason": f"{coordinator.FUNC_GAP} 1건 → 해당 그룹 재설계"}
+    state["decisions"] = [*state["decisions"], round_done]
+    assert coordinator.decide(state)[0].action != "function_designer", "한도(1라운드)를 쓰면 남은 누락은 이슈로만"
+
+
+class _GapLLM(FakeLLM):
+    def _FunctionPatchOut(self, user):
+        """누락 채우기: 지시에 적힌 빠진 요구사항마다 새 기능 하나 (다른 기능은 넣지 않음)."""
+        from app.agents.roles.function_designer import FunctionPatchOut, PatchedFunctionOut
+        ids = re.findall(r"^- \[([^\]]+)\] ", user.split("## 사용자 의견")[1], re.M)
+        return FunctionPatchOut(functions=[PatchedFunctionOut(
+            name=f"채운 기능 {rid}", description="설명", requirement_ids=[rid], nfr_ids=[], actors=["요청자"],
+            preconditions=[], inputs=[], outputs=[], business_rules=[], normal_flow=["입력"], exception_flows=[],
+            data_objects=["서비스 요청"]) for rid in ids])
+
+
+def test_gap_fill_adds_only_missing_function(sample_doc):
+    """요구사항 → 기능 누락은 요구사항 검토 Agent의 연결 검사가 찾고, 기능 명세 Agent는 빠진 기능만 추가한다 (다른 기능은 그대로)."""
+    from app.agents.flow import nodes
+
+    _, graph, config = _start(sample_doc, "defer")
+    state = dict(graph.get_state(config).values)
+    gone = state["functions"][0]
+    rid = gone["requirement_ids"][0]
+    kept = [f for f in state["functions"][1:] if rid not in f["requirement_ids"]]
+    state.update(functions=kept, decisions=[], options={**state["options"], "stop_after": "function_designer"})
+    state.update(nodes.inspect_result({**state, "next_action": {}}))
+    gap = next(i for i in state["issues"] if i["kind"] == requirement_reviewer.REQ_GAP)
+    assert (gap["target_id"], gap["target_agent"], gap["raised_by"]) == (rid, "function_designer", "requirement_reviewer")
+
+    decision, _ = coordinator.decide(state)
+    assert (decision.action, decision.mode, decision.scope) == ("function_designer", "gap", [rid])
+    fake = _GapLLM()
+    llm_module.set_llm(fake)
+    out = function_designer.run({**state, "next_action": decision.model_dump()})
+    assert fake.calls["FunctionPatchOut"] == 1 and fake.calls["FunctionDesignOut"] == 0, "빠진 그룹만, 바꿀 기능만"
+    assert all(f in out["functions"] for f in kept), "다른 기능은 다시 쓰지 않는다"
+    assert any(rid in f["requirement_ids"] and f["name"] == f"채운 기능 {rid}" for f in out["functions"])
+
+
+def test_confirmed_spec_gap_is_reported_not_redesigned(sample_doc):
+    """사람이 확정한 명세로 데이터 설계를 하는 단계에서는 요구사항 → 기능 누락을 보고만 하고, 추적 검토는 그 누락을 보지 않는다."""
+    from app.agents.flow import nodes
+    from app.agents.roles import trace_reviewer
+
+    _, graph, config = _start(sample_doc, "defer")
+    state = dict(graph.get_state(config).values)
+    rid = state["functions"][0]["requirement_ids"][0]
+    state.update(functions=[f for f in state["functions"] if rid not in f["requirement_ids"]],
+                 options={**state["options"], "stage": "data_modeler"})
+    state.update(nodes.inspect_result({**state, "next_action": {}}))
+    gap = next(i for i in state["issues"] if i["kind"] == requirement_reviewer.REQ_GAP)
+    assert (gap["severity"], gap["target_agent"]) == ("WARNING", "none")
+    assert coordinator.decide(state)[0].action != "function_designer"
+    traced = trace_reviewer.run(state)["issues"]
+    assert not any(i["kind"].startswith("TRACE_REQ") for i in traced), "추적 검토는 기능 명세 → ERD만 본다"
 
 
 def test_semantic_review_reruns_only_changed_part(sample_doc):

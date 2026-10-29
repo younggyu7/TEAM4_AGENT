@@ -56,6 +56,37 @@ def test_draft_stops_at_functions_and_erd_uses_confirmed_spec(sample_doc, capsys
     assert fake.calls["FunctionDesignOut"] == 0, "ERD 단계는 확정한 기능 명세를 다시 설계하지 않는다"
 
 
+def test_confirmed_answers_are_applied_by_code(tmp_path):
+    """'기능 명세 최종 확정' → 내보내기: 새로 답한 확인 질문은 LLM 없이 코드로 반영한다.
+    추천과 같은 답은 표시만 '결정'으로, 다른 답은 그 규칙을 '질문 → 답'으로 바꾸고, 요구사항에 결정을 남긴다."""
+    from app.agents.flow.rerun import load_submitted_design
+
+    req = {"requirement_id": "R-1", "type": "FUNCTIONAL", "scope": "SYSTEM", "category": "기능", "title": "결재",
+           "description": "결재를 처리한다", "status": "ASSUMED"}
+    fn = {"function_id": "FN-1", "group": "G", "name": "결재 상신", "description": "", "requirement_ids": ["R-1"],
+          "business_rules": ["(확인 필요 FQ-001) 결재선은 최대 3단계로 한다", "(확인 필요 FQ-002) 반려하면 기안자에게 돌려보낸다",
+                             "결재 문서는 삭제하지 않는다"]}
+    q = lambda qid, text, rec: {"question_id": qid, "kind": "AMBIGUITY", "question": text, "context": "",   # noqa: E731
+                                "requirement_ids": ["R-1"], "stage": "function_designer", "recommended": rec,
+                                "status": "DEFERRED", "confirms": ["R-1"]}
+    base = {"requirements": [req], "functions": [fn],
+            "questions": [q("FQ-001", "결재선 최대 단계는?", "3단계"), q("FQ-002", "반려하면 누구에게?", "기안자")]}
+    screen = {**base, "questions": [{**base["questions"][0], "status": "ANSWERED", "answer": "3단계"},
+                                    {**base["questions"][1], "status": "ANSWERED", "answer": "바로 전 결재자"}]}
+    path = tmp_path / "confirmed.json"
+    path.write_text(json.dumps(screen, ensure_ascii=False), encoding="utf-8")
+
+    out = load_submitted_design(path, base, "data_modeler")
+    assert out["functions"][0]["business_rules"] == [
+        "(결정 FQ-001) 결재선은 최대 3단계로 한다",            # 추천과 같은 답: 표시만
+        "(결정 FQ-002) 반려하면 누구에게? → 바로 전 결재자",   # 다른 답: 규칙을 답으로
+        "결재 문서는 삭제하지 않는다"]
+    assert [x["status"] for x in out["questions"]] == ["ANSWERED", "ANSWERED"]
+    r = out["requirements"][0]
+    assert r["status"] == "CONFIRMED" and any("바로 전 결재자" in d for d in r["decisions"])
+    assert "확인 질문 답 2건 코드로 반영 (추천과 다른 답 1건)" in out["note"]
+
+
 def test_design_option_rejects_unknown_requirement(sample_doc, capsys):
     _use(FakeLLM(broken_fk=False))
     assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer", "--until", "function_designer"]) == 0

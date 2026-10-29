@@ -3,7 +3,7 @@
 - 문서 업로드: `run <문서> --defer --until function_designer` → 기능 명세 초안 첫 버전 (ERD는 사람이 확정한 뒤)
 - 기능 명세 화면에서 확인 질문에 새로 답함: `rerun function_designer --answers` (추천과 다른 답이 바꾼 것만 다시 설계)
 - 기능 명세 내보내기 / ERD 저장: `rerun data_modeler` (확정한 기능 명세는 --design, 고친 데이터 모델은 --data-model, 의견은 --feedback)
-- ERD 최종 확정: `review <프로젝트> v<버전>` → 그 버전 폴더에 의미 검토 결과 (새 버전 없음)
+- ERD 최종 확정: `review <프로젝트> v<버전>` → 최종본 v<버전>.1 (추적·의미 검토 결과와 그 사용량)
 - 확인 질문에서 멈추면(종료 코드 3) `resume --defer`로 보류(가정) 처리하고 이어 간다.
 
 LLM 작업은 몇 분씩 걸리므로 서버 안에서 돌리지 않고 하위 프로세스로 띄운다. 작업 기록은 메모리에만 있어 서버를 다시 띄우면 사라진다.
@@ -90,10 +90,10 @@ class _Runner:
 
     def __init__(self, job: Job, project_dir: Path, output_dir: Path, *, submitted_md: str | None = None,
                  pre: list[str] | None = None, temp: list[Path] | None = None,
-                 on_done: Callable[[str], None] | None = None, result: Path | None = None):
+                 on_done: Callable[[str], None] | None = None, result: str | None = None):
         self.job, self.project_dir, self.output_dir = job, project_dir, output_dir
         self.submitted_md, self.pre, self.temp, self.on_done = submitted_md, pre or [], temp or [], on_done
-        self.result = result     # 새 버전 대신 이 파일을 만드는 작업 (의미 검토)
+        self.result = result     # 최종 확정: 새 최종본 폴더에서 읽을 결과 파일 이름 (semantic_review.json)
         self.before = version_labels(project_dir)
 
     def start(self, args: list[str]) -> None:
@@ -132,7 +132,7 @@ class _Runner:
                 self.job.warnings = [*_llm_errors(self.job.log), *self.pre]
                 reason = EXIT_MESSAGE.get(code, f"실행이 실패했습니다 (종료 코드 {code}).")
                 if self.result and code == 2:
-                    reason = "의미 검토를 끝내지 못했습니다. 아래 기록의 마지막 줄을 확인하세요."
+                    reason = "최종 확정(의미 검토)을 끝내지 못했습니다. 아래 기록의 마지막 줄을 확인하세요."
                 self._finish("failed", reason)
         except Exception as e:  # noqa: BLE001 - 작업 스레드의 오류는 화면에 보여 준다
             self._push(repr(e))
@@ -155,12 +155,19 @@ class _Runner:
                      else f"v{newest}을 만들었습니다.")
 
     def _reviewed(self) -> None:
+        """ERD 최종 확정: 새로 생긴 최종본(v1.1.1 …)을 찾아 그 의미 검토 결과로 끝낸다."""
+        created = version_labels(self.project_dir) - self.before
+        if not created:
+            return self._finish("failed", "최종 확정은 끝났지만 최종본 폴더를 찾지 못했습니다.")
+        newest = max(created, key=version_key)
+        self.job.new_version = newest
         try:
-            data = json.loads(self.result.read_text(encoding="utf-8"))
+            data = json.loads((self.project_dir / f"v{newest}" / self.result).read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return self._finish("failed", "검토는 끝났지만 결과 파일(semantic_review.json)을 찾지 못했습니다.")
-        self.job.warnings = _llm_errors(self.job.log)
-        self._finish("done", f"의미 검토를 마쳤습니다: 지적 {len(data.get('remarks') or [])}건 (최종 산출물에서 확인)")
+            data = {}
+        failed = data.get("failed") or []
+        self.job.warnings = [*_llm_errors(self.job.log), *([f"의미 검토 실패(미검증): {', '.join(failed)}"] if failed else [])]
+        self._finish("done", f"최종본 v{newest}을 만들었습니다: 의미 검토 지적 {len(data.get('remarks') or [])}건")
 
     def _finish(self, status: str, message: str) -> None:
         self.job.status, self.job.message = status, message
@@ -243,11 +250,11 @@ def start_run(*, output_dir: Path, document: Path, project: str, title: str = ""
 
 
 def start_review(*, output_dir: Path, project: str, version: str) -> Job:
-    """ERD 최종 확정: 그 버전의 데이터 모델을 기능 명세와 대조하는 의미 검토를 한 번 한다 (결과는 그 버전 폴더)."""
+    """ERD 최종 확정: 그 ERD 아래 최종본(v1.1 → v1.1.1)을 만들고 추적 검토·의미 검토(ERD ↔ 기능 명세)를 한 번 한다."""
     project_dir = (output_dir / project).resolve()
     root, name = project_dir.parent, project_dir.name
-    job = _new_job(project=project, base=version, source="review", message=f"ERD v{version}을 기능 명세와 대조해 의미 검토하는 중")
-    _Runner(job, project_dir, root, result=project_dir / f"v{version}" / "semantic_review.json").start(
+    job = _new_job(project=project, base=version, source="review", message=f"ERD v{version} 최종 확정: 최종본을 만들고 기능 명세와 대조해 검토하는 중")
+    _Runner(job, project_dir, root, result="semantic_review.json").start(
         ["review", name, f"v{version}", "--output-dir", _path_arg(root)])
     return job
 

@@ -5,7 +5,7 @@
   GET  /file?project=<id>&version=<N>&name=…   산출물 원문 (schema.sql, erd.mmd …)
   POST /projects/title                         버전 제목 저장
   POST /projects/versions                      기능 명세 내보내기·ERD 저장·확인 질문 답 반영 → {job}
-  POST /projects/review                        ERD 최종 확정 → 의미 검토 1회 (그 버전 폴더에 semantic_review.*) → {job}
+  POST /projects/review                        ERD 최종 확정 → 최종본 v<ERD>.1 (추적·의미 검토) → {job}
   POST /runs                                   문서 업로드 → 기능 명세 초안까지 실행 → {job}
   GET  /capabilities                           백엔드 rerun이 기능 명세 수정본을 받는지 {design, spec_md}
   GET  /jobs?id=<job>                          작업 진행 상황
@@ -92,7 +92,7 @@ def create_version(body: VersionCreate):
     return {"job": job.to_dict()}
 
 
-@router.post("/projects/review", status_code=202, summary="ERD 최종 확정 → 의미 검토 (작업)")
+@router.post("/projects/review", status_code=202, summary="ERD 최종 확정 → 최종본 만들기 (작업)")
 def create_review(body: ReviewCreate):
     folder = _project_dir(body.project)
     version = guards.version(body.version)

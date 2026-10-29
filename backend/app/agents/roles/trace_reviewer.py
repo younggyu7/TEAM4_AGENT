@@ -1,7 +1,7 @@
-"""추적 검토 Agent: 요구사항 ↔ 기능 ↔ 데이터 모델 추적 관계를 만들고 연결 누락을 이슈로 보고한다.
+"""추적 검토 Agent: 요구사항 ↔ 기능 ↔ 데이터 모델 추적 관계(추적표)를 만들고, 기능 명세 → ERD 연결 누락을 이슈로 보고한다.
 
 결정적 규칙으로 '연결이 있는지'만 본다. 분류(기능/비기능)가 맞는지, ERD 설계가 좋은지는 검토하지 않는다
-(ERD 구조 검사는 tools/model_validator.py).
+(ERD 구조 검사는 tools/model_validator.py). 요구사항 → 기능 연결 누락은 요구사항 검토 Agent(coverage_findings)가 본다.
 - 확정되지 않은 요구사항에만 기댄 기능은 보고만 한다 (고객 답에 따라 바뀔 수 있음).
 - 이전 버전 대비 변경과 영향(바뀐 요구사항 → 기능 → 엔티티, 데이터 설계 때 다시 설계할 엔티티)은
   산출물을 쓸 때 추적표 4절로 만든다 (tools/trace_diff.py).
@@ -30,7 +30,7 @@ def build_trace_links(requirements: list[Requirement], functions: list[FunctionS
 
 
 def run(state: AgentState) -> dict:
-    """추적 검토 Agent 노드: 추적 관계를 만들고 누락(기능 없는 요구사항, 엔티티 없는 기능 등)을 이슈로 보고한다."""
+    """추적 검토 Agent 노드: 추적 관계를 만들고 기능 명세 → ERD 누락(엔티티 없는 기능 등)을 이슈로 보고한다."""
     requirements = load(state, "requirements", Requirement)
     functions = load(state, "functions", FunctionSpec)
     model = get_data_model(state)
@@ -38,12 +38,6 @@ def run(state: AgentState) -> dict:
     by = "trace_reviewer"
 
     findings = []
-    covered = {l.from_id for l in links if l.link_type == "REQ_FUNC"}
-    for r in requirements:
-        if r.designed and r.requirement_id not in covered:
-            findings.append(finding("TRACE_REQ_WITHOUT_FUNCTION", "ERROR",
-                                    f"{r.requirement_id} '{r.title}'에 연결된 기능이 없음",
-                                    "function_designer", r.requirement_id, by))
     if model:
         mapped = {l.from_id for l in links if l.link_type == "FUNC_ENTITY"}
         for f in functions:

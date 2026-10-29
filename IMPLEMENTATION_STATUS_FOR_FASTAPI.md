@@ -151,7 +151,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 
 | 단계 | 동작 | 자동 반복 |
 | --- | --- | --- |
-| 업로드 | 문서 분석 → 요구사항 추출·검토 → 기능 명세 + 확인 질문 고르기 → 멈춤 | 누락 요구사항 재설계 `FUNC_FIX_ATTEMPTS`번 |
+| 업로드 | 문서 분석 → 요구사항 추출·검토 → 기능 명세 + 확인 질문 고르기 → 멈춤 | 기능 없는 요구사항은 빠진 기능만 추가 `FUNC_FIX_ATTEMPTS`라운드 |
 | '내보내기 → ERD 만들기' | `rerun data_modeler --design`: 화면에서 고친 functions·common으로 데이터 설계 → ERD·DDL(코드) | 모델 오류 수정·연결 보완 `MODEL_FIX_ATTEMPTS`번, DB 검증 `MAX_DB_ATTEMPTS`번. 기능 명세는 다시 설계하지 않고 누락은 이슈로만 |
 | ERD 수정·저장 | 고친 테이블만 반영 (수정만 있으면 LLM 없음) | 위와 같음 |
 | 'ERD 최종 확정' | `review`: ERD ↔ 기능 명세 의미 검토 1회 → `semantic_review.md·json` → 최종 산출물 화면 | 실패 시 `SEMANTIC_REVIEW_ATTEMPTS`번 |
@@ -160,3 +160,26 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 - 설정 (`backend/app/core/config.py` `Settings`, `.env`): `FUNC_FIX_ATTEMPTS`·`MODEL_FIX_ATTEMPTS`·`SEMANTIC_REVIEW_ATTEMPTS`(0·빈 값이면 `MAX_FIX_ATTEMPTS`), `MAX_DB_ATTEMPTS`, `SEMANTIC_REVIEW_MODE`(final·auto·off, 코드 기본값 auto), `SEMANTIC_REVIEW_SOURCE`. 단계별 한도는 `Settings.fix_attempts(agent)`가 정하고, 조정 Agent(`gave_up`·`stuck_stages`)와 이슈 시도 횟수(`reconcile_issues`)가 같이 쓴다.
 - 프론트: ERD '확인 필요' 탭의 'ERD 최종 확정'이 `POST /projects/review`를 부른다. 최종 산출물 화면에 '의미 검토' 카드(지적·근거·제안, 다시 검토·받기)를 추가했다. 확정 표시 자체는 여전히 브라우저에만 저장한다.
 - 실제 LLM 확인: `고객요구사항4` v3 review 1회 — 호출 1회, 입력 20,812 · 출력 5,328 토큰, 지적 7건. 업로드 → `--design` ERD 전체 흐름의 실제 LLM 실행은 아직 하지 않았다.
+
+### 9.1 연결 검사 역할 정리 · 누락 채우기 (2026-10-29)
+
+| 연결 | 검사 | 누락 처리 |
+| --- | --- | --- |
+| 원문 → 요구사항 | 요구사항 검토 Agent (원문 대조, LLM) | 보충·확인 질문 |
+| 요구사항 → 기능 명세 | 요구사항 검토 Agent `coverage_findings` (코드, 결과 검사 노드에서 기능 명세가 바뀔 때마다) → `REQ_WITHOUT_FUNCTION` | 초안: 기능 명세 Agent `gap` 모드로 빠진 기능만 추가 / 확정한 명세(`rerun data_modeler`): 보고만 |
+| 기능 명세 → ERD | 추적 검토 Agent (코드) → `TRACE_FUNC_WITHOUT_ENTITY` | 데이터 모델 Agent 연결 보완 `MODEL_FIX_ATTEMPTS`라운드 |
+| 의미 | 의미 검토 Agent ('ERD 최종 확정', `SEMANTIC_REVIEW_SOURCE=false`면 ERD ↔ 기능 명세만) | 보고만 |
+
+- 문제였던 실행(`고객요구사항13_test2`): 누락 1건을 채우려고 '부분 재설계'가 그룹 2개(누락 요구사항 그룹 + 공통 기능을 맡은 그룹)를 처음부터 다시 써서 다른 요구사항 연결이 깨졌다 (누락 1 → 8건, 기능 50 → 38 → 58개). 재시도 한도도 이슈마다 세어 계속 돌았다.
+- 바꾼 것: 재시도는 Agent별 라운드로 센다 (`coordinator.fixes_left`). 누락 채우기(`function_designer` `gap`)는 누락 요구사항의 그룹만, `_patch`(바꿀 기능만 받음)로 요청하고, 공통 기능이 맡은 요구사항이라도 그 그룹이 직접 연결하게 한다 (`_group_scope(gaps)`). 기존 기능은 다시 쓰지 않는다.
+- 테스트: `test_graph_offline.py`의 `test_gap_redesign_rounds_are_limited_per_stage`·`test_gap_fill_adds_only_missing_function`·`test_confirmed_spec_gap_is_reported_not_redesigned`. 실제 LLM으로 누락 채우기를 돌려 확인하지는 않았다.
+
+### 9.2 확인 질문 답은 코드로 반영 (2026-10-29)
+
+- 기능 명세 화면에서 새로 답한 질문이 있어도 '기능 명세 최종 확정'과 '내보내기 → ERD 만들기'가 막히지 않는다. 내보내면 `rerun data_modeler --design`이 답을 **LLM 없이** 반영한다 (`function_designer.apply_answers_by_code`, `rerun._record_answers`).
+  - 추천안과 같은 답: 규칙 표시 `(확인 필요 FQ-…)` → `(결정 FQ-…)`
+  - 다른 답: 그 질문 표시가 붙은 규칙을 `(결정 FQ-…) 질문 → 답`으로 바꾼다. 공통 결정은 근거 '결정'·답 기록
+  - 요구사항: 결정 기록, 분류·포함 여부(RC)는 답대로 고침, 충돌(CF)·요구사항 질문은 검토 표시를 지우고 확정
+- 코드는 질문 표시가 붙은 규칙만 바꾼다. 답이 흐름·입력·행위자·데이터·다른 기능에 주는 영향은 화면이 '추천안과 다른 답' 항목에 확인하라고 표시하고 사람이 고친다.
+- LLM으로 답을 반영하고 싶을 때만 오른쪽 위 '답 N건 AI로 반영 → 기능 명세 다시' (기존 `rerun function_designer --answers`, 토큰 사용).
+- 테스트: `test_hitl_flow.py::test_confirmed_answers_are_applied_by_code`. 프론트는 타입 검사만 했다.

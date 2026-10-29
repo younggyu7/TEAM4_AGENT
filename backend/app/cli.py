@@ -20,6 +20,7 @@ import argparse
 import json
 import os
 import logging
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -40,7 +41,8 @@ from app.schemas.design import QUESTION_STAGES
 from app.agents.tools.convention import ConventionError, list_profiles, load_profile
 from app.agents.tools.exporter import changes_md
 from app.agents.tools.trace_diff import compare_versions, load_previous
-from app.agents.tools.versions import INDEX, find_version, load_versions, project_dir, project_name, update_version, version_label
+from app.agents.tools.versions import (INDEX, claim_next_version, find_version, load_versions, project_dir, project_name,
+                                      save_version, update_version, version_label)
 
 log = logging.getLogger("req_agent")
 
@@ -495,7 +497,9 @@ def _rerun(args, out: dict | None = None) -> int:
         except RerunError as e:
             print(e)
             return 2
-        design = {**design, "functions": submitted["functions"]}   # 기준 버전의 기능 명세 대신 화면에서 확정한 명세
+        # 기준 버전의 기능 명세 대신 화면에서 확정한 명세 (답은 코드로 반영한 요구사항·질문까지)
+        design = {**design, "functions": submitted["functions"], "requirements": submitted["requirements"],
+                  "questions": submitted["questions"]}
     with open_checkpointer(root) as saver:
         graph = build_graph(saver)
         values = graph.get_state(_config(record["run_id"])).values
@@ -548,18 +552,27 @@ def _rerun(args, out: dict | None = None) -> int:
 
 
 def _review(args) -> int:
-    """ERD 최종 확정 때의 의미 검토: 저장된 버전의 데이터 모델을 기능 명세와 대조해 그 버전 폴더에 결과를 쓴다 (새 버전 없음)."""
+    """ERD 최종 확정: 확정한 ERD 버전 아래에 최종본(v1.1 → v1.1.1)을 만든다.
+
+    산출물(요구사항·기능 명세·ERD·DDL)은 확정한 ERD 버전 그대로 두고, 추적 검토(코드)와 의미 검토(LLM, 기본은 ERD ↔ 기능 명세 1회)를
+    해서 최종본의 검토 보고서·semantic_review.*에 남긴다. 최종본의 'LLM 사용량'은 이 최종 확정 단계에서 쓴 양이다.
+    최종본에서 다시 하면 같은 ERD 아래 다음 최종본(v1.1.2)을 만든다.
+    """
+    from app.agents.roles import trace_reviewer
     from app.agents.roles.semantic_reviewer import review_saved
-    from app.agents.tools.exporter import export_semantic_review
+    from app.agents.tools.exporter import export_design, export_semantic_review
 
     root = get_settings().output_dir
+    project = project_name(args.project)
     try:
         record = find_version(root, args.project, args.version)
+        if record and record.get("stage") == "final":   # 최종본에서 다시 확정하면 그 ERD에서
+            record = find_version(root, args.project, record["base"])
     except ValueError as e:
         print(e)
         return 2
     if not record:
-        print(f"버전을 찾을 수 없습니다: {project_name(args.project)} v{args.version.lstrip('vV')}")
+        print(f"버전을 찾을 수 없습니다: {project} v{args.version.lstrip('vV')}")
         return 2
     folder = Path(record["output_dir"])
     design_path = folder / "design.json"
@@ -574,20 +587,43 @@ def _review(args) -> int:
     if not model or not model.get("entities") or not design.get("functions"):
         print(f"v{record['design_version']}에는 기능 명세와 데이터 모델(ERD)이 함께 있어야 의미 검토를 할 수 있습니다.")
         return 2
+    base = str(record["design_version"])
     source = get_settings().semantic_review_source if args.source is None else args.source
-    print(f"의미 검토: {project_name(args.project)} v{record['design_version']} "
-          f"({'데이터 모델 ↔ 기능 명세, 기능 명세 ↔ 요구사항' if source else '데이터 모델 ↔ 기능 명세'})")
+    print(f"ERD 최종 확정: {project} v{base} → 최종본 (추적 검토 + 의미 검토: "
+          f"{'데이터 모델 ↔ 기능 명세, 기능 명세 ↔ 요구사항' if source else '데이터 모델 ↔ 기능 명세'})")
+    # 문서 블록·추출 단위 등은 ERD를 만든 실행의 상태에서, 산출물은 확정한 ERD 버전 폴더에서 가져온다
+    with open_checkpointer(root) as saver:
+        values = dict(build_graph(saver).get_state(_config(record["run_id"])).values or {})
+    state = {**values, "requirements": design.get("requirements") or [], "functions": design["functions"],
+             "questions": design.get("questions") or [], "issues": design.get("issues") or [], "data_model": model,
+             "function_common": design.get("common") or {}, "completion": design.get("completion") or {},
+             "decisions": design.get("decisions") or [], "llm_usage": {}, "parent_version": base,
+             "options": {**(values.get("options") or {}), "project": project, "stage": "final", "base_version": base,
+                         "semantic_review": True, "semantic_review_mode": "final"}}
+    state.update(trace_reviewer.run(state))   # 코드 검사: 기능 명세 → ERD 연결 (토큰 없음)
     try:
-        state = review_saved(design.get("requirements") or [], design["functions"], model, source)
+        state = review_saved(state, source)
     except LLMFatalError as e:
         print(f"LLM 오류로 멈췄습니다: {e}")
         return 4
-    files = export_semantic_review(state, folder, project_name(args.project), str(record["design_version"]), source)
+    version, out_dir = claim_next_version(root, project, base)
+    files = export_design({**state, "design_version": version}, out_dir, version)
+    files += export_semantic_review(state, out_dir, project, version, source)
+    if (folder / "db_validation.md").exists():   # DB 검증은 확정한 ERD 그대로
+        files.append(Path(shutil.copy2(folder / "db_validation.md", out_dir / "db_validation.md")))
     failed = (state.get("semantic_review") or {}).get("failed") or []
-    print(f"결과: {', '.join(str(f) for f in files)}")
+    usage = state.get("llm_usage") or {}
+    save_version(root, project, {
+        "design_version": version, "parent": base, "created_at": datetime.now().isoformat(timespec="seconds"),
+        "summary": [f"ERD v{base} 최종 확정: 추적 검토 · 의미 검토 (지적 "
+                    f"{sum(i['kind'].startswith('SEM_') and i['status'] != 'RESOLVED' for i in state['issues'])}건)"],
+        "output_dir": str(out_dir), "run_id": record["run_id"], "stage": "final", "base": base,
+        "document": record.get("document", ""),
+        **{k: record[k] for k in ("db_validation", "db_engine", "db_errors") if record.get(k)}})
+    print(f"최종본 v{version} → {out_dir} (산출물 {len(files)}개)")
+    print(f"LLM 호출 {usage.get('calls', 0)}회 · 토큰 in {usage.get('input_tokens', 0):,} / out {usage.get('output_tokens', 0):,}")
     if failed:
-        print(f"검토 실패(미검증): {', '.join(failed)}")
-        return 2
+        print(f"검토 실패(미검증): {', '.join(failed)} — 최종본 보고서에 표시함")
     return 0
 
 

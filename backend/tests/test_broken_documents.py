@@ -70,6 +70,20 @@ def test_repair_converted_requirement_tables():
     assert items[-1] == raw[-1], "다음 절 제목은 그대로 문단"
 
 
+def test_id_only_table_joins_next_labeled_table():
+    """PDF에서 '요구사항 고유번호 | SFR-001' 표와 명칭·세부내용·산출물 표가 따로 나뉜 경우 하나로 붙인다 (고객요구사항13 형식)"""
+    raw = [{"type": "table", "rows": [["요구사항 고유번호", "SFR-001"]]},
+           {"type": "table", "rows": [["요구사항 명칭", "예산 관리"], ["요구사항 세부내용", "■ 예산편성: 신청금액을 입력한다."],
+                                      ["산출물", "검증 결과"]]},
+           {"type": "table", "rows": [["요구사항 고유번호", "SFR-002"]]},
+           {"type": "table", "rows": [["요구사항 명칭", "인사 관리"], ["요구사항 세부내용", "■ 인사정보를 관리한다."],
+                                      ["산출물", "검증 결과"]]}]
+    got = _fields(_repair_requirements(raw))
+    assert list(got) == ["SFR-001", "SFR-002"]
+    assert (got["SFR-001"]["name"], got["SFR-001"]["details"]) == ("예산 관리", "■ 예산편성: 신청금액을 입력한다.")
+    assert got["SFR-002"]["outputs"] == "검증 결과"
+
+
 def test_normal_requirement_table_is_untouched():
     raw = [{"type": "table", "rows": [["고유번호", "SFR-001"], ["명칭", "요청 등록"], ["분류", "기능 요구사항"],
                                       ["설명", "세부내용", "요청을 등록한다"]]},

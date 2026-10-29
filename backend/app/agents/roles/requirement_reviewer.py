@@ -14,6 +14,9 @@
 (나) 충돌 검토: 요구사항이 바뀔 때마다 (requirement_review.conflict_rev ≠ rev.requirements) 전체 목록을 LLM 1회로 본다.
     원문 단위(기능 명세 그룹)를 넘는 충돌은 기능 명세 Agent가 볼 수 없어서 여기서 찾는다.
     충돌 묶음마다 확인 질문 CF-…(선택지·추천안)을 내고 관련 요구사항에 CONFLICT 표시를 남긴다. 같은 묶음은 다시 묻지 않는다.
+(다) 기능 연결 검사 (coverage_findings, 코드·LLM 없음): 기능 명세가 나온 뒤 시스템 기능 요구사항마다 기능이 연결됐는지 본다.
+    초안 단계면 빠진 요구사항을 기능 명세 Agent가 빠진 것만 채우고(FUNC_FIX_ATTEMPTS번), 사람이 확정한 명세로
+    데이터 설계를 하는 단계(rerun data_modeler)면 보고만 한다. 기능 명세 → ERD 연결은 추적 검토 Agent가 본다.
 
 표시(Requirement.review)는 기능 명세 Agent에 그대로 넘어간다: 확인 대기 요구사항은 공통 결정에 쓰지 않고,
 그 요구사항으로 만든 기능 규칙에 '(확인 필요 RC-…/CF-…)'를 붙인다. 질문은 기능 명세 초안과 함께 한 번에 묻는다.
@@ -29,13 +32,14 @@ from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
 from app.agents.llm.client import LLMFatalError, get_llm, run_parallel
-from app.schemas.design import (USER_SOURCE, DocumentBlock, Evidence, Question, Requirement, RequirementCategory,
-                                RequirementScope, RequirementSource, RequirementType, ReviewNote)
-from app.agents.flow.state import AgentState, dump, load, merge_usage, rev
+from app.schemas.design import (USER_SOURCE, DocumentBlock, Evidence, FunctionSpec, Issue, Question, Requirement,
+                                RequirementCategory, RequirementScope, RequirementSource, RequirementType, ReviewNote)
+from app.agents.flow.state import AgentState, dump, finding, load, merge_usage, rev
 from app.agents.tools.search import normalize, quote_in_text
 
 log = logging.getLogger(__name__)
 BY = "requirement_reviewer"
+REQ_GAP = "REQ_WITHOUT_FUNCTION"   # 기능이 연결되지 않은 시스템 기능 요구사항
 QUESTION_PREFIX = "RC-"
 CONFLICT_PREFIX = "CF-"
 EXCERPT_CONTEXT = 100        # 판정 후보의 근거 원문: 인용 앞뒤로 붙이는 글자 수 (인용을 못 찾으면 블록 앞 EXCERPT_CHARS자)
@@ -219,6 +223,17 @@ def conflicts_stale(state: AgentState) -> bool:
     """요구사항이 바뀐 뒤 충돌 검토를 아직 하지 않았는지."""
     return bool(state.get("requirements")) and \
         (state.get("requirement_review") or {}).get("conflict_rev", -1) != rev(state)["requirements"]
+
+
+def coverage_findings(requirements: list[Requirement], functions: list[FunctionSpec], fix: bool) -> list[Issue]:
+    """(다) 요구사항 → 기능 명세 연결 검사: 기능이 하나도 연결되지 않은 시스템 기능 요구사항.
+    fix면 기능 명세 Agent가 빠진 것만 채우게 하고(ERROR), 아니면(사람이 확정한 명세) 보고만 한다(WARNING)."""
+    if not functions:
+        return []
+    covered = {i for f in functions for i in f.requirement_ids}
+    return [finding(REQ_GAP, "ERROR" if fix else "WARNING", f"{r.requirement_id} '{r.title}'에 연결된 기능이 없음",
+                    "function_designer" if fix else "none", r.requirement_id, BY)
+            for r in requirements if r.designed and r.requirement_id not in covered]
 
 
 def pending(state: AgentState) -> list[str]:

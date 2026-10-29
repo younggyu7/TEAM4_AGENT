@@ -32,8 +32,10 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from app.schemas.design import DataModel, FunctionSpec
+from app.schemas.design import DataModel, FunctionSpec, Question, Requirement
 from app.agents.flow.state import SEMANTIC_BASIS_INIT, basis, rev
+from app.agents.roles.function_designer import apply_answers_by_code
+from app.agents.roles.requirement_reviewer import record_answer as record_review_answer, settle
 from app.agents.tools.model_edits import ReworkSummary, apply_user_edits
 from app.agents.tools.model_validator import to_identifier
 from app.agents.tools.trace_diff import REQ_FIELDS
@@ -43,17 +45,17 @@ STAGES: dict[str, dict] = {
     "requirements_analyst": {
         "label": "요구사항",
         # 요구사항을 다시 만들면 뒤 단계(기능 명세·데이터 설계)와 그 검토가 모두 의미 없어진다
-        "drop_issue_prefixes": ("TRACE_", "SEM_FUNC_", "SEM_MODEL_", "MODEL_", "DB_", "DATA_"),
+        "drop_issue_prefixes": ("REQ_WITHOUT_FUNCTION", "TRACE_", "SEM_FUNC_", "SEM_MODEL_", "MODEL_", "DB_", "DATA_"),
     },
     "function_designer": {
         "label": "기능 명세",
         # 기능 명세를 다시 하면 의미가 없어지는 이슈 (추적, 의미 검토의 기능·모델 부분, 이 버전에 없는 데이터 설계)
-        "drop_issue_prefixes": ("TRACE_", "SEM_FUNC_", "SEM_MODEL_", "MODEL_", "DB_", "DATA_"),
+        "drop_issue_prefixes": ("REQ_WITHOUT_FUNCTION", "TRACE_", "SEM_FUNC_", "SEM_MODEL_", "MODEL_", "DB_", "DATA_"),
     },
     "data_modeler": {
         "label": "데이터 설계",
         # 데이터 설계를 다시 하면 의미가 없어지는 이슈 (모델·DB 검증, 추적, 의미 검토의 모델 부분, 속성 설계 실패)
-        "drop_issue_prefixes": ("MODEL_", "DB_", "TRACE_", "SEM_MODEL_", "DATA_"),
+        "drop_issue_prefixes": ("REQ_WITHOUT_FUNCTION", "MODEL_", "DB_", "TRACE_", "SEM_MODEL_", "DATA_"),
     },
 }
 
@@ -111,8 +113,9 @@ def load_answers(path: Path, questions: list[dict]) -> dict[str, str]:
 def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
     """화면에서 고치고 확정한 기능 명세(design.json)를 읽는다 (rerun data_modeler --design).
 
-    functions(와 common)만 쓰고 나머지(요구사항·질문·이슈)는 기준 버전 것을 그대로 둔다. 요구사항은 기능 명세 화면에서 바꾸지 않는다.
-    {"functions": 기능 목록, "common": 공통 결정 또는 None, "note": 안내 줄}. 형식·ID가 틀리면 RerunError.
+    functions·common과, 화면에서 새로 답한 확인 질문을 쓴다. 답은 LLM 없이 코드로 반영한다 (apply_answers_by_code):
+    기능 규칙 표시·문장, 공통 결정, 요구사항 결정·확정. 이슈 등 나머지는 기준 버전 것을 그대로 둔다.
+    {"functions", "common"(없으면 None), "requirements", "questions", "note": 안내 줄}. 형식·ID가 틀리면 RerunError.
     """
     if stage != "data_modeler":
         raise RerunError("--design은 data_modeler 단계 옵션입니다 (확정한 기능 명세로 데이터 설계).")
@@ -134,12 +137,57 @@ def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
     unknown = sorted({i for f in functions for i in [*f.requirement_ids, *f.nfr_ids] if i not in known})
     if unknown:
         raise RerunError(f"기준 버전에 없는 요구사항 ID: {', '.join(unknown[:10])}")
+    common = data.get("common") if isinstance(data.get("common"), dict) and data.get("common") else base.get("common")
+    requirements = [Requirement.model_validate(r) for r in base.get("requirements") or []]
+    questions = [Question.model_validate(q) for q in base.get("questions") or []]
+    answered = _submitted_answers(questions, data.get("questions"))
+    if answered:
+        functions, common = apply_answers_by_code(functions, common or {}, answered)
+        _record_answers(answered, requirements)
     dumped = [f.model_dump(mode="json") for f in functions]
     changed, added, removed = changed_functions(base.get("functions") or [], dumped)
-    common = data.get("common")
-    return {"functions": dumped, "common": common if isinstance(common, dict) and common else None,
+    differ = sum(q.answer.strip() != q.recommended.strip() for q in answered)
+    return {"functions": dumped, "common": common or None,
+            "requirements": [r.model_dump(mode="json") for r in requirements],
+            "questions": [q.model_dump(mode="json") for q in questions],
             "note": f"기능 명세: 화면에서 확정한 명세 사용 (기능 {len(dumped)}개 · 기준 대비 바뀜 {len(changed)} · "
-                    f"새 {len(added)} · 지움 {len(removed)})"}
+                    f"새 {len(added)} · 지움 {len(removed)})"
+                    + (f" · 확인 질문 답 {len(answered)}건 코드로 반영 (추천과 다른 답 {differ}건)" if answered else "")}
+
+
+def _submitted_answers(questions: list[Question], submitted) -> list[Question]:
+    """화면에서 새로 답한 확인 질문 (기준 버전에서 아직 답하지 않은 것). questions의 상태·답을 고치고 그 목록을 돌려준다."""
+    by_id = {q.get("question_id"): q for q in submitted or [] if isinstance(q, dict)}
+    answered = []
+    for q in questions:
+        s = by_id.get(q.question_id) or {}
+        answer = str(s.get("answer") or "").strip()
+        if q.status != "ANSWERED" and s.get("status") == "ANSWERED" and answer:
+            q.status, q.answer = "ANSWERED", answer
+            answered.append(q)
+    return answered
+
+
+def _record_answers(answered: list[Question], requirements: list[Requirement]) -> None:
+    """답을 관련 요구사항에 결정으로 남긴다 (사용자 답변 기록 노드와 같은 뜻, 다시 설계하지 않음).
+    분류·포함 여부(RC)는 답대로 요구사항을 고치고, 충돌(CF)·요구사항 질문은 검토 표시를 지우고 확정한다."""
+    by_id = {r.requirement_id: r for r in requirements}
+    for q in answered:
+        if q.stage == "requirement_reviewer":
+            record_review_answer(q, by_id)
+            continue
+        if q.stage == "data_modeler":
+            continue
+        for rid in q.requirement_ids:
+            if rid not in by_id:
+                continue
+            if q.stage != "function_designer":
+                settle(by_id[rid], q.question_id)
+                by_id[rid].status = "CONFIRMED"
+            by_id[rid].decisions.append(f"[{q.question_id}] {q.question} → {q.answer}")
+        for rid in q.confirms:
+            if rid in by_id:
+                by_id[rid].status = "CONFIRMED"
 
 
 def prepare_requirements(feedback: str = "") -> list[str]:

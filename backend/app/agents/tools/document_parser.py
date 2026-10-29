@@ -61,7 +61,7 @@ FIELD_KEYS = {
     "분류": "category", "요구사항분류": "category", "요구사항유형": "category", "유형": "category", "구분": "category",
     "응락수준": "acceptance", "수용수준": "acceptance", "중요도": "acceptance", "우선순위": "acceptance",
     "정의": "definition", "요구사항정의": "definition",
-    "세부내용": "details", "내용": "details", "상세내용": "details", "요구사항내용": "details",
+    "세부내용": "details", "내용": "details", "상세내용": "details", "요구사항내용": "details", "요구사항세부내용": "details",
     "요구사항상세내용": "details", "상세설명": "details", "요구사항상세설명": "details",
     "산출정보": "outputs", "산출물": "outputs", "관련요구사항": "related", "출처": "origin", "요구사항출처": "origin",
 }

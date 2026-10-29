@@ -247,7 +247,7 @@ class DataModel(BaseModel):
 class Issue(BaseModel):
     """검사·검토에서 나온 이슈. target_agent가 수정 담당이고 attempts는 수정 시도 횟수다."""
     issue_id: str
-    kind: str                            # 예: EVIDENCE_NOT_FOUND, MODEL_NO_PK, TRACE_REQ_WITHOUT_FUNCTION
+    kind: str                            # 예: EVIDENCE_NOT_FOUND, MODEL_NO_PK, REQ_WITHOUT_FUNCTION, TRACE_FUNC_WITHOUT_ENTITY
     severity: Literal["ERROR", "WARNING", "INFO"]
     message: str
     target_agent: AgentName = "none"     # 수정 담당 (none = 보고만)

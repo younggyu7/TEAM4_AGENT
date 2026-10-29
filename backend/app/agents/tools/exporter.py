@@ -63,7 +63,8 @@ def export_design(state: dict, out_dir: Path, version: str) -> list[Path]:
             f"생성: {meta['generated_at']}\n")
     rerun_from = meta["base_version"] or options.get("parent_version")   # 요구사항 다시 만들기는 기준 번호 없이 다음 최상위 번호
     if meta["stage"] != "full" and rerun_from:   # 한 단계만 다시 만든 버전
-        head += (f"> 다시 만든 단계: **{STAGES.get(meta['stage'], {}).get('label', meta['stage'])}** · 기준 버전: v{rerun_from}"
+        label = "최종 확정 (추적·의미 검토)" if meta["stage"] == "final" else STAGES.get(meta["stage"], {}).get("label", meta["stage"])
+        head += (f"> 다시 만든 단계: **{label}** · 기준 버전: v{rerun_from}"
                  f" (앞 단계 결과는 기준 버전 그대로)" + (f" · 의견: {meta['feedback']}" if meta["feedback"] else "") + "\n")
         if meta["stage"] == "data_modeler" and state.get("model_rework"):
             meta["rework"] = state["model_rework"]

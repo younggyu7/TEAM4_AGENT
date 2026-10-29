@@ -274,14 +274,20 @@ def run(state: AgentState) -> dict:
 
     common = dict(state.get("function_common") or {})
     shared_fns = shared_functions(common, groups)
+    # 누락 채우기(gap): 기능이 연결되지 않은 요구사항의 그룹만, 빠진 기능만 받는다. 공통 기능을 맡은 다른 그룹은
+    # 다시 설계하지 않고(그 그룹을 다시 쓰면 다른 요구사항 연결이 깨진다) 빠진 요구사항을 제 그룹에서 직접 연결하게 한다
+    gaps = set(scope) if mode == "gap" and functions else set()
     if mode == "redesign":
         targets = _redesign_targets(llm, groups, functions, scope, feedback, shared_fns)
+    elif gaps:
+        targets = [g for g, reqs in groups.items() if any(r.requirement_id in gaps for r in reqs)]
+        feedback = _gap_feedback([r for r in requirements if r.requirement_id in gaps])
     elif mode == "partial" and functions:
         targets = _groups_for(set(scope), groups, shared_fns, functions)
     else:
         targets = list(groups)
-    # 의견 반영(전체 다시 만들기가 아닐 때)은 바꿀 기능만 받는다
-    patch = mode == "redesign" and bool(feedback) and "*" not in scope
+    # 의견 반영(전체 다시 만들기가 아닐 때)과 누락 채우기는 바꿀 기능만 받는다
+    patch = (mode == "redesign" and bool(feedback) and "*" not in scope) or bool(gaps)
 
     nfrs = [r for r in requirements if r.type == "NON_FUNCTIONAL" and r.scope == "SYSTEM"]
     source_names = {src.source_key: src.name for src in load(state, "sources", RequirementSource)}
@@ -298,7 +304,7 @@ def run(state: AgentState) -> dict:
     shared = "\n\n".join(x for x in (common_block(common), _shared_block(shared_fns), _nfr_block(nfrs)) if x)
     rule_texts = common_rule_texts(common)
     by_req = {r.requirement_id: r for r in requirements}
-    scopes = {g: _group_scope(g, groups[g], shared_fns, by_req) for g in targets}   # (요구사항 줄, 연결할 수 있는 ID)
+    scopes = {g: _group_scope(g, groups[g], shared_fns, by_req, gaps) for g in targets}   # (요구사항 줄, 연결할 수 있는 ID)
     # 요구사항이 모두 다른 영역의 공통 기능에 들어간 그룹은 요청하지 않는다 (만들 기능이 없다)
     calls = [g for g in targets if scopes[g][1]]
     if patch:
@@ -656,13 +662,14 @@ def _shared_block(shared_fns: list[dict]) -> str:
 
 
 def _group_scope(group: str, reqs: list[Requirement], shared_fns: list[dict],
-                 by_req: dict[str, Requirement]) -> tuple[list[str], set[str]]:
+                 by_req: dict[str, Requirement], gaps: set[str] = frozenset()) -> tuple[list[str], set[str]]:
     """그룹 요청의 요구사항 부분과, 이 그룹의 기능이 연결할 수 있는 요구사항 ID.
 
     다른 영역이 만드는 공통 기능에 들어간 요구사항은 맡은 기능만 알려 주고 연결 대상에서 뺀다
     (그 요구사항만으로 만든 기능은 근거가 없어 버려진다). 이 영역이 만드는 공통 기능은 다른 영역 요구사항도 보여 주고 연결하게 한다.
+    gaps(기능이 연결되지 않은 요구사항)는 공통 기능이 맡았더라도 이 그룹이 직접 연결한다 (누락 채우기).
     """
-    elsewhere = {rid: sf for sf in shared_fns if sf["owner"] != group for rid in sf["requirement_ids"]}
+    elsewhere = {rid: sf for sf in shared_fns if sf["owner"] != group for rid in sf["requirement_ids"] if rid not in gaps}
     lines, valid = [], set()
     for r in reqs:
         sf = elsewhere.get(r.requirement_id)
@@ -751,6 +758,16 @@ def _function_text(f: FunctionSpec) -> str:
     return "\n".join(parts)
 
 
+def _gap_feedback(missing: list[Requirement]) -> str:
+    """누락 채우기 지시: 기능이 연결되지 않은 요구사항만 채우고 다른 기능은 건드리지 않는다 (_patch의 의견으로 넘긴다)."""
+    return "\n".join([
+        "아래 요구사항에 연결된 기능이 없다. 이 요구사항만 채운다.",
+        "- 이 요구사항을 실제로 처리하는 현재 기능이 있으면 그 기능을 고쳐(replaces) requirement_ids에 추가한다.",
+        "- 없으면 이 요구사항을 처리하는 새 기능을 만든다.",
+        "- 다른 기능은 넣지 않고(그대로 유지), removed는 비운다.",
+        *(f"- [{r.requirement_id}] {r.title}" for r in missing)])
+
+
 def _patch(llm, group: str, req_lines: list[str], groups: dict[str, list[Requirement]],
            source_names: dict[str, str], current: list[FunctionSpec], feedback: str, shared: str = "") -> FunctionPatchOut:
     """그룹 하나에 사용자 의견을 반영한다: 고치거나 새로 만들 기능만 받는다 (그대로 둘 기능은 다시 쓰지 않아 출력이 준다)."""
@@ -794,6 +811,37 @@ def _mark_decided(rule: str, qids: set[str]) -> str:
 def mark_decided(functions: list[FunctionSpec], qids: set[str]) -> list[FunctionSpec]:
     """답을 받은 질문(추천과 같은 답)의 규칙 표시를 '(결정 …)'으로 바꾼 기능 목록 (사용자 답변 기록 노드에서 부른다)."""
     return [f.model_copy(update={"business_rules": [_mark_decided(x, qids) for x in f.business_rules]}) for f in functions]
+
+
+def apply_answers_by_code(functions: list[FunctionSpec], common: dict, answered: list[Question]) \
+        -> tuple[list[FunctionSpec], dict]:
+    """사람이 확정한 기능 명세에 확인 질문 답을 LLM 없이 반영한다 ('기능 명세 최종 확정' → 내보내기, rerun --design).
+
+    - 추천과 같은 답: 규칙 표시만 '(확인 필요 FQ-…)' → '(결정 FQ-…)'.
+    - 다른 답: 그 질문 표시가 붙은 규칙을 '(결정 FQ-…) 질문 → 답'으로 바꾼다 (같은 기능에 여러 줄이면 한 줄만 남김).
+      답이 흐름·입력·데이터에 주는 영향은 사람이 화면에서 확인한다 (못 미더우면 '답 반영 → 기능 명세 다시'로 LLM이 고침).
+    - 공통 결정에 걸린 질문은 근거를 '결정'으로, 다른 답이면 답을 함께 남긴다.
+    """
+    common = deepcopy(common or {})
+    agreed = {q.question_id for q in answered if q.answer.strip() == q.recommended.strip()}
+    differ = {q.question_id: q for q in answered if q.question_id not in agreed}
+    for item in (*(common.get("code_sets") or []), *(common.get("policies") or [])):
+        q = next((x for x in answered if x.question_id == item.get("question")), None)
+        if q:
+            item["basis"] = "결정"
+            if q.question_id in differ:
+                item["answer"] = q.answer
+
+    def rules(f: FunctionSpec) -> list[str]:
+        out: list[str] = []
+        for rule in f.business_rules:
+            hit = sorted(_question_ids(rule) & set(differ))
+            rule = f"(결정 {hit[0]}) {differ[hit[0]].question} → {differ[hit[0]].answer}" if hit else _mark_decided(rule, agreed)
+            if rule not in out:
+                out.append(rule)
+        return out
+
+    return [f.model_copy(update={"business_rules": rules(f)}) for f in functions], common
 
 
 def _review_marks(functions: list[FunctionSpec], by_req: dict[str, Requirement]) -> list[FunctionSpec]:

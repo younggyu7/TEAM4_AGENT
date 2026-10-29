@@ -14,7 +14,7 @@ from app.schemas.design import (USER_SOURCE, DbValidationResult, DesignVersion, 
 from app.agents.roles.coordinator import (STAGE_LABELS, designs_data, designs_functions, pending_stages, semantic_enabled,
                                           stuck_stages)
 from app.agents.roles.function_designer import mark_decided, record_answers
-from app.agents.roles.requirement_reviewer import record_answer as record_review_answer, settle
+from app.agents.roles.requirement_reviewer import REQ_GAP, coverage_findings, record_answer as record_review_answer, settle
 from app.agents.flow.state import (SEMANTIC_BASIS_INIT, AgentState, actionable_issues, dump, finding, get_data_model, issues_of, load,
                                    reconcile_issues, rev, review_stale, semantic_stale_parts, with_result)
 from app.agents.tools.convention import apply_profile, ddl_model, profile_of
@@ -101,6 +101,11 @@ def inspect_result(state: AgentState) -> dict:
                 q.status = "DEFERRED"
         update["questions"] = dump(questions)
 
+    # 요구사항 → 기능 연결 (요구사항 검토 Agent의 코드 검사): 초안 단계는 빠진 것만 채우고, 사람이 확정한 명세로
+    # 데이터 설계를 하는 단계(rerun data_modeler)는 보고만 한다
+    fix_gaps = (state.get("options") or {}).get("stage") != "data_modeler"
+    issues = reconcile_issues(issues, coverage_findings(requirements, load(state, "functions", FunctionSpec), fix_gaps),
+                              lambda k: k == REQ_GAP, max_attempts)
     if state.get("data_model") is not None:
         issues = reconcile_issues(issues, validate_model(get_data_model(state)),
                                   lambda k: k.startswith("MODEL_"), max_attempts)
@@ -297,7 +302,7 @@ def check_completion(state: AgentState) -> dict:
     if no_design:
         func_detail = model_detail = trace_detail = na
     else:
-        func_detail = (f"시스템 기능 요구사항 {len(sys_func)}건 중 기능 미연결 {len(remaining('TRACE_REQ_WITHOUT_FUNCTION'))}건"
+        func_detail = (f"시스템 기능 요구사항 {len(sys_func)}건 중 기능 미연결 {len(remaining(REQ_GAP))}건"
                        if state.get("functions") else missing("기능 명세", "function_designer"))
         trace_detail = (f"엔티티 미연결 기능 {len(remaining('TRACE_FUNC_WITHOUT_ENTITY'))}건"
                         if model is not None else missing("데이터 모델", "data_modeler"))
@@ -314,7 +319,7 @@ def check_completion(state: AgentState) -> dict:
         ("원문 근거 연결", not remaining("EVIDENCE_NOT_FOUND"),
          f"근거 미확인 {len(remaining('EVIDENCE_NOT_FOUND'))}건"),
         ("요구사항→기능 추적",
-         no_design or requirements_only or (bool(state.get("functions")) and not remaining("TRACE_REQ_WITHOUT_FUNCTION")),
+         no_design or requirements_only or (bool(state.get("functions")) and not remaining(REQ_GAP)),
          func_detail),
         ("기능→데이터 추적",
          no_design or stage_only or (model is not None and not remaining("TRACE_FUNC_WITHOUT_ENTITY")), trace_detail),

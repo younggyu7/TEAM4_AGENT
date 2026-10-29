@@ -30,6 +30,11 @@ from app.agents.flow.state import (AgentState, actionable_issues, functions_stal
 
 log = logging.getLogger(__name__)
 MAX_QUESTIONS_PER_ROUND = 5
+# 이슈를 고치려고 Agent를 다시 부를 때의 판단 사유 (라운드 수를 셀 때 앞부분으로 찾는다)
+FUNC_GAP = "기능이 연결되지 않은 요구사항"
+MODEL_FIX = "모델·DB 검증 오류"
+MODEL_COVER = "저장 엔티티가 없는 기능"
+FIX_REASONS = (FUNC_GAP, MODEL_FIX, MODEL_COVER)
 REQUIREMENT_STAGES = ("requirements", "requirement_reviewer")   # 기능 명세 초안 전까지 묻지 않는 질문 단계
 
 
@@ -45,6 +50,13 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
 
     def gave_up(stage: str) -> bool:
         return failures.get(stage, 0) >= s.fix_attempts(stage)
+
+    def fixes_left(stage: str) -> bool:
+        """이슈를 고치려고 그 Agent를 다시 부른 횟수(라운드)가 단계 한도(FUNC·MODEL_FIX_ATTEMPTS) 안인지.
+        이슈마다 세면 재설계가 다른 요구사항에서 새 누락을 만들 때 계속 돈다 (고객요구사항13: 누락 1 → 8건)."""
+        done = sum(1 for x in state.get("decisions") or []
+                   if x.get("action") == stage and str(x.get("reason", "")).startswith(FIX_REASONS))
+        return done < s.fix_attempts(stage)
 
     stale_review = review_stale(state)
 
@@ -107,12 +119,14 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
             return d("function_designer", f"변경된 요구사항 {len(dirty)}건 → 관련 기능만 부분 재설계",
                      "partial", dirty), []
         return d("function_designer", "기능 명세가 아직 없음", "full"), []
-    # 데이터 설계 단계(rerun data_modeler)는 사람이 확정한 기능 명세로 하므로 기능 누락을 자동 재설계하지 않고 이슈로만 남긴다
-    redesign_gaps = designs_functions(state) and options.get("stage") != "data_modeler"
+    # 기능이 연결되지 않은 요구사항(요구사항 검토 Agent의 연결 검사): 빠진 것만 채운다 (gap — 기존 기능은 다시 쓰지 않음).
+    # 데이터 설계 단계(rerun data_modeler)는 사람이 확정한 기능 명세로 하므로 채우지 않고 이슈로만 남기고,
+    # 고칠 라운드(FUNC_FIX_ATTEMPTS)를 다 쓰면 남은 누락도 이슈로 두고 사람이 화면에서 본다
+    redesign_gaps = designs_functions(state) and options.get("stage") != "data_modeler" and fixes_left("function_designer")
     issues = open_for("function_designer") if redesign_gaps else []
     if issues:
-        return d("function_designer", f"기능이 연결되지 않은 요구사항 {len(issues)}건 → 해당 그룹 재설계",
-                 "partial", [i.target_id for i in issues]), [i.issue_id for i in issues]
+        return d("function_designer", f"{FUNC_GAP} {len(issues)}건 → 빠진 기능만 추가",
+                 "gap", [i.target_id for i in issues]), [i.issue_id for i in issues]
 
     if state.get("functions") and designs_data(state):
         targets = state.get("model_targets")
@@ -131,12 +145,15 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
             dirty = state.get("dirty_functions") or []
             return d("data_modeler", f"변경된 기능 {len(dirty)}건 → 엔티티 연결 보완", "cover", dirty), []
     issues = open_for("data_modeler")
+    # DB 검증 실패의 수정은 MAX_DB_ATTEMPTS로 따로 센다 (record_db_failure → 조정 Agent)
+    if not any(i.kind.startswith("DB_") for i in issues) and not fixes_left("data_modeler"):
+        issues = []
     if issues:
         fix = [i for i in issues if i.kind.startswith(("MODEL_", "DB_"))]
         if fix:
-            return d("data_modeler", f"모델·DB 검증 오류 {len(fix)}건 → 해당 엔티티 수정",
+            return d("data_modeler", f"{MODEL_FIX} {len(fix)}건 → 해당 엔티티 수정",
                      "fix", sorted({i.target_id for i in fix})), [i.issue_id for i in fix]
-        return d("data_modeler", f"저장 엔티티가 없는 기능 {len(issues)}건 → 엔티티 연결 보완",
+        return d("data_modeler", f"{MODEL_COVER} {len(issues)}건 → 엔티티 연결 보완",
                  "cover", [i.target_id for i in issues]), [i.issue_id for i in issues]
 
     if review_stale(state) and not gave_up("trace_reviewer"):
