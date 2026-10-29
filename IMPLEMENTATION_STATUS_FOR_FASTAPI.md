@@ -8,7 +8,8 @@
 - 기존 ITSM 백엔드 코드(에이전트 7개, PostgreSQL·Alembic 기반 `/api/v1/projects·runs`)는 **지금 코드로 교체**했다. 폴더 구조(`api`·`agents`·`services`·`schemas`·`core`)는 유지했다.
 - 프론트는 백엔드와 분리해 `TEAM4_AGENT_FRONT`에 두었다. Vite 개발 서버의 임시 API(`server/outputApi.ts`·`jobs.ts`)를 없애고, 같은 일을 FastAPI가 한다.
 - 동작 방식은 전환 전과 같다: 산출물은 DB 없이 `output/<프로젝트>/v<버전>/` 폴더에 저장하고, 오래 걸리는 LLM 실행은 CLI(`python -m app …`)를 하위 프로세스로 띄운다.
-- 검증: `pytest` 163 passed · 3 skipped (API 키 없이). 로컬에서 FastAPI + 프론트를 띄워 `고객요구사항4` 산출물이 화면(홈·기능 명세서·ERD·DDL·추적)에 나오는 것과, 화면 요청 → 작업(rerun) → 새 버전 생성까지 확인했다.
+- 검증: `pytest` 170 passed · 3 skipped (API 키 없이). 로컬에서 FastAPI + 프론트를 띄워 `고객요구사항4` 산출물이 화면(홈·기능 명세서·ERD·DDL·추적)에 나오는 것과, 화면 요청 → 작업(rerun) → 새 버전 생성까지 확인했다.
+- 화면 흐름 변경 (사용자 합의, 아래 9절): 업로드는 기능 명세 초안에서 멈추고, '내보내기 → ERD 만들기'는 화면에서 확정한 기능 명세(`--design`)로 ERD를 만들며, 의미 검토는 'ERD 최종 확정' 때 한 번만 한다. 자동 수정 횟수는 단계별로 나눴다.
 
 ## 2. 실행 방법 (로컬)
 
@@ -60,7 +61,8 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 | `GET·HEAD /file?project=&version=&name=` | 산출물 원문 (`schema.sql`, `erd.mmd`, `functions.md` …, 허용 목록만) |
 | `POST /projects/title` | 버전 제목 저장 (`output/<프로젝트>/titles.json`) |
 | `POST /projects/versions` | 화면의 새 버전 만들기 → `202 {job}` (아래 4.2) |
-| `POST /runs` | **신규.** 문서 업로드(multipart `file`, `project?`, `title?`, `validate_db?`) → `run --defer` → `202 {job}` |
+| `POST /projects/review` | **신규.** ERD 최종 확정 → `review` (의미 검토 1회, 그 버전 폴더에 `semantic_review.md·json`) → `202 {job}`. ERD 없는 버전은 400 |
+| `POST /runs` | **신규.** 문서 업로드(multipart `file`, `project?`, `title?`, `validate_db?`) → `run --defer --until function_designer` → `202 {job}` |
 | `GET /jobs?id=` | 작업 진행 상황 `{status, message, log, new_version, warnings}` |
 | `GET /capabilities` | rerun이 기능 명세 수정본(`--design`·`--spec-md`)을 받는지 |
 | `GET /health` | 서버 상태 |
@@ -75,9 +77,10 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 | 화면 동작 | 실행하는 CLI |
 | --- | --- |
 | 기능 명세 '답 반영 → 기능 명세 다시' (`source: spec` + `answers`) | `rerun function_designer --answers` (기능 수정 요약은 `--feedback`) |
-| 기능 명세 '내보내기 → ERD 만들기' (`source: spec`) | `rerun data_modeler` (수정·의견이 없으면 `--full`) |
+| 기능 명세 '내보내기 → ERD 만들기' (`source: spec`) | `rerun data_modeler --design <화면에서 확정한 design.json>` |
 | ERD '저장하고 새 버전 만들기' (`source: erd`) | `rerun data_modeler --data-model <고친 모델> --feedback <의견>` |
-| 문서 업로드 (`POST /runs`) | `run <문서> --project <이름> --defer` |
+| ERD '최종 확정' (`POST /projects/review`) | `review <프로젝트> v<버전>` (새 버전 없이 결과 파일) |
+| 문서 업로드 (`POST /runs`) | `run <문서> --project <이름> --defer --until function_designer` |
 
 - 확인 질문에서 멈추면(종료 코드 3) `resume --defer`로 이어 간다.
 - 끝나면 새 버전 폴더를 찾아 `new_version`으로 알려 주고, 판단 기록의 실패·완료 조건 미충족·LLM 오류(사용 한도·크레딧·키)를 `warnings`로 모은다.
@@ -125,6 +128,8 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 | 기존 155개 (`tests/test_*.py`, 3개 건너뜀) | Agent·그래프·도구 (가짜 LLM). import만 바꿔 그대로 통과 |
 | `tests/test_api.py` (7) | 프로젝트 목록·design 합치기·파일 GET/HEAD·경로 탈출 거부·제목 저장·새 버전 입력 검사·작업 409/404·지원 안 하는 문서 거부·rerun 인자 |
 | `tests/test_core.py` (4) | guards 경로·값 검사, 비밀 값 가리기, 오류 응답 형태 |
+| `tests/test_api.py` 추가 (2) | 업로드 인자 `--until function_designer`·review 작업 인자, `POST /projects/review` 202·400(ERD 없음)·404 |
+| `tests/test_hitl_flow.py` (5) | 단계별 시도 횟수, 초안 멈춤 → `--design`으로 ERD(기능 명세 재설계 0회), 잘못된 요구사항 ID 거부, `final` 모드에서 실행 중 의미 검토 0회·`review` 1회(`--source`면 기능 명세도), ERD 없는 버전 review 거부 |
 
 - `tests/conftest.py`: `.env` 키가 없으면 테스트용 키를 넣는다 (CI에서 키 없이 실행).
 - 실제 LLM 출력 품질과 PostgreSQL 검증은 테스트에 포함되지 않는다.
@@ -139,3 +144,19 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 - **문서 불일치**: `docs/plans/`(ITSM PRD·TRD 등)와 `AGENTS.md`는 옛 ITSM 구현 기준이라 지금 코드와 다르다.
 - **루트 `debug-design`**: 없는 모듈(`scripts.debug_design`)을 실행하는 옛 스크립트라 동작하지 않는다.
 - **로컬 데이터**: `backend/output/`에 `고객요구사항4` 산출물과 체크포인트(`checkpoints.sqlite`)를 넣어 두었다 (git 제외). `rerun`은 기준 버전을 만든 실행의 체크포인트가 있어야 한다.
+
+## 9. 화면 흐름 변경: 기능 명세에서 멈춤 · 확정한 명세로 ERD · 최종 확정 때 의미 검토 (2026-10-29)
+
+사용자와 합의한 흐름: LLM 초안은 사람이 확인할 곳((가정)·(확인 필요)·확인 질문)을 표시해 보여 주고, 많이 돌리지 않는다.
+
+| 단계 | 동작 | 자동 반복 |
+| --- | --- | --- |
+| 업로드 | 문서 분석 → 요구사항 추출·검토 → 기능 명세 + 확인 질문 고르기 → 멈춤 | 누락 요구사항 재설계 `FUNC_FIX_ATTEMPTS`번 |
+| '내보내기 → ERD 만들기' | `rerun data_modeler --design`: 화면에서 고친 functions·common으로 데이터 설계 → ERD·DDL(코드) | 모델 오류 수정·연결 보완 `MODEL_FIX_ATTEMPTS`번, DB 검증 `MAX_DB_ATTEMPTS`번. 기능 명세는 다시 설계하지 않고 누락은 이슈로만 |
+| ERD 수정·저장 | 고친 테이블만 반영 (수정만 있으면 LLM 없음) | 위와 같음 |
+| 'ERD 최종 확정' | `review`: ERD ↔ 기능 명세 의미 검토 1회 → `semantic_review.md·json` → 최종 산출물 화면 | 실패 시 `SEMANTIC_REVIEW_ATTEMPTS`번 |
+
+- `--design` 입력은 JSON이다. data_modeler는 기능의 ID·이름·행위자·데이터 객체·입출력 이름·업무 규칙을 구조로 읽기 때문이다 (MD는 기록용 `functions.submitted.md`). 기능 ID 중복·기준 버전에 없는 요구사항 ID는 거부한다.
+- 설정 (`backend/app/core/config.py` `Settings`, `.env`): `FUNC_FIX_ATTEMPTS`·`MODEL_FIX_ATTEMPTS`·`SEMANTIC_REVIEW_ATTEMPTS`(0·빈 값이면 `MAX_FIX_ATTEMPTS`), `MAX_DB_ATTEMPTS`, `SEMANTIC_REVIEW_MODE`(final·auto·off, 코드 기본값 auto), `SEMANTIC_REVIEW_SOURCE`. 단계별 한도는 `Settings.fix_attempts(agent)`가 정하고, 조정 Agent(`gave_up`·`stuck_stages`)와 이슈 시도 횟수(`reconcile_issues`)가 같이 쓴다.
+- 프론트: ERD '확인 필요' 탭의 'ERD 최종 확정'이 `POST /projects/review`를 부른다. 최종 산출물 화면에 '의미 검토' 카드(지적·근거·제안, 다시 검토·받기)를 추가했다. 확정 표시 자체는 여전히 브라우저에만 저장한다.
+- 실제 LLM 확인: `고객요구사항4` v3 review 1회 — 호출 1회, 입력 20,812 · 출력 5,328 토큰, 지적 7건. 업로드 → `--design` ERD 전체 흐름의 실제 LLM 실행은 아직 하지 않았다.

@@ -58,7 +58,7 @@ def intake(state: AgentState) -> dict:
 # ------------------------------------------------------------------ 결과 검사·공통 상태 갱신
 def inspect_result(state: AgentState) -> dict:
     """방금 실행한 전문 Agent의 결과를 결정적으로 검사하고 이슈 목록을 최신 상태로 맞춘다."""
-    max_attempts = get_settings().max_fix_attempts
+    max_attempts = get_settings().fix_attempts
     last = state.get("next_action") or {}
     issues = issues_of(state)
     update: dict = {"last_action": last}
@@ -290,7 +290,7 @@ def check_completion(state: AgentState) -> dict:
     na = "해당 없음 (설계 대상 시스템 기능 요구사항 0건)"
 
     def missing(what: str, agent: str) -> str:
-        return f"{what} 없음" + (f" ({STAGE_LABELS[agent]} Agent {s.max_fix_attempts}회 실패)" if agent in stuck else "")
+        return f"{what} 없음" + (f" ({STAGE_LABELS[agent]} Agent {s.fix_attempts(agent)}회 실패)" if agent in stuck else "")
 
     stage_only = not designs_data(state)   # 기능 명세 단계 버전: 데이터 설계는 확정 후 rerun data_modeler로
     requirements_only = not designs_functions(state)   # 요구사항 단계 버전: 기능 명세는 확정 후 rerun function_designer로
@@ -461,7 +461,7 @@ def db_report(state: AgentState) -> dict:
     _record_db_result(state, result)
     update: dict = {}
     if result.passed:
-        issues = reconcile_issues(issues_of(state), [], lambda k: k.startswith("DB_"), get_settings().max_fix_attempts)
+        issues = reconcile_issues(issues_of(state), [], lambda k: k.startswith("DB_"), get_settings().fix_attempts)
         update["issues"] = _issue_dicts(issues)
     log.info("[DB 보고서] %s", path)
     return update
@@ -482,7 +482,7 @@ def record_db_failure(state: AgentState) -> dict:
         findings.append(finding("DB_VALIDATION_FAILED", "ERROR", f"v{version} DDL 검증 실패: " + " / ".join(related[:3])
                                 + (USER_EDITED_NOTE if table in edited else ""),
                                 "none" if table in edited else "data_modeler", table, "db_validate"))
-    issues = reconcile_issues(issues_of(state), findings, lambda k: k.startswith("DB_"), s.max_fix_attempts)
+    issues = reconcile_issues(issues_of(state), findings, lambda k: k.startswith("DB_"), s.fix_attempts)
     versions = list(state.get("versions") or [])
     if versions:
         versions[-1] = {**versions[-1], "db_validation": "FAILED", "db_errors": result.errors[:10]}

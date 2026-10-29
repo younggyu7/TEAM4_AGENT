@@ -29,9 +29,10 @@ data_modeler (데이터 설계 = 데이터 모델 + 추적 검토 + 의미 검�
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 
-from app.schemas.design import DataModel
+from app.schemas.design import DataModel, FunctionSpec
 from app.agents.flow.state import SEMANTIC_BASIS_INIT, basis, rev
 from app.agents.tools.model_edits import ReworkSummary, apply_user_edits
 from app.agents.tools.model_validator import to_identifier
@@ -105,6 +106,40 @@ def load_answers(path: Path, questions: list[dict]) -> dict[str, str]:
     if unknown:
         raise RerunError(f"기준 버전에 없는 질문 ID: {', '.join(unknown)} (review_report.md의 '확인 질문·가정')")
     return {k: str(v).strip() for k, v in data.items() if str(v).strip()}
+
+
+def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
+    """화면에서 고치고 확정한 기능 명세(design.json)를 읽는다 (rerun data_modeler --design).
+
+    functions(와 common)만 쓰고 나머지(요구사항·질문·이슈)는 기준 버전 것을 그대로 둔다. 요구사항은 기능 명세 화면에서 바꾸지 않는다.
+    {"functions": 기능 목록, "common": 공통 결정 또는 None, "note": 안내 줄}. 형식·ID가 틀리면 RerunError.
+    """
+    if stage != "data_modeler":
+        raise RerunError("--design은 data_modeler 단계 옵션입니다 (확정한 기능 명세로 데이터 설계).")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise RerunError(f"기능 명세 파일을 읽을 수 없습니다: {path} ({e})") from e
+    raw = data.get("functions") if isinstance(data, dict) else None
+    if not isinstance(raw, list) or not raw:
+        raise RerunError("기능 명세 파일에 functions 목록이 없습니다.")
+    try:
+        functions = [FunctionSpec.model_validate(f) for f in raw]
+    except ValueError as e:
+        raise RerunError(f"기능 명세 형식이 올바르지 않습니다: {str(e).splitlines()[0]}") from e
+    duplicated = sorted(i for i, n in Counter(f.function_id for f in functions).items() if n > 1)
+    if duplicated:
+        raise RerunError(f"기능 ID가 겹칩니다: {', '.join(duplicated)}")
+    known = {r["requirement_id"] for r in base.get("requirements") or []}
+    unknown = sorted({i for f in functions for i in [*f.requirement_ids, *f.nfr_ids] if i not in known})
+    if unknown:
+        raise RerunError(f"기준 버전에 없는 요구사항 ID: {', '.join(unknown[:10])}")
+    dumped = [f.model_dump(mode="json") for f in functions]
+    changed, added, removed = changed_functions(base.get("functions") or [], dumped)
+    common = data.get("common")
+    return {"functions": dumped, "common": common if isinstance(common, dict) and common else None,
+            "note": f"기능 명세: 화면에서 확정한 명세 사용 (기능 {len(dumped)}개 · 기준 대비 바뀜 {len(changed)} · "
+                    f"새 {len(added)} · 지움 {len(removed)})"}
 
 
 def prepare_requirements(feedback: str = "") -> list[str]:

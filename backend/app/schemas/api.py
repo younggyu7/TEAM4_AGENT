@@ -12,6 +12,12 @@ class TitleUpdate(BaseModel):
     title: str = ""
 
 
+class ReviewCreate(BaseModel):
+    """ERD 최종 확정: 그 버전의 데이터 모델을 기능 명세와 대조하는 의미 검토를 한 번 한다."""
+    project: str
+    version: str
+
+
 class VersionCreate(BaseModel):
     """기능 명세 내보내기(source: spec) 또는 ERD 저장(source: erd)으로 새 버전 만들기.
     source: spec에 answers가 있으면 확인 질문 답을 반영해 기능 명세 새 버전을 만든다."""

@@ -150,7 +150,7 @@ def run(state: AgentState) -> dict:
             findings.append(finding(f"{PART_PREFIX[part]}{f.category}", "WARNING", message,
                                     target_id=", ".join(ids), raised_by=BY))
         issues = reconcile_issues(issues, _merge_same_target(findings), lambda k, p=PART_PREFIX[part]: k.startswith(p),
-                                  get_settings().max_fix_attempts)
+                                  get_settings().fix_attempts)
         reviewed[part] = _basis_value(part, r)
         done.append(part)
         counts[part] = len(findings)
@@ -168,6 +168,21 @@ def run(state: AgentState) -> dict:
     if failed:
         update["failures"] = {**(state.get("failures") or {}), BY: (state.get("failures") or {}).get(BY, 0) + 1}
     return update
+
+
+def review_saved(requirements: list[dict], functions: list[dict], data_model: dict, source: bool = False) -> dict:
+    """저장된 버전의 의미 검토 (ERD 최종 확정 때, review 명령): 기본은 데이터 모델 ↔ 기능 명세만 보고,
+    source면 기능 명세 ↔ 요구사항도 본다. 실패한 부분은 SEMANTIC_REVIEW_ATTEMPTS까지 다시 요청한다.
+    LLM 한도·키 오류(LLMFatalError)는 그대로 올린다. 검토를 마친 상태(issues·semantic_review·llm_usage 포함)를 돌려준다."""
+    state: dict = {"requirements": requirements, "functions": functions, "data_model": data_model, "issues": [],
+                   "rev": {"requirements": 1, "functions": 1, "model": 1}, "failures": {},
+                   # 검토하지 않을 부분은 이미 본 것으로 둔다 (semantic_stale_parts가 고르지 않게)
+                   "basis": {"semantic": {"functions": [-1, -1] if source else [1, 1], "model": [-1, -1]}}}
+    for _ in range(get_settings().fix_attempts(BY)):
+        state.update(run(state))
+        if not semantic_stale_parts(state):
+            break
+    return state
 
 
 MARKED = ("(가정)", "(확인 필요")

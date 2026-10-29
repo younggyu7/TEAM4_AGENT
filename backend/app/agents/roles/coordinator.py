@@ -44,7 +44,7 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
         return CoordinatorDecision(step=step, action=action, mode=mode, scope=scope or [], reason=reason)
 
     def gave_up(stage: str) -> bool:
-        return failures.get(stage, 0) >= s.max_fix_attempts
+        return failures.get(stage, 0) >= s.fix_attempts(stage)
 
     stale_review = review_stale(state)
 
@@ -107,7 +107,9 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
             return d("function_designer", f"변경된 요구사항 {len(dirty)}건 → 관련 기능만 부분 재설계",
                      "partial", dirty), []
         return d("function_designer", "기능 명세가 아직 없음", "full"), []
-    issues = open_for("function_designer") if designs_functions(state) else []
+    # 데이터 설계 단계(rerun data_modeler)는 사람이 확정한 기능 명세로 하므로 기능 누락을 자동 재설계하지 않고 이슈로만 남긴다
+    redesign_gaps = designs_functions(state) and options.get("stage") != "data_modeler"
+    issues = open_for("function_designer") if redesign_gaps else []
     if issues:
         return d("function_designer", f"기능이 연결되지 않은 요구사항 {len(issues)}건 → 해당 그룹 재설계",
                  "partial", [i.target_id for i in issues]), [i.issue_id for i in issues]
@@ -148,7 +150,7 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
     stuck = stuck_stages(state)
     if stuck:
         names = ", ".join(STAGE_LABELS[a] for a in stuck)
-        return d("check_completion", f"{names} Agent 반복 실패({s.max_fix_attempts}회) → 더 진행할 수 없어 완료 조건 검사"), []
+        return d("check_completion", f"{names} Agent 반복 실패 → 더 진행할 수 없어 완료 조건 검사"), []
     return d("check_completion", "남은 작업 없음 → 완료 조건 검사"), []
 
 
@@ -199,15 +201,16 @@ def pending_stages(state: AgentState) -> list[str]:
 
 
 def stuck_stages(state: AgentState) -> list[str]:
-    """할 일이 남았지만 반복 실패(MAX_FIX_ATTEMPTS)로 포기한 단계. 조정 Agent는 이 단계를 다시 고르지 않는다."""
+    """할 일이 남았지만 반복 실패(단계별 FIX_ATTEMPTS)로 포기한 단계. 조정 Agent는 이 단계를 다시 고르지 않는다."""
     failures = state.get("failures") or {}
-    limit = get_settings().max_fix_attempts
-    return [a for a in pending_stages(state) if failures.get(a, 0) >= limit]
+    s = get_settings()
+    return [a for a in pending_stages(state) if failures.get(a, 0) >= s.fix_attempts(a)]
 
 
 def semantic_enabled(state: AgentState) -> bool:
-    """의미 검토 Agent를 쓰는지 (run --no-semantic-review 또는 SEMANTIC_REVIEW=false면 끔)."""
-    return bool((state.get("options") or {}).get("semantic_review", get_settings().semantic_review))
+    """실행 중에 의미 검토 Agent를 돌리는지 (run --no-semantic-review, SEMANTIC_REVIEW_MODE=final·off면 안 돌림).
+    final이면 ERD 최종 확정 때 review 명령(POST /projects/review)으로 한 번만 한다."""
+    return bool((state.get("options") or {}).get("semantic_review", get_settings().semantic_auto))
 
 
 def run(state: AgentState) -> dict:

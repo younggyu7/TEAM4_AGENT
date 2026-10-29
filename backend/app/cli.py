@@ -4,6 +4,8 @@
                             [--until requirements_analyst|function_designer] [--by-stage]
   python -m app resume <run_id> [--defer] [--retry-failed]
   python -m app rerun data_modeler <프로젝트> --from v2 [--feedback "의견"]   # 데이터 설계만 다시 → v2.1, v2.2 …
+  python -m app rerun data_modeler <프로젝트> --from v2 --design <확정한 design.json>   # 화면에서 확정한 기능 명세로 ERD
+  python -m app review <프로젝트> v2.1 [--source]    # ERD 최종 확정 때 의미 검토 1회 → 그 버전 폴더의 semantic_review.md·json
   python -m app confirm <프로젝트> v2 [--note 메모]   # 단계 버전 확정 (다음 단계는 확정한 버전에서)
   python -m app diff <프로젝트> v1.1 v1.2             # 두 버전의 요구사항·기능·엔티티 변경과 영향
   python -m app versions [프로젝트]   # 프로젝트의 설계 버전 목록. 생략하면 프로젝트 목록
@@ -32,7 +34,8 @@ from app.agents.tools.doc_quality import build_sources, check_document
 from app.agents.tools.document_parser import (UnsupportedFormatError, check_supported, document_codes, file_fingerprint,
                                               parse_document, textless_pages)
 from app.agents.flow.rerun import (STAGES, RerunError, ancestor, base_for, changed_requirements, has_functions, load_answers,
-                                   prepare_data_model, prepare_functions, prepare_requirements, seed_state)
+                                   load_submitted_design, prepare_data_model, prepare_functions, prepare_requirements,
+                                   seed_state)
 from app.schemas.design import QUESTION_STAGES
 from app.agents.tools.convention import ConventionError, list_profiles, load_profile
 from app.agents.tools.exporter import changes_md
@@ -106,6 +109,9 @@ def main(argv: list[str] | None = None) -> int:
     p_rerun.add_argument("--answers",
                          help="(function_designer) 확인 질문 답 JSON {\"질문 ID\": \"답\"}. 요구사항·분류·충돌·기능 명세 질문의 답을 "
                               "한 번에 반영하고, 추천과 다른 답이 바꾼 요구사항·기능만 다시 설계 (화면 1단계 제출)")
+    p_rerun.add_argument("--design",
+                         help="(data_modeler) 화면에서 고치고 확정한 기능 명세가 든 design.json. 기준 버전의 기능 명세 대신 "
+                              "이 파일의 functions(와 common)로 데이터 설계를 한다 (화면 '내보내기 → ERD 만들기')")
     p_rerun.add_argument("--full", action="store_true",
                          help="그 단계 전체를 다시 만듦 (데이터 설계는 사용자가 고친 엔티티 유지)")
     p_rerun.add_argument("--validate-db", action=argparse.BooleanOptionalAction, default=None,
@@ -114,6 +120,14 @@ def main(argv: list[str] | None = None) -> int:
     p_rerun.add_argument("--standard", default="",
                          help="설계 표준 프로필을 바꿈 (생략하면 기준 버전 실행의 프로필, default면 지금 규칙)")
     p_rerun.add_argument("--output-dir")
+
+    p_review = sub.add_parser("review", help="의미 검토만 실행해 그 버전 폴더에 semantic_review.md·json을 쓴다 "
+                                             "(ERD 최종 확정 때. 새 버전은 만들지 않음)")
+    p_review.add_argument("project")
+    p_review.add_argument("version", help="검토할 ERD 버전 (예: v1.1)")
+    p_review.add_argument("--source", action=argparse.BooleanOptionalAction, default=None,
+                          help="기능 명세 ↔ 요구사항(원문)도 검토 (생략하면 SEMANTIC_REVIEW_SOURCE)")
+    p_review.add_argument("--output-dir")
 
     p_versions = sub.add_parser("versions", help="프로젝트의 설계 버전 목록 (생략하면 프로젝트 목록)")
     p_versions.add_argument("project", nargs="?")
@@ -163,6 +177,8 @@ def main(argv: list[str] | None = None) -> int:
         return _standards()
     if args.command == "rerun":
         return _rerun(args)
+    if args.command == "review":
+        return _review(args)
     if args.command == "run":
         if args.provider:
             override_settings(llm_provider=args.provider)
@@ -188,7 +204,9 @@ def _run(args) -> int:
         "only": [o for o in args.only.split(",") if o.strip()],
         "max_sources": args.max_sources or 0,
         "include_narrative": args.include_narrative,
-        "semantic_review": get_settings().semantic_review and not args.no_semantic_review,
+        # SEMANTIC_REVIEW_MODE=final이면 실행 중에는 하지 않고 ERD 최종 확정 때 review 명령으로 한다
+        "semantic_review": get_settings().semantic_auto and not args.no_semantic_review,
+        "semantic_review_mode": "off" if args.no_semantic_review else get_settings().semantic_review_mode,
         "title": args.title.strip(),
         "project": project_name(args.project or path.stem),
         # 프롬프트 구성에 영향을 주는 설정 → resume 때 그대로 재적용 (manual 응답 재생 키도 유지됨)
@@ -470,6 +488,14 @@ def _rerun(args, out: dict | None = None) -> int:
         print(f"기준 버전의 design.json이 없습니다: {design_path}")
         return 2
     design = json.loads(design_path.read_text(encoding="utf-8"))
+    submitted = None
+    if getattr(args, "design", None):
+        try:
+            submitted = load_submitted_design(Path(args.design), design, args.stage)
+        except RerunError as e:
+            print(e)
+            return 2
+        design = {**design, "functions": submitted["functions"]}   # 기준 버전의 기능 명세 대신 화면에서 확정한 명세
     with open_checkpointer(root) as saver:
         graph = build_graph(saver)
         values = graph.get_state(_config(record["run_id"])).values
@@ -489,8 +515,15 @@ def _rerun(args, out: dict | None = None) -> int:
         run_id = f"{datetime.now():%Y%m%d-%H%M%S}-{(values.get('document') or {}).get('document_version', '')[:6]}"
         seeded = seed_state(values, design, args.stage, run_id, base, project_name(args.project),
                             args.feedback, args.validate_db, model, targets, rework)
+        if submitted:
+            if submitted["common"] is not None:
+                seeded["function_common"] = submitted["common"]
+            plan.insert(0, submitted["note"])
         # 이번 실행이 실제로 쓰는 모델을 저장해 resume도 같은 모델로 이어 가게 한다
         options = seeded["options"]
+        # 의미 검토는 기준 실행이 아니라 지금 설정(SEMANTIC_REVIEW_MODE)을 따른다 (final이면 ERD 최종 확정 때만)
+        options["semantic_review"] = get_settings().semantic_auto and options.get("semantic_review", True) is not False
+        options["semantic_review_mode"] = get_settings().semantic_review_mode
         if getattr(args, "standard", ""):
             try:
                 options["standard"] = load_profile(args.standard).key
@@ -512,6 +545,50 @@ def _rerun(args, out: dict | None = None) -> int:
     for line in plan:
         print(f"  {line}")
     return _drive(run_id, None)
+
+
+def _review(args) -> int:
+    """ERD 최종 확정 때의 의미 검토: 저장된 버전의 데이터 모델을 기능 명세와 대조해 그 버전 폴더에 결과를 쓴다 (새 버전 없음)."""
+    from app.agents.roles.semantic_reviewer import review_saved
+    from app.agents.tools.exporter import export_semantic_review
+
+    root = get_settings().output_dir
+    try:
+        record = find_version(root, args.project, args.version)
+    except ValueError as e:
+        print(e)
+        return 2
+    if not record:
+        print(f"버전을 찾을 수 없습니다: {project_name(args.project)} v{args.version.lstrip('vV')}")
+        return 2
+    folder = Path(record["output_dir"])
+    design_path = folder / "design.json"
+    if not design_path.exists():
+        print(f"design.json이 없습니다: {design_path}")
+        return 2
+    design = json.loads(design_path.read_text(encoding="utf-8"))
+    model = design.get("data_model")
+    model_file = folder / (((design.get("meta") or {}).get("files") or {}).get("data_model") or "data_model.json")
+    if not model and model_file.exists():
+        model = json.loads(model_file.read_text(encoding="utf-8"))
+    if not model or not model.get("entities") or not design.get("functions"):
+        print(f"v{record['design_version']}에는 기능 명세와 데이터 모델(ERD)이 함께 있어야 의미 검토를 할 수 있습니다.")
+        return 2
+    source = get_settings().semantic_review_source if args.source is None else args.source
+    print(f"의미 검토: {project_name(args.project)} v{record['design_version']} "
+          f"({'데이터 모델 ↔ 기능 명세, 기능 명세 ↔ 요구사항' if source else '데이터 모델 ↔ 기능 명세'})")
+    try:
+        state = review_saved(design.get("requirements") or [], design["functions"], model, source)
+    except LLMFatalError as e:
+        print(f"LLM 오류로 멈췄습니다: {e}")
+        return 4
+    files = export_semantic_review(state, folder, project_name(args.project), str(record["design_version"]), source)
+    failed = (state.get("semantic_review") or {}).get("failed") or []
+    print(f"결과: {', '.join(str(f) for f in files)}")
+    if failed:
+        print(f"검토 실패(미검증): {', '.join(failed)}")
+        return 2
+    return 0
 
 
 def _rerun_answers(args, design: dict) -> dict[str, str]:

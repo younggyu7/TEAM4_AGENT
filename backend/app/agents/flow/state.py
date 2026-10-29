@@ -139,11 +139,12 @@ def reconcile_issues(
     existing: list[Issue],
     findings: list[Issue],
     owns: Callable[[str], bool],
-    max_attempts: int,
+    max_attempts: int | Callable[[str], int],
 ) -> list[Issue]:
     """검사 결과(findings)로 기존 이슈 목록을 갱신한다.
 
     - owns(kind)가 참인 종류만 이 검사의 소유로 보고 갱신한다.
+    - max_attempts: 시도 한도. 함수(Settings.fix_attempts)를 주면 이슈의 수정 담당 Agent별 한도를 쓴다.
     - 다시 발견된 이슈: 시도 횟수가 한도에 도달했으면 UNRESOLVED, 아니면 OPEN 유지
     - 더 이상 발견되지 않은 이슈: RESOLVED
     """
@@ -157,7 +158,8 @@ def reconcile_issues(
         seen.add(f.key)
         prev = owned_prev.get(f.key)
         if prev:
-            exhausted = prev.target_agent != "none" and prev.attempts >= max_attempts
+            limit = max_attempts(prev.target_agent) if callable(max_attempts) else max_attempts
+            exhausted = prev.target_agent != "none" and prev.attempts >= limit
             result.append(prev.model_copy(update={
                 "message": f.message, "severity": f.severity, "target_agent": f.target_agent,
                 "status": "UNRESOLVED" if exhausted else "OPEN",

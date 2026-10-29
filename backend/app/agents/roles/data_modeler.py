@@ -291,7 +291,7 @@ def run(state: AgentState) -> dict:
     if mode == "redesign":   # 사용자 수정·건너뛴 엔티티 기록은 다시 설계할 때만 새로 정한다
         owned |= {"DATA_USER_EDITS", "DATA_USER_EDITED_SKIPPED"}
         failures += _rework_findings(rework)
-    issues = reconcile_issues(issues_of(state), failures, lambda k: k in owned, get_settings().max_fix_attempts)
+    issues = reconcile_issues(issues_of(state), failures, lambda k: k in owned, get_settings().fix_attempts)
     r, b = rev(state), basis(state)
     update = {
         "data_model": model.model_dump(mode="json"),

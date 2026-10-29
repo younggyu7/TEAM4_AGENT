@@ -1,8 +1,9 @@
 """새 버전 만들기 작업: 화면의 요청을 CLI(`python -m app …`) 하위 프로세스로 실행하고 진행 상황을 기록한다.
 
-- 문서 업로드: `run <문서> --defer` → 기능 명세·ERD 첫 버전
+- 문서 업로드: `run <문서> --defer --until function_designer` → 기능 명세 초안 첫 버전 (ERD는 사람이 확정한 뒤)
 - 기능 명세 화면에서 확인 질문에 새로 답함: `rerun function_designer --answers` (추천과 다른 답이 바꾼 것만 다시 설계)
-- 기능 명세 내보내기 / ERD 저장: `rerun data_modeler` (고친 데이터 모델은 --data-model, 의견은 --feedback)
+- 기능 명세 내보내기 / ERD 저장: `rerun data_modeler` (확정한 기능 명세는 --design, 고친 데이터 모델은 --data-model, 의견은 --feedback)
+- ERD 최종 확정: `review <프로젝트> v<버전>` → 그 버전 폴더에 의미 검토 결과 (새 버전 없음)
 - 확인 질문에서 멈추면(종료 코드 3) `resume --defer`로 보류(가정) 처리하고 이어 간다.
 
 LLM 작업은 몇 분씩 걸리므로 서버 안에서 돌리지 않고 하위 프로세스로 띄운다. 작업 기록은 메모리에만 있어 서버를 다시 띄우면 사라진다.
@@ -42,7 +43,7 @@ class Job:
     id: str
     project: str
     base: str
-    source: str              # run(문서 업로드) / spec(기능 명세 → ERD) / erd(ERD 저장) / answers(확인 질문 답 → 기능 명세)
+    source: str              # run(문서 업로드) / spec(기능 명세 → ERD) / erd(ERD 저장) / answers(확인 질문 답 → 기능 명세) / review(ERD 최종 확정 → 의미 검토)
     status: str              # running / done / failed
     message: str
     log: list[str] = field(default_factory=list)
@@ -89,9 +90,10 @@ class _Runner:
 
     def __init__(self, job: Job, project_dir: Path, output_dir: Path, *, submitted_md: str | None = None,
                  pre: list[str] | None = None, temp: list[Path] | None = None,
-                 on_done: Callable[[str], None] | None = None):
+                 on_done: Callable[[str], None] | None = None, result: Path | None = None):
         self.job, self.project_dir, self.output_dir = job, project_dir, output_dir
         self.submitted_md, self.pre, self.temp, self.on_done = submitted_md, pre or [], temp or [], on_done
+        self.result = result     # 새 버전 대신 이 파일을 만드는 작업 (의미 검토)
         self.before = version_labels(project_dir)
 
     def start(self, args: list[str]) -> None:
@@ -125,10 +127,13 @@ class _Runner:
                     self.job.message = "확인 질문을 보류(가정)로 처리하고 계속하는 중"
                     code = self._exec(["resume", run_id, "--defer", "--output-dir", _path_arg(self.output_dir)])
             if code == 0:
-                self._done()
+                self._reviewed() if self.result else self._done()
             else:
                 self.job.warnings = [*_llm_errors(self.job.log), *self.pre]
-                self._finish("failed", EXIT_MESSAGE.get(code, f"실행이 실패했습니다 (종료 코드 {code})."))
+                reason = EXIT_MESSAGE.get(code, f"실행이 실패했습니다 (종료 코드 {code}).")
+                if self.result and code == 2:
+                    reason = "의미 검토를 끝내지 못했습니다. 아래 기록의 마지막 줄을 확인하세요."
+                self._finish("failed", reason)
         except Exception as e:  # noqa: BLE001 - 작업 스레드의 오류는 화면에 보여 준다
             self._push(repr(e))
             self._finish("failed", f"작업 중 오류가 났습니다: {e}")
@@ -148,6 +153,14 @@ class _Runner:
             self.on_done(newest)
         self._finish("done", f"v{newest}을 만들었지만 Agent 단계 일부가 실패했습니다." if self.job.warnings
                      else f"v{newest}을 만들었습니다.")
+
+    def _reviewed(self) -> None:
+        try:
+            data = json.loads(self.result.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return self._finish("failed", "검토는 끝났지만 결과 파일(semantic_review.json)을 찾지 못했습니다.")
+        self.job.warnings = _llm_errors(self.job.log)
+        self._finish("done", f"의미 검토를 마쳤습니다: 지적 {len(data.get('remarks') or [])}건 (최종 산출물에서 확인)")
 
     def _finish(self, status: str, message: str) -> None:
         self.job.status, self.job.message = status, message
@@ -219,11 +232,23 @@ def start_rerun(*, output_dir: Path, project: str, base: str, source: str, data_
 
 
 def start_run(*, output_dir: Path, document: Path, project: str, title: str = "", validate_db: bool = False) -> Job:
-    """업로드한 문서로 전체 실행(확인 질문은 추천안으로 가정)을 시작한다."""
+    """업로드한 문서로 기능 명세 초안까지 실행한다 (확인 질문은 추천안으로 가정). ERD는 사람이 기능 명세를 확정하고
+    '내보내기 → ERD 만들기'를 할 때 만든다. validate_db는 그때 이어받는다."""
     job = _new_job(project=project, base="", source="run", message=f"{document.name}을(를) 분석하는 중")
-    args = ["run", _path_arg(document), "--project", project, "--defer", "--output-dir", _path_arg(output_dir),
+    args = ["run", _path_arg(document), "--project", project, "--defer", "--until", "function_designer",
+            "--output-dir", _path_arg(output_dir),
             *(["--title", title] if title else []), *(["--validate-db"] if validate_db else [])]
     _Runner(job, output_dir / project, output_dir).start(args)
+    return job
+
+
+def start_review(*, output_dir: Path, project: str, version: str) -> Job:
+    """ERD 최종 확정: 그 버전의 데이터 모델을 기능 명세와 대조하는 의미 검토를 한 번 한다 (결과는 그 버전 폴더)."""
+    project_dir = (output_dir / project).resolve()
+    root, name = project_dir.parent, project_dir.name
+    job = _new_job(project=project, base=version, source="review", message=f"ERD v{version}을 기능 명세와 대조해 의미 검토하는 중")
+    _Runner(job, project_dir, root, result=project_dir / f"v{version}" / "semantic_review.json").start(
+        ["review", name, f"v{version}", "--output-dir", _path_arg(root)])
     return job
 
 

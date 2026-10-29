@@ -584,7 +584,9 @@ def _semantic_md(state: dict, issues: list[Issue]) -> list[str]:
             "자동으로 고치지 않으며, 담당자가 확인해 반영 여부를 정한다.", ""]
     options = state.get("options") or {}
     if options.get("semantic_review") is False:
-        return head + ["- 실행 안 함 (--no-semantic-review)", ""]
+        if options.get("semantic_review_mode") == "final":
+            return head + ["- 이 실행에서는 하지 않음: 'ERD 최종 확정' 때 한 번 검토한다 (SEMANTIC_REVIEW_MODE=final → semantic_review.md)", ""]
+        return head + ["- 실행 안 함 (--no-semantic-review 또는 SEMANTIC_REVIEW_MODE=off)", ""]
     meta = state.get("semantic_review") or {}
     if not meta:
         return head + ["- 실행 안 함", ""]
@@ -604,6 +606,34 @@ def _semantic_md(state: dict, issues: list[Issue]) -> list[str]:
         notes.append(f"- 대상 ID를 산출물에서 찾을 수 없는 지적 {meta['dropped']}건은 근거를 확인할 수 없어 제외했다.")
     body = table(["ID", "종류", "대상", "내용", "근거", "제안", "확인 담당"], rows) if rows else "- 지적 없음"
     return head + [body, "", *notes, *([""] if notes else [])]
+
+
+def export_semantic_review(state: dict, out_dir: Path, project: str, version: str, source: bool) -> list[Path]:
+    """ERD 최종 확정 때의 의미 검토 결과(review 명령)를 그 버전 폴더에 쓴다: semantic_review.md(보고서)·json(화면용).
+    산출물 내용은 바뀌지 않으므로 새 버전을 만들지 않고, 다시 확정하면 덮어쓴다."""
+    issues = [Issue.model_validate(i) for i in state.get("issues") or []]
+    meta = state.get("semantic_review") or {}
+    usage = state.get("llm_usage") or {}
+    scope = "데이터 모델 ↔ 기능 명세, 기능 명세 ↔ 요구사항" if source else "데이터 모델 ↔ 기능 명세"
+    reviewed_at = datetime.now().isoformat(timespec="seconds")
+    head = [f"# 의미 검토 (최종 확정) — {project} v{version}", "",
+            f"- 검토 시각: {reviewed_at} · 범위: {scope}",
+            f"- LLM 호출 {usage.get('calls', 0)}회 · 입력 토큰 {usage.get('input_tokens', 0):,} · "
+            f"출력 토큰 {usage.get('output_tokens', 0):,}", ""]
+    remarks = []
+    for i in issues:
+        if not i.kind.startswith("SEM_") or i.status == "RESOLVED":
+            continue
+        label, owner = SEMANTIC_KINDS.get(i.kind, (i.kind, ""))
+        for chunk in i.message.split("\n\n"):
+            what, evidence, suggestion = _split_remark(chunk)
+            remarks.append({"issue_id": i.issue_id, "kind": i.kind, "label": label, "target": i.target_id,
+                            "message": what, "evidence": evidence, "suggestion": suggestion, "owner": owner})
+    data = {"project": project, "version": version, "reviewed_at": reviewed_at, "scope": scope,
+            "parts": meta.get("parts") or [], "failed": meta.get("failed") or [], "remarks": remarks, "usage": usage}
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return [_write(out_dir / "semantic_review.md", "\n".join(head + _semantic_md(state, issues))),
+            _write(out_dir / "semantic_review.json", json.dumps(data, ensure_ascii=False, indent=2) + "\n")]
 
 
 def _split_remark(text: str) -> tuple[str, str, str]:

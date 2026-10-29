@@ -14,6 +14,7 @@ from app.core.guards import inside, is_version
 FILES = {
     "design.json", "schema.sql", "erd.mmd", "erd.md", "review_report.md", "requirements.md",
     "functions.md", "traceability.md", "traceability.csv", "db_validation.md", "data_model.json", "functions.submitted.md",
+    "semantic_review.md", "semantic_review.json",
 }
 VERSION_DIR = re.compile(r"^v(\d+(?:\.\d+)*)$")
 MAX_DEPTH = 3

@@ -34,6 +34,20 @@ def _bool(name: str, default: bool) -> bool:
     return value in {"1", "true", "yes", "y"} if value else default
 
 
+SEMANTIC_REVIEW_MODES = ("auto", "final", "off")
+
+
+def _semantic_review_mode(default: str) -> str:
+    """SEMANTIC_REVIEW_MODE: auto(산출물이 바뀔 때마다) / final(ERD 최종 확정 때만, review 명령) / off.
+    SEMANTIC_REVIEW=false면 off (예전 설정 호환)."""
+    if not _bool("SEMANTIC_REVIEW", True):
+        return "off"
+    value = os.getenv("SEMANTIC_REVIEW_MODE", "").strip().lower() or default
+    if value not in SEMANTIC_REVIEW_MODES:
+        raise ValueError(f"SEMANTIC_REVIEW_MODE는 {'·'.join(SEMANTIC_REVIEW_MODES)} 중 하나입니다: {value}")
+    return value
+
+
 @dataclass(frozen=True)
 class Settings:
     """실행 설정. .env 값으로 만들고 CLI 인자로 일부를 덮어쓴다."""
@@ -50,7 +64,9 @@ class Settings:
     func_question_ratio: float = 0.1                     # 기능 명세 확인 대상 후보 중 고객에게 묻는 비율 (나머지는 추천안으로 정함)
     attr_batch_size: int = 5
     max_steps: int = 40
-    max_fix_attempts: int = 2
+    max_fix_attempts: int = 2                            # Agent 실패·이슈 자동 수정 횟수 (아래 단계별 값이 0이면 이 값)
+    func_fix_attempts: int = 0                           # 기능 명세: 누락 요구사항 재설계·실패 재시도 횟수 (0이면 max_fix_attempts)
+    model_fix_attempts: int = 0                          # 데이터 설계: 모델 오류 수정·연결 보완·실패 재시도 횟수 (0이면 max_fix_attempts)
     max_db_attempts: int = 2
     data_dir: Path = Path("data")                          # 입력 문서 폴더 (parse 기본 대상, run에서 이름만 줘도 찾음)
     output_dir: Path = Path("output")
@@ -58,6 +74,9 @@ class Settings:
     validation_db_url: str = DEFAULT_VALIDATION_DB_URL   # 빈 문자열이면 SQLite로만 검증
     keep_validation_schema: bool = False
     semantic_review: bool = True                         # 의미 검토 Agent 실행 여부 (run --no-semantic-review로 끔)
+    semantic_review_mode: str = "auto"                   # auto: 산출물이 바뀔 때마다 / final: ERD 최종 확정 때만 (review) / off
+    semantic_review_attempts: int = 0                    # 의미 검토 실패 시 시도 횟수 (0이면 max_fix_attempts)
+    semantic_review_source: bool = False                 # 최종 확정 검토에서 기능 명세 ↔ 요구사항(원문)도 볼지 (기본은 ERD ↔ 기능 명세만)
     requirement_review: bool = True                      # 요구사항 검토 Agent(원문 대조·충돌 검토) 실행 여부
     req_review_batch: int = 12                           # 원문 대조 요청 1건에 넣는 원문 단위 수 (보내는 내용이 작아 크게)
     req_review_coverage: float = 0.6                     # 원문 문장이 요구사항에 '담김'으로 보는 겹침 비율 (이보다 낮은 문장만 누락 검사로 보냄)
@@ -83,6 +102,8 @@ class Settings:
             attr_batch_size=_int("ATTR_BATCH_SIZE", cls.attr_batch_size),
             max_steps=_int("MAX_STEPS", cls.max_steps),
             max_fix_attempts=_int("MAX_FIX_ATTEMPTS", cls.max_fix_attempts),
+            func_fix_attempts=_int("FUNC_FIX_ATTEMPTS", cls.func_fix_attempts),
+            model_fix_attempts=_int("MODEL_FIX_ATTEMPTS", cls.model_fix_attempts),
             max_db_attempts=_int("MAX_DB_ATTEMPTS", cls.max_db_attempts),
             data_dir=Path(os.getenv("DATA_DIR", "data")),
             output_dir=Path(os.getenv("OUTPUT_DIR", "output")),
@@ -90,6 +111,9 @@ class Settings:
             validation_db_url=_validation_db_url(),
             keep_validation_schema=_bool("KEEP_VALIDATION_SCHEMA", False),
             semantic_review=_bool("SEMANTIC_REVIEW", True),
+            semantic_review_mode=_semantic_review_mode(cls.semantic_review_mode),
+            semantic_review_attempts=_int("SEMANTIC_REVIEW_ATTEMPTS", cls.semantic_review_attempts),
+            semantic_review_source=_bool("SEMANTIC_REVIEW_SOURCE", cls.semantic_review_source),
             requirement_review=_bool("REQUIREMENT_REVIEW", True),
             req_review_batch=_int("REQ_REVIEW_BATCH", cls.req_review_batch),
             req_review_coverage=float(os.getenv("REQ_REVIEW_COVERAGE", "").strip() or cls.req_review_coverage),
@@ -98,6 +122,17 @@ class Settings:
             cors_origins=tuple(o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip())
             or DEFAULT_CORS_ORIGINS,
         )
+
+    def fix_attempts(self, agent: str) -> int:
+        """그 Agent의 반복 실패·이슈 자동 수정 한도. 단계별 값(FUNC·MODEL_FIX_ATTEMPTS 등)이 0이면 MAX_FIX_ATTEMPTS."""
+        limit = {"function_designer": self.func_fix_attempts, "data_modeler": self.model_fix_attempts,
+                 "semantic_reviewer": self.semantic_review_attempts}.get(agent, 0)
+        return limit or self.max_fix_attempts
+
+    @property
+    def semantic_auto(self) -> bool:
+        """실행 중 산출물이 바뀔 때마다 의미 검토를 하는지 (final이면 ERD 최종 확정 때 review 명령으로만)."""
+        return self.semantic_review and self.semantic_review_mode == "auto"
 
 
 _settings: Settings | None = None

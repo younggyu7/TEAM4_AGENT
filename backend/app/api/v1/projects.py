@@ -5,7 +5,8 @@
   GET  /file?project=<id>&version=<N>&name=…   산출물 원문 (schema.sql, erd.mmd …)
   POST /projects/title                         버전 제목 저장
   POST /projects/versions                      기능 명세 내보내기·ERD 저장·확인 질문 답 반영 → {job}
-  POST /runs                                   문서 업로드 → 전체 실행 → {job}
+  POST /projects/review                        ERD 최종 확정 → 의미 검토 1회 (그 버전 폴더에 semantic_review.*) → {job}
+  POST /runs                                   문서 업로드 → 기능 명세 초안까지 실행 → {job}
   GET  /capabilities                           백엔드 rerun이 기능 명세 수정본을 받는지 {design, spec_md}
   GET  /jobs?id=<job>                          작업 진행 상황
 """
@@ -24,7 +25,7 @@ from app.agents.tools.document_parser import UnsupportedFormatError, check_suppo
 from app.core import guards
 from app.core.config import get_settings
 from app.core.exceptions import BadRequest, Conflict, NotFound, PayloadTooLarge
-from app.schemas.api import TitleUpdate, VersionCreate
+from app.schemas.api import ReviewCreate, TitleUpdate, VersionCreate
 from app.services import jobs, output_store
 
 router = APIRouter(tags=["projects"])
@@ -91,7 +92,20 @@ def create_version(body: VersionCreate):
     return {"job": job.to_dict()}
 
 
-@router.post("/runs", status_code=202, summary="문서 업로드 → 전체 실행 (작업)")
+@router.post("/projects/review", status_code=202, summary="ERD 최종 확정 → 의미 검토 (작업)")
+def create_review(body: ReviewCreate):
+    folder = _project_dir(body.project)
+    version = guards.version(body.version)
+    design_file = folder / f"v{version}" / "design.json"
+    if not design_file.exists():
+        raise NotFound(f"버전 v{version}이 없습니다.")
+    if not (output_store.read_design(design_file).get("data_model") or {}).get("entities"):
+        raise BadRequest(f"v{version}에는 ERD(데이터 모델)가 없어 의미 검토를 할 수 없습니다.")
+    _no_running_job(body.project)
+    return {"job": jobs.start_review(output_dir=output_store.output_root(), project=body.project, version=version).to_dict()}
+
+
+@router.post("/runs", status_code=202, summary="문서 업로드 → 기능 명세 초안까지 실행 (작업)")
 async def create_run(
     file: Annotated[UploadFile, File(description="요구사항 문서 (PDF·DOCX·HWPX·TXT 등)")],
     project: Annotated[str, Form(description="프로젝트 이름. 생략하면 문서 파일 이름")] = "",

@@ -74,7 +74,7 @@ def run(state: AgentState) -> dict:
                                 raised_by=by))
 
     issues = reconcile_issues(issues_of(state), findings, lambda k: k.startswith("TRACE_"),
-                              get_settings().max_fix_attempts)
+                              get_settings().fix_attempts)
     errors = sum(f.severity == "ERROR" for f in findings)
     log.info("[검토] 추적 링크 %d개, 검토 이슈 %d건 (오류 %d)", len(links), len(findings), errors)
     r = rev(state)

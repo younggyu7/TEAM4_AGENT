@@ -40,7 +40,7 @@ def _analyze(state: AgentState) -> dict:
     if options.get("max_sources"):
         sources = sources[: int(options["max_sources"])]
     issues = reconcile_issues(issues_of(state), findings, lambda k: k.startswith("DOC_"),
-                              get_settings().max_fix_attempts)
+                              get_settings().fix_attempts)
     tables = sum(b.block_type == "requirement_table" for b in blocks)
     log.info("[문서분석] 블록 %d개 (요구사항 표 %d) → 추출 단위 %d개, 문서 경고 %d건",
              len(blocks), tables, len(sources), len(findings))
