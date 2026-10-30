@@ -20,7 +20,6 @@ import argparse
 import json
 import os
 import logging
-import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -34,15 +33,17 @@ from app.agents.llm.client import LLMFatalError, LLMPending, pending_requests, r
 from app.agents.tools.doc_quality import build_sources, check_document
 from app.agents.tools.document_parser import (UnsupportedFormatError, check_supported, document_codes, file_fingerprint,
                                               parse_document, textless_pages)
-from app.agents.flow.rerun import (STAGES, RerunError, ancestor, base_for, changed_requirements, has_functions, load_answers,
-                                   load_submitted_design, prepare_data_model, prepare_functions, prepare_requirements,
+from app.agents.flow.rerun import (STAGES, RerunError, ancestor, base_for, changed_requirements, has_functions, has_model,
+                                   load_answers, load_submitted_design, prepare_data_model, prepare_functions,
+                                   prepare_requirements, read_design,
                                    seed_state)
-from app.schemas.design import QUESTION_STAGES
+from app.schemas.requirement import QUESTION_STAGES
 from app.agents.tools.convention import ConventionError, list_profiles, load_profile
 from app.agents.tools.exporter import changes_md
 from app.agents.tools.trace_diff import compare_versions, load_previous
-from app.agents.tools.versions import (INDEX, claim_next_version, find_version, load_versions, project_dir, project_name,
-                                      save_version, update_version, version_label)
+from app.agents.storage import get_store
+from app.agents.tools.versions import (claim_next_version, find_version, load_versions, project_name, save_version,
+                                      update_version, version_label)
 
 log = logging.getLogger("req_agent")
 
@@ -242,7 +243,7 @@ STAGE_FLOW = ("requirements_analyst", "function_designer", "data_modeler")
 
 def _version_of(project: str, run_id: str) -> str | None:
     """실행이 만든 마지막 버전 번호."""
-    made = [v["design_version"] for v in load_versions(get_settings().output_dir, project) if v.get("run_id") == run_id]
+    made = [v["design_version"] for v in load_versions(project) if v.get("run_id") == run_id]
     return made[-1] if made else None
 
 
@@ -256,7 +257,7 @@ def _stage_of(record: dict) -> str:
 def _by_stage(project: str, version: str) -> int:
     """단계별 진행: 버전마다 [확정하고 다음 단계 / 의견 넣고 다시 만들기 / 멈춤]을 묻고 rerun으로 이어 간다."""
     while True:
-        record = find_version(get_settings().output_dir, project, version)
+        record = find_version(project, version)
         stage = _stage_of(record)
         label = STAGES[stage]["label"]
         last = stage == STAGE_FLOW[-1]
@@ -297,16 +298,15 @@ def _by_stage(project: str, version: str) -> int:
 
 def _confirm(project: str, version: str, note: str) -> int:
     """버전을 확정한다 (versions.json에 확정 시각·메모). 확정한 버전도 고치면 새 버전이 생긴다 (덮어쓰지 않음)."""
-    root = get_settings().output_dir
     try:
-        record = find_version(root, project, version)
+        record = find_version(project, version)
     except ValueError as e:
         print(e)
         return 2
     if not record:
         print(f"버전을 찾을 수 없습니다: {project_name(project)} v{version.lstrip('vV')}")
         return 2
-    update_version(root, project, record["design_version"], confirmed=True,
+    update_version(project, record["design_version"], confirmed=True,
                    confirmed_at=datetime.now().isoformat(timespec="seconds"), confirm_note=note.strip())
     stage = _stage_of(record)
     nxt = STAGE_FLOW.index(stage) + 1
@@ -317,25 +317,28 @@ def _confirm(project: str, version: str, note: str) -> int:
 
 
 def _diff(project: str, old: str, new: str, out: str | None) -> int:
-    """두 버전의 변경과 영향을 비교해 파일로 쓰고 요약을 보여 준다 (LLM 없음)."""
-    root = get_settings().output_dir
+    """두 버전의 변경과 영향을 비교해 파일로 쓰고 요약을 보여 준다 (LLM 없음). --out이 없으면 프로젝트 파일로 남긴다."""
     try:
-        a, b = find_version(root, project, old), find_version(root, project, new)
+        a, b = find_version(project, old), find_version(project, new)
     except ValueError as e:
         print(e)
         return 2
     if not a or not b:
         print(f"버전을 찾을 수 없습니다: {old if not a else new} (python -m app versions {project_name(project)})")
         return 2
-    folder = project_dir(root, project)
-    previous, current = load_previous(folder, a["design_version"]), load_previous(folder, b["design_version"])
+    project = project_name(project)
+    previous, current = load_previous(project, a["design_version"]), load_previous(project, b["design_version"])
     if previous is None or current is None:
-        print("비교할 버전 폴더의 design.json이 없습니다.")
+        print("비교할 버전의 design.json이 없습니다.")
         return 2
-    changes = compare_versions(current, previous, (folder / f"v{b['design_version']}" / "data_model.json").exists())
-    path = Path(out) if out else folder / f"diff-v{a['design_version']}-v{b['design_version']}.md"
+    changes = compare_versions(current, previous, has_model(project, b["design_version"]))
     title = f"# 버전 비교: v{a['design_version']} → v{b['design_version']}"
-    path.write_text("\n".join([title, "", *changes_md(changes)]) + "\n", encoding="utf-8")
+    text = "\n".join([title, "", *changes_md(changes)]) + "\n"
+    if out:
+        Path(out).write_text(text, encoding="utf-8")
+        path = out
+    else:
+        path = get_store().write_project_file(project, f"diff-v{a['design_version']}-v{b['design_version']}.md", text)
     c = changes["counts"]
     print(f"v{a['design_version']} → v{b['design_version']}: 요구사항 {_counts(c['requirements'])} · "
           f"기능 {_counts(c['functions'])}" + (f" · 엔티티 {_counts(c['entities'])}" if c["entities"] is not None else ""))
@@ -445,12 +448,11 @@ def _project(values: dict) -> str:
 
 def _versions(project: str | None) -> int:
     """프로젝트의 설계 버전 목록을 보여준다. 프로젝트를 주지 않으면 버전 기록이 있는 프로젝트 목록."""
-    root = get_settings().output_dir
     if not project:
-        projects = sorted(p.parent.name for p in root.glob(f"*/{INDEX}"))
+        projects = sorted(get_store().list_projects())
         print("프로젝트: " + (", ".join(projects) if projects else "없음"))
         return 0
-    versions = load_versions(root, project)
+    versions = load_versions(project)
     if not versions:
         print(f"버전 기록이 없습니다: {project_name(project)}")
         return 2
@@ -477,7 +479,7 @@ def _rerun(args, out: dict | None = None) -> int:
     """
     root = get_settings().output_dir
     try:
-        record = find_version(root, args.project, args.from_version)
+        record = find_version(args.project, args.from_version)
     except ValueError as e:
         print(e)
         return 2
@@ -485,11 +487,10 @@ def _rerun(args, out: dict | None = None) -> int:
         print(f"버전을 찾을 수 없습니다: {project_name(args.project)} v{args.from_version.lstrip('vV')} "
               f"(python -m app versions {project_name(args.project)})")
         return 2
-    design_path = Path(record["output_dir"]) / "design.json"
-    if not design_path.exists():
-        print(f"기준 버전의 design.json이 없습니다: {design_path}")
+    design = read_design(project_name(args.project), str(record["design_version"]))
+    if design is None:
+        print(f"기준 버전의 design.json이 없습니다: {record['output_dir']}")
         return 2
-    design = json.loads(design_path.read_text(encoding="utf-8"))
     submitted = None
     if getattr(args, "design", None):
         try:
@@ -508,7 +509,7 @@ def _rerun(args, out: dict | None = None) -> int:
             return 2
         try:
             answers = _rerun_answers(args, design)
-            model, targets, rework, plan = _rerun_scope(args, root, record, values, design, bool(answers))
+            model, targets, rework, plan = _rerun_scope(args, record, values, design, bool(answers))
         except RerunError as e:
             print(e)
             return 2
@@ -565,29 +566,27 @@ def _review(args) -> int:
     root = get_settings().output_dir
     project = project_name(args.project)
     try:
-        record = find_version(root, args.project, args.version)
+        record = find_version(args.project, args.version)
         if record and record.get("stage") == "final":   # 최종본에서 다시 확정하면 그 ERD에서
-            record = find_version(root, args.project, record["base"])
+            record = find_version(args.project, record["base"])
     except ValueError as e:
         print(e)
         return 2
     if not record:
         print(f"버전을 찾을 수 없습니다: {project} v{args.version.lstrip('vV')}")
         return 2
-    folder = Path(record["output_dir"])
-    design_path = folder / "design.json"
-    if not design_path.exists():
-        print(f"design.json이 없습니다: {design_path}")
+    store, base = get_store(), str(record["design_version"])
+    design = read_design(project, base)
+    if design is None:
+        print(f"design.json이 없습니다: {record['output_dir']}")
         return 2
-    design = json.loads(design_path.read_text(encoding="utf-8"))
     model = design.get("data_model")
-    model_file = folder / (((design.get("meta") or {}).get("files") or {}).get("data_model") or "data_model.json")
-    if not model and model_file.exists():
-        model = json.loads(model_file.read_text(encoding="utf-8"))
+    model_name = ((design.get("meta") or {}).get("files") or {}).get("data_model") or "data_model.json"
+    if not model and (text := store.read(project, base, model_name)) is not None:
+        model = json.loads(text)
     if not model or not model.get("entities") or not design.get("functions"):
-        print(f"v{record['design_version']}에는 기능 명세와 데이터 모델(ERD)이 함께 있어야 의미 검토를 할 수 있습니다.")
+        print(f"v{base}에는 기능 명세와 데이터 모델(ERD)이 함께 있어야 의미 검토를 할 수 있습니다.")
         return 2
-    base = str(record["design_version"])
     source = get_settings().semantic_review_source if args.source is None else args.source
     print(f"ERD 최종 확정: {project} v{base} → 최종본 (추적 검토 + 의미 검토: "
           f"{'데이터 모델 ↔ 기능 명세, 기능 명세 ↔ 요구사항' if source else '데이터 모델 ↔ 기능 명세'})")
@@ -606,21 +605,21 @@ def _review(args) -> int:
     except LLMFatalError as e:
         print(f"LLM 오류로 멈췄습니다: {e}")
         return 4
-    version, out_dir = claim_next_version(root, project, base)
-    files = export_design({**state, "design_version": version}, out_dir, version)
-    files += export_semantic_review(state, out_dir, project, version, source)
-    if (folder / "db_validation.md").exists():   # DB 검증은 확정한 ERD 그대로
-        files.append(Path(shutil.copy2(folder / "db_validation.md", out_dir / "db_validation.md")))
+    version = claim_next_version(project, base)
+    files = export_design({**state, "design_version": version}, version)
+    files += export_semantic_review(state, project, version, source)
+    if (db_report := store.read(project, base, "db_validation.md")) is not None:   # DB 검증은 확정한 ERD 그대로
+        files.append(store.write(project, version, "db_validation.md", db_report))
     failed = (state.get("semantic_review") or {}).get("failed") or []
     usage = state.get("llm_usage") or {}
-    save_version(root, project, {
+    save_version(project, {
         "design_version": version, "parent": base, "created_at": datetime.now().isoformat(timespec="seconds"),
         "summary": [f"ERD v{base} 최종 확정: 추적 검토 · 의미 검토 (지적 "
                     f"{sum(i['kind'].startswith('SEM_') and i['status'] != 'RESOLVED' for i in state['issues'])}건)"],
-        "output_dir": str(out_dir), "run_id": record["run_id"], "stage": "final", "base": base,
+        "run_id": record["run_id"], "stage": "final", "base": base,
         "document": record.get("document", ""),
         **{k: record[k] for k in ("db_validation", "db_engine", "db_errors") if record.get(k)}})
-    print(f"최종본 v{version} → {out_dir} (산출물 {len(files)}개)")
+    print(f"최종본 v{version} → {store.version_location(project, version)} (산출물 {len(files)}개)")
     print(f"LLM 호출 {usage.get('calls', 0)}회 · 토큰 in {usage.get('input_tokens', 0):,} / out {usage.get('output_tokens', 0):,}")
     if failed:
         print(f"검토 실패(미검증): {', '.join(failed)} — 최종본 보고서에 표시함")
@@ -657,11 +656,12 @@ def _apply_answers(seeded: dict, answers: dict[str, str]) -> str:
             + ("" if dirty or applied.get("function_targets") else " (모두 추천안과 같아 확정 표시만)"))
 
 
-def _rerun_scope(args, root: Path, record: dict, values: dict, design: dict, answers: bool = False):
+def _rerun_scope(args, record: dict, values: dict, design: dict, answers: bool = False):
     """rerun 단계별 범위를 정한다: (시작 모델, 다시 설계할 대상, 데이터 설계 요약, 안내 줄). 진행할 수 없으면 RerunError.
 
     answers: 확인 질문 답이 있으면 범위 옵션이 없어도 된다 (답이 바꾼 것만 다시 설계)."""
     feedback = args.feedback.strip()
+    project = project_name(args.project)
     if args.stage == "requirements_analyst":
         if args.requirements or args.entities or args.data_model or args.full:
             raise RerunError("요구사항 다시 만들기는 --feedback만 받습니다 (의견이 바꾸는·빼는·새 요구사항만 반영).")
@@ -674,12 +674,12 @@ def _rerun_scope(args, root: Path, record: dict, values: dict, design: dict, ans
         notes = []
         if not design.get("functions"):
             # 요구사항 단계 버전: 가장 가까운 기능 명세 버전에서 바뀐 요구사항의 그룹만 다시 설계 (없으면 처음부터 전체)
-            source = ancestor(root, args.project, str(record["design_version"]), has_functions)
+            source = ancestor(project, str(record["design_version"]), lambda v: has_functions(project, v))
             if source is None:
                 targets = prepare_functions(design, args.requirements, False, feedback) if args.requirements else ["*"]
                 notes.append("기준 버전에 기능 명세가 없어 처음부터 설계")
             else:
-                old = json.loads((Path(source["output_dir"]) / "design.json").read_text(encoding="utf-8"))
+                old = read_design(project, str(source["design_version"])) or {}
                 design["functions"] = old.get("functions") or []
                 changed = changed_requirements(old.get("requirements") or [], design.get("requirements") or [])
                 explicit = args.requirements or args.full or feedback
@@ -706,12 +706,12 @@ def _rerun_scope(args, root: Path, record: dict, values: dict, design: dict, ans
     inherited = None
     if record.get("stage") == "function_designer" and record.get("base"):
         # 기능 명세 단계 버전: 기준 버전 쪽으로 올라가며 데이터 모델이 있는 가장 가까운 버전의 모델을 이어받는다
-        base_rec = ancestor(root, args.project, str(record["base"]), lambda p: (p / "data_model.json").exists())
-        if base_rec and (Path(base_rec["output_dir"]) / "design.json").exists():
-            base_design = json.loads((Path(base_rec["output_dir"]) / "design.json").read_text(encoding="utf-8"))
-            inherited = (Path(base_rec["output_dir"]), base_design.get("functions") or [], str(base_rec["design_version"]))
+        base_rec = ancestor(project, str(record["base"]), lambda v: has_model(project, v))
+        base_design = read_design(project, str(base_rec["design_version"])) if base_rec else None
+        if base_design is not None:
+            inherited = (str(base_rec["design_version"]), base_design.get("functions") or [])
     model, targets, rework = prepare_data_model(
-        values, Path(record["output_dir"]), Path(args.data_model) if args.data_model else None,
+        values, project, str(record["design_version"]), Path(args.data_model) if args.data_model else None,
         str(values.get("design_version")) == str(record["design_version"]),
         args.entities, args.full, feedback, inherited, design.get("functions") or [])
     if model is None:

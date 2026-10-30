@@ -5,7 +5,9 @@ from app.agents.llm import client as llm_module
 from app.agents.roles import trace_reviewer
 from app.core.config import get_settings
 from app.agents.flow.graph import build_graph, open_checkpointer
-from app.schemas.design import Attribute, DataModel, Entity, FunctionSpec, Requirement
+from app.schemas.data_model import Attribute, DataModel, Entity
+from app.schemas.function import FunctionSpec
+from app.schemas.requirement import Requirement
 from app.agents.flow.state import dump
 from app.agents.tools.trace_diff import version_changes
 

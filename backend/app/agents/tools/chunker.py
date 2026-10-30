@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from app.schemas.design import DocumentBlock, RequirementSource
+from app.schemas.document import DocumentBlock, RequirementSource
 
 MAX_CHARS = 3000      # 요구사항 추출 요청 1건에 넣을 본문 상한 (글자 수)
 SECTION_DEPTH = 3     # 제목 경로 몇 단계까지를 한 단위로 볼지 (장·절·항)

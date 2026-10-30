@@ -10,9 +10,11 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-from app.schemas.design import DataModel, FunctionSpec, Requirement
+from app.agents.storage import get_store
+from app.schemas.data_model import DataModel
+from app.schemas.function import FunctionSpec
+from app.schemas.requirement import Requirement
 from app.agents.tools.versions import load_versions
 
 REQ_FIELDS = {"type": "유형", "scope": "범위", "category": "분류", "title": "제목", "description": "설명",
@@ -26,21 +28,23 @@ ENTITY_FIELDS = {"label": "이름", "description": "설명", "kind": "종류", "
                  "checks": "값 조건"}
 
 
-def load_previous(project_dir: Path, parent: str | None) -> dict | None:
-    """이전 버전의 요구사항·기능 명세와 가장 가까운 데이터 모델. 이전 버전이 없거나 폴더가 없으면 None.
+def load_previous(project: str, parent: str | None) -> dict | None:
+    """이전 버전의 요구사항·기능 명세와 가장 가까운 데이터 모델. 이전 버전이 없거나 산출물이 없으면 None.
 
     {"version", "requirements", "functions", "model", "model_version"} (모델이 없으면 model None)
     """
-    if not parent or not (project_dir / f"v{parent}" / "design.json").exists():
+    store = get_store()
+    text = store.read(project, parent, "design.json") if parent else None
+    if text is None:
         return None
-    design = json.loads((project_dir / f"v{parent}" / "design.json").read_text(encoding="utf-8"))
-    parents = {v["design_version"]: v.get("parent") for v in load_versions(project_dir.parent, project_dir.name)}
+    design = json.loads(text)
+    parents = {v["design_version"]: v.get("parent") for v in load_versions(project)}
     label, seen = parent, set()
     while label and label not in seen:
         seen.add(label)
-        path = project_dir / f"v{label}" / "data_model.json"
-        if path.exists():
-            model = DataModel.model_validate_json(path.read_text(encoding="utf-8"))
+        raw = store.read(project, label, "data_model.json")
+        if raw is not None:
+            model = DataModel.model_validate_json(raw)
             break
         label = parents.get(label)
     else:

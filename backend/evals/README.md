@@ -193,7 +193,7 @@ v0.2로 채점했을 때(진술 410개)는 변경 전 재현율이 98.9%로 나�
 
 바꾼 것
 
-1. **우선순위 규칙** ([requirements_analyst.py](../app/agents/roles/requirements_analyst.py) `_priority`, [schemas.py](../app/schemas/design.py)).
+1. **우선순위 규칙** ([requirements_analyst.py](../app/agents/roles/requirements_analyst.py) `_priority`, [schemas/requirement.py](../app/schemas/requirement.py)).
    원문 표에 응락 수준이 있으면 코드가 그 값으로 확정한다. 없으면 인용문에 '필수·반드시·권장·선택' 같은 표현이 있을 때만 LLM 값을 인정하고,
    아니면 `UNSPECIFIED`(산출물에는 '미정(원문에 없음)')로 둔다. 전 지시문은 "정보가 없으면 MUST"였다.
 2. **지시문**: 여러 항목을 묶어도 항목·숫자·인원·기간·조건을 빠뜨리지 말 것. blocking은 범위 포함 여부·요구 충돌일 때만.

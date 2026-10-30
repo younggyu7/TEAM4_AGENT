@@ -32,13 +32,16 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from app.schemas.design import DataModel, FunctionSpec, Question, Requirement
+from app.schemas.data_model import DataModel
+from app.schemas.function import FunctionSpec
+from app.schemas.requirement import Question, Requirement
 from app.agents.flow.state import SEMANTIC_BASIS_INIT, basis, rev
 from app.agents.roles.function_designer import apply_answers_by_code
 from app.agents.roles.requirement_reviewer import record_answer as record_review_answer, settle
 from app.agents.tools.model_edits import ReworkSummary, apply_user_edits
 from app.agents.tools.model_validator import to_identifier
 from app.agents.tools.trace_diff import REQ_FIELDS
+from app.agents.storage import get_store
 from app.agents.tools.versions import load_versions
 
 STAGES: dict[str, dict] = {
@@ -71,12 +74,27 @@ def base_for(record: dict, stage: str) -> str:
     return str(record["design_version"])
 
 
-def _read_model(path: Path) -> DataModel:
-    """data_model.json을 읽는다 (형식이 틀리면 RerunError)."""
+def _read_model(text: str, where: str) -> DataModel:
+    """data_model.json 내용을 읽는다 (형식이 틀리면 RerunError). where는 오류 안내용 위치."""
     try:
-        return DataModel.model_validate_json(path.read_text(encoding="utf-8"))
+        return DataModel.model_validate_json(text)
     except ValueError as e:
-        raise RerunError(f"데이터 모델 파일을 읽을 수 없습니다: {path}\n{e}") from e
+        raise RerunError(f"데이터 모델 파일을 읽을 수 없습니다: {where}\n{e}") from e
+
+
+def _stored_model(project: str, version: str) -> DataModel | None:
+    """저장소에 있는 그 버전의 data_model.json (없으면 None)."""
+    text = get_store().read(project, version, "data_model.json")
+    return None if text is None else _read_model(text, f"{project} v{version}/data_model.json")
+
+
+def _edited_model(path: Path) -> DataModel:
+    """사용자가 고친 data_model.json 파일 (--data-model, 저장소 밖 입력 파일)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        raise RerunError(f"데이터 모델 파일이 없습니다: {path}") from e
+    return _read_model(text, str(path))
 
 
 def prepare_functions(design: dict, requirement_ids: str = "", full: bool = False, feedback: str = "") -> list[str]:
@@ -198,22 +216,33 @@ def prepare_requirements(feedback: str = "") -> list[str]:
     return []
 
 
-def ancestor(root: Path, project: str, label: str, has) -> dict | None:
-    """label부터 이전 버전(parent)을 따라 올라가며 has(버전 폴더)가 참인 가장 가까운 버전 기록 (자기 자신 포함)."""
-    records = {v["design_version"]: v for v in load_versions(root, project)}
+def ancestor(project: str, label: str, has) -> dict | None:
+    """label부터 이전 버전(parent)을 따라 올라가며 has(버전 번호)가 참인 가장 가까운 버전 기록 (자기 자신 포함)."""
+    records = {v["design_version"]: v for v in load_versions(project)}
     seen: set[str] = set()
     while label and label in records and label not in seen:
         seen.add(label)
-        if has(Path(records[label]["output_dir"])):
+        if has(label):
             return records[label]
         label = records[label].get("parent")
     return None
 
 
-def has_functions(folder: Path) -> bool:
-    """버전 폴더에 기능 명세가 있는지 (요구사항 단계 버전에는 없다)."""
-    path = folder / "design.json"
-    return path.exists() and bool(json.loads(path.read_text(encoding="utf-8")).get("functions"))
+def has_functions(project: str, version: str) -> bool:
+    """그 버전에 기능 명세가 있는지 (요구사항 단계 버전에는 없다)."""
+    text = get_store().read(project, version, "design.json")
+    return text is not None and bool(json.loads(text).get("functions"))
+
+
+def has_model(project: str, version: str) -> bool:
+    """그 버전에 데이터 모델이 있는지 (기능 명세 단계 버전에는 없다)."""
+    return get_store().exists(project, version, "data_model.json")
+
+
+def read_design(project: str, version: str) -> dict | None:
+    """그 버전의 design.json (없으면 None)."""
+    text = get_store().read(project, version, "design.json")
+    return None if text is None else json.loads(text)
 
 
 def changed_requirements(before: list[dict], after: list[dict]) -> list[str]:
@@ -231,14 +260,14 @@ def changed_functions(before: list[dict], after: list[dict]) -> tuple[list[str],
             sorted(set(old) - set(new)))
 
 
-def _inherit_model(base_dir: Path, base_functions: list[dict], functions: list[dict], base_label: str,
+def _inherit_model(project: str, base_label: str, base_functions: list[dict], functions: list[dict],
                    targets: list[str], full: bool) -> tuple[dict, list[str] | None, ReworkSummary]:
     """기능 명세 단계 버전에서 데이터 설계를 시작할 때: 기준 버전의 모델을 이어받고 바뀐 기능에 연결된 엔티티만 다시 설계한다.
 
     새 기능은 추적 검토 → 연결 보완(cover)이 기존 엔티티에 연결하거나 새 엔티티를 만들고, 지운 기능의 연결은 정규화가 지운다.
     사용자가 고친 엔티티는 기능이 바뀌어도 다시 설계하지 않고 확인 필요로 남긴다.
     """
-    model = _read_model(base_dir / "data_model.json")
+    model = _stored_model(project, base_label)
     changed, added, removed = changed_functions(base_functions, functions)
     linked = [e for e in model.entities if set(e.function_ids) & set(changed)]
     summary = ReworkSummary(inherited_from=base_label, changed_functions=changed, added_functions=added,
@@ -254,34 +283,33 @@ def _inherit_model(base_dir: Path, base_functions: list[dict], functions: list[d
     return model.model_dump(mode="json"), list(dict.fromkeys(auto + targets)), summary
 
 
-def prepare_data_model(values: dict, version_dir: Path, edited_path: Path | None, same_version: bool,
+def prepare_data_model(values: dict, project: str, version: str, edited_path: Path | None, same_version: bool,
                        entities: str = "", full: bool = False, feedback: str = "",
-                       inherited: tuple[Path, list[dict], str] | None = None, functions: list[dict] | None = None) \
+                       inherited: tuple[str, list[dict]] | None = None, functions: list[dict] | None = None) \
         -> tuple[dict | None, list[str] | None, ReworkSummary]:
     """데이터 설계 다시 만들기의 시작 모델, 컬럼을 다시 설계할 엔티티, 사용자 수정 요약을 정한다.
 
     values: 기준 버전을 만든 실행의 체크포인트 상태
-    version_dir: 기준 버전 폴더 / edited_path: 사용자가 고친 data_model.json (없으면 기준 버전 폴더의 것)
+    project·version: 기준 버전 / edited_path: 사용자가 고친 data_model.json 파일 (없으면 기준 버전에 저장된 것)
     same_version: 기준 버전이 그 실행의 마지막 버전인지. 그러면 체크포인트의 모델이 생성 당시 원본이다
       (DB 검증 실패로 한 실행이 여러 버전을 만든 경우 앞 버전은 폴더의 파일이 원본).
-    inherited: 기준 버전이 기능 명세 단계 버전(데이터 모델 없음)일 때 그 기준 버전의 (폴더, 기능 명세, 번호).
+    inherited: 기준 버전이 기능 명세 단계 버전(데이터 모델 없음)일 때 모델을 이어받을 버전의 (번호, 기능 명세).
       functions는 이번 기준 버전의 기능 명세다.
     (시작 모델 — 없으면 None으로 처음부터 전체 설계, 다시 설계할 엔티티 — None이면 전체, 요약)
     """
-    folder = version_dir / "data_model.json"
-    source = edited_path or folder
+    stored = _stored_model(project, version)
     targets = list(dict.fromkeys(to_identifier(x) for x in entities.split(",") if x.strip()))
-    if not source.exists():
-        if edited_path is None and inherited and (inherited[0] / "data_model.json").exists():
-            return _inherit_model(inherited[0], inherited[1], functions or [], inherited[2], targets, full)
-        if targets or edited_path:
-            raise RerunError(f"데이터 모델 파일이 없습니다: {source}")
+    if edited_path is None and stored is None:
+        if inherited and has_model(project, inherited[0]):
+            return _inherit_model(project, inherited[0], inherited[1], functions or [], targets, full)
+        if targets:
+            raise RerunError(f"데이터 모델이 없습니다: {project} v{version}")
         return None, None, ReworkSummary(full=True)   # 이어받을 모델이 없으면 처음부터 전체 설계
-    edited = _read_model(source)
+    edited = _edited_model(edited_path) if edited_path else stored
     if same_version and values.get("data_model"):
         original = DataModel.model_validate(values["data_model"])
-    elif edited_path and folder.exists():
-        original = _read_model(folder)
+    elif edited_path:
+        original = stored
     else:
         original = None   # 비교할 원본이 없으면 사용자 수정으로 보지 않는다
     model, summary = apply_user_edits(original, edited)

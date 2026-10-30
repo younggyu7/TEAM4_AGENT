@@ -4,7 +4,8 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
-from app.schemas.design import Attribute, CheckRule, DataModel, Entity, Issue, Relation, RequiredWhen
+from app.schemas.data_model import Attribute, CheckRule, DataModel, Entity, Relation, RequiredWhen
+from app.schemas.review import Issue
 from app.agents.flow.state import finding
 
 PG_RESERVED = {

@@ -13,6 +13,7 @@ ERD·테이블 정의서·DDL·DB 검증만 표준 이름을 쓴다. 대문자 �
 from __future__ import annotations
 
 import csv
+import io
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -21,7 +22,7 @@ from pathlib import Path
 
 import yaml
 
-from app.schemas.design import Attribute, DataModel, Entity
+from app.schemas.data_model import Attribute, DataModel, Entity
 from app.agents.tools.model_validator import PG_RESERVED
 
 STANDARDS_DIR = Path(__file__).resolve().parents[3] / "standards"
@@ -369,11 +370,11 @@ def ddl_model(model: DataModel, profile: Profile | None) -> DataModel:
     return DataModel(entities=entities, relations=relations)
 
 
-def write_names(path: Path, report: ConventionReport) -> Path:
-    """표준 이름 대응표 CSV (엑셀에서 한글이 깨지지 않게 BOM 포함)."""
-    with path.open("w", encoding="utf-8-sig", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["설계 테이블", "설계 컬럼", "한글명", "표준 테이블", "표준 컬럼", "만든 방법"])
-        for r in report.rows:
-            w.writerow([r.table, r.column, r.label, r.physical_table, r.physical_column, r.how])
-    return path
+def names_csv(report: ConventionReport) -> str:
+    """표준 이름 대응표 CSV 내용 (엑셀에서 한글이 깨지지 않게 BOM 포함)."""
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["설계 테이블", "설계 컬럼", "한글명", "표준 테이블", "표준 컬럼", "만든 방법"])
+    for r in report.rows:
+        w.writerow([r.table, r.column, r.label, r.physical_table, r.physical_column, r.how])
+    return "\ufeff" + out.getvalue()

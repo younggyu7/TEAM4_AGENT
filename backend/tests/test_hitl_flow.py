@@ -112,7 +112,7 @@ def test_semantic_final_mode_reviews_only_when_confirmed(sample_doc):
     fake = _use(FakeLLM(broken_fk=False))
     assert cli.main(["review", "sample", "v1"]) == 0
     assert fake.calls["ModelReviewOut"] == 1 and fake.calls["FunctionReviewOut"] == 0, "기본은 ERD ↔ 기능 명세만"
-    record = find_version(get_settings().output_dir, "sample", "1.1")
+    record = find_version("sample", "1.1")
     assert (record["stage"], record["base"], record["parent"]) == ("final", "1", "1")
     data = json.loads((_folder("1.1") / "semantic_review.json").read_text(encoding="utf-8"))
     assert data["parts"] == ["model"] and data["failed"] == [] and data["usage"]["calls"] == 1
@@ -127,7 +127,7 @@ def test_semantic_final_mode_reviews_only_when_confirmed(sample_doc):
     fake = _use(FakeLLM(broken_fk=False))
     assert cli.main(["review", "sample", "v1.1", "--source"]) == 0
     assert fake.calls["FunctionReviewOut"] == 1, "--source면 기능 명세 ↔ 요구사항도"
-    assert find_version(get_settings().output_dir, "sample", "1.2")["base"] == "1"
+    assert find_version("sample", "1.2")["base"] == "1"
 
 
 def test_review_needs_data_model(sample_doc, capsys):

@@ -21,7 +21,7 @@ from pathlib import Path
 
 from lxml import etree
 
-from app.schemas.design import BlockLocation, DocumentBlock
+from app.schemas.document import BlockLocation, DocumentBlock
 
 log = logging.getLogger(__name__)
 

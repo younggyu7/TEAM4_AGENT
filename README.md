@@ -80,16 +80,20 @@ python -m app resume <실행 ID> --defer                                  # 확�
 ```text
 backend/
 ├── app/
-│   ├── main.py            # FastAPI 앱 (CORS, 라우터)
+│   ├── main.py            # FastAPI 앱: CORS·오류 처리, /health, 기능별 라우터를 /api/v1 아래에 연결
 │   ├── cli.py             # python -m app run·resume·rerun·review·versions·confirm·diff·parse
-│   ├── api/v1/            # HTTP 경로 (projects.py, health.py)
-│   ├── services/          # output_store.py: 산출물 폴더 읽기 · jobs.py: CLI 하위 프로세스 작업
+│   ├── api/v1/            # 기능별 라우터: projects(목록·제목) · artifacts(design·파일) · versions(새 버전) · review(최종 확정)
+│   │                      #   · runs(문서 업로드) · jobs(작업 상황) · deps(공통 입력 검사)
+│   ├── services/          # output_store.py: 화면용 산출물 읽기 · jobs/: CLI 하위 프로세스 작업
+│   │                      #   (common 공통 실행기 · run 문서 업로드 · rerun 새 버전 · review 최종 확정)
 │   ├── agents/
-│   │   ├── roles/         # 조정·문서 분석·요구사항 추출·요구사항 검토·기능 명세·데이터 설계·추적 검토·의미 검토 (프롬프트 포함)
+│   │   ├── roles/         # 조정·문서 분석·요구사항 추출·요구사항 검토·기능 명세·데이터 설계·추적 검토·의미 검토
+│   │   ├── prompts/       # Agent 시스템 프롬프트 .md (<Agent>/<이름>.md 하나에 프롬프트 하나, load_prompt로 읽음)
 │   │   ├── flow/          # LangGraph 그래프(graph)·노드(nodes)·상태(state)·단계 다시 만들기(rerun)
-│   │   ├── llm/           # LLM 호출 (Anthropic·OpenAI·manual)
-│   │   └── tools/         # 문서 파서·청킹·검색·모델 검사·DDL·ERD·내보내기·버전·DB 검증
-│   ├── schemas/           # design.py: 단계 간 계약(요구사항·기능·데이터 모델…) · api.py: 요청 본문
+│   │   ├── llm/           # LLM 포트(LLMClient)와 어댑터 (Anthropic·OpenAI·manual), get_llm()·set_llm()
+│   │   ├── storage/       # 산출물 저장소 포트(ArtifactStore)와 로컬 폴더 어댑터, get_store()·set_store()
+│   │   └── tools/         # 문서 파서·청킹·검색·모델 검사·DDL·ERD·내보내기·버전 규칙·DB 검증 (산출물 읽기·쓰기는 storage 포트로)
+│   ├── schemas/           # 기능별 입력·출력: document · requirement · function · data_model · review · version(화면 요청 포함)
 │   └── core/              # config(.env 설정) · exceptions(오류 응답) · guards(요청 값·경로 검사) · logging · security(CORS·비밀 값 가리기)
 ├── tests/                 # pytest (가짜 LLM, API 키 없이 실행)
 ├── evals/                 # 문서 분석·요구사항 추출 골든셋 평가 (python -m evals.eval_document_analyst)

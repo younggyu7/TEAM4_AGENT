@@ -8,7 +8,7 @@ from app import cli
 from app.agents.llm import client as llm_module
 from app.core.config import get_settings
 from app.agents.flow.graph import build_graph, open_checkpointer
-from app.schemas.design import Attribute, CheckRule, DataModel, Entity, Relation
+from app.schemas.data_model import Attribute, CheckRule, DataModel, Entity, Relation
 from app.agents.tools.convention import (ConventionError, apply_profile, ddl_model, load_profile, standard_name)
 from app.agents.tools.versions import find_version
 
@@ -149,8 +149,8 @@ def test_run_with_standard_writes_standard_names_and_validates_that_ddl(sample_d
     assert design["meta"]["standard"]["profile"] == "public" and design["completion"]["satisfied"]
     db = (folder / "db_validation.md").read_text(encoding="utf-8")
     assert "tb_srvc_req" in db and design["meta"]["standard"]["missing_words"] == 0, "DB 검증은 표준 이름 DDL로"
-    assert find_version(get_settings().output_dir, "sample", "1")["db_validation"] == "PASSED"
-    assert find_version(get_settings().output_dir, "sample", "1")["standard"] == "public"
+    assert find_version("sample", "1")["db_validation"] == "PASSED"
+    assert find_version("sample", "1")["standard"] == "public"
     assert all("## 설계 표준 지침 (공공기관형" in p for p in fake.prompts["CatalogOut"]), \
         "서술형 지침은 데이터 모델 Agent에 넘긴다"
 

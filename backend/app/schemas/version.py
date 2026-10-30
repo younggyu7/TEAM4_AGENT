@@ -1,9 +1,24 @@
-"""HTTP 요청 본문. 응답은 design.json·버전 기록을 그대로 돌려주므로 따로 정의하지 않는다 (원본 계약은 schemas/design.py)."""
+"""설계 버전: 화면 요청(입력)으로 새 버전을 만들고 버전 기록(출력)을 남긴다.
+
+  입력 (HTTP 요청 본문): VersionCreate (기능 명세 내보내기·ERD 저장·답 반영), ReviewCreate (ERD 최종 확정),
+                        TitleUpdate (버전 제목)
+  출력: DesignVersion (versions.json의 버전 기록). 응답은 design.json·버전 기록을 그대로 돌려준다.
+"""
 from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+
+class DesignVersion(BaseModel):
+    """설계 버전 기록: 부모 버전, 변경 요약, 산출물 폴더. 번호는 '2', '2.1' 같은 문자열 (예전 숫자 번호도 받음)."""
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+    design_version: str
+    parent: str | None
+    created_at: str
+    summary: list[str]
+    output_dir: str
 
 
 class TitleUpdate(BaseModel):

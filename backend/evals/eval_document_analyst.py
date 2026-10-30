@@ -23,7 +23,8 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-from app.schemas.design import DocumentBlock, Evidence, Requirement, RequirementSource
+from app.schemas.document import DocumentBlock, RequirementSource
+from app.schemas.requirement import Evidence, Requirement
 from app.agents.tools.doc_quality import build_sources, check_document
 from app.agents.tools.document_parser import document_codes, parse_document, textless_pages
 

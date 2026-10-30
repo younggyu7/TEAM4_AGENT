@@ -8,7 +8,8 @@ from __future__ import annotations
 import re
 from collections import Counter, defaultdict
 
-from app.schemas.design import DocumentBlock, Issue, RequirementSource
+from app.schemas.document import DocumentBlock, RequirementSource
+from app.schemas.review import Issue
 from app.agents.flow.state import finding
 from app.agents.tools.chunker import plan_chunks
 

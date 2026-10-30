@@ -183,3 +183,33 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 - 코드는 질문 표시가 붙은 규칙만 바꾼다. 답이 흐름·입력·행위자·데이터·다른 기능에 주는 영향은 화면이 '추천안과 다른 답' 항목에 확인하라고 표시하고 사람이 고친다.
 - LLM으로 답을 반영하고 싶을 때만 오른쪽 위 '답 N건 AI로 반영 → 기능 명세 다시' (기존 `rerun function_designer --answers`, 토큰 사용).
 - 테스트: `test_hitl_flow.py::test_confirmed_answers_are_applied_by_code`. 프론트는 타입 검사만 했다.
+
+## 10. 산출물 저장소 포트 분리 (2026-10-30)
+
+설계 버전 기록(versions.json)과 버전별 산출물 파일을 포트 뒤로 옮겼다. LLM 포트(`agents/llm`)와 같은 방식이다.
+
+| 구성 | 위치 | 내용 |
+| --- | --- | --- |
+| 포트 | `app/agents/storage/port.py` `ArtifactStore` | 프로젝트 목록·프로젝트 파일(versions.json·titles.json·diff), 버전 번호 잡기·버전 목록·위치, 산출물 read·write·exists |
+| 어댑터 | `app/agents/storage/local.py` `LocalArtifactStore` | 지금 동작 그대로 `output/<프로젝트>/v<버전>/`. 묶음 아래 프로젝트(`team/sample`) 지원, 저장소 밖 경로는 ValueError |
+| 선택 | `app/agents/storage/__init__.py` | `get_store()`(설정의 OUTPUT_DIR·--output-dir 로컬 폴더) · `set_store()`(다른 어댑터·테스트) |
+
+- 포트를 쓰게 바꾼 곳: `tools/versions.py`(번호 규칙·기록 정렬은 그대로, 읽기·쓰기만 포트), `tools/exporter.py`(산출물·의미 검토·DB 보고서 쓰기), `tools/trace_diff.py`(이전 버전 읽기), `flow/rerun.py`(기준·이어받을 버전 읽기), `flow/nodes.py`(제공·DB 보고서), `cli.py`(rerun·review·diff·versions), `services/output_store.py`·`api/v1/projects.py`(화면 API 읽기·제목 저장), `services/jobs.py`(새 버전 찾기·결과 읽기).
+- 함수 시그니처: 버전 함수는 `root` 인자를 없앴다 (`find_version(project, v)`, `claim_next_version(project, base) -> 번호`). 산출물 함수는 폴더 대신 프로젝트·버전을 받는다 (`export_design(state, version)`, `load_previous(project, parent)`, `prepare_data_model(values, project, version, …)`).
+- 포트 밖에 남긴 것 (이번 범위 아님): 실행 체크포인트(`checkpoints.sqlite`, LangGraph SqliteSaver), 업로드 원본(`data/uploads`), CLI 하위 프로세스에 넘기는 `--output-dir`(로컬 폴더 경로), 사용자가 넘기는 입력 파일(`--design`·`--data-model`·`--answers`).
+- 검증: `pytest` 177 passed · 3 skipped. `tests/test_storage.py`: 로컬 어댑터 읽기·쓰기·묶음 프로젝트·경로 탈출 차단, **메모리 어댑터로 바꿔 끼워** 기능 명세 → ERD(`--design`) → 최종본 → 화면 API까지 도는지. 실제 `backend/output`(프로젝트 5개)을 화면 API로 읽어 전과 같은지 확인했다.
+
+## 11. 폴더 구조 정리: 기능별 schemas·jobs·API 라우터, 프롬프트 .md (2026-10-30)
+
+동작을 바꾸지 않고 파일만 나눴다. 옮긴 코드는 원래 줄을 그대로 쓰고, 아래처럼 전후를 비교해 확인했다.
+
+| 정리 | 이전 | 이후 | 같은지 확인한 방법 |
+| --- | --- | --- | --- |
+| 스키마 | `schemas/design.py`·`api.py` | 기능별 입력·출력: `document`(문서 블록·추출 단위) · `requirement`(요구사항·확인 질문) · `function`(기능 명세) · `data_model`(엔티티·관계·DB 검증 결과) · `review`(이슈·추적·조정 판단) · `version`(버전 기록 + 화면 요청 본문) | 모델·상수 32개의 JSON 스키마 전후 비교 32/32 같음. 모든 import를 새 모듈로 바꿈 |
+| 작업 | `services/jobs.py` | `services/jobs/`: `common`(작업 기록·실행기·종료 코드·LLM 오류 안내) · `run`(문서 업로드) · `rerun`(새 버전) · `review`(최종 확정). `from app.services import jobs` 그대로 | 테스트(작업 인자·409·404), rerun 옵션 감지(capabilities) 같음. 폴더가 한 단계 깊어져 `BACKEND_ROOT`만 `parents[3]` |
+| API | `api/v1/projects.py`·`health.py` | `api/v1/`: `projects`·`artifacts`·`versions`·`review`·`runs`·`jobs`·`deps`(공통 입력 검사). `/health`는 `main.py`에 직접, 라우터는 `main.py`에서 `/api/v1` 아래 연결 | OpenAPI 명세 전체(경로·메서드·파라미터·본문·요약·태그·operationId) 전후 같음 |
+| 프롬프트 | Agent 코드 안 문자열 상수 9개 | `agents/prompts/<Agent>/<이름>.md` + `load_prompt()`. 의미 검토는 본문 .md + `common_rules.md`({limit}) 조합 그대로 | 9개 모두 전후 문자열이 한 글자도 다르지 않음 (LLM 입력·프롬프트 캐시·manual 재생 키 동일) |
+
+- 프롬프트 파일 규칙: 파일 끝 줄바꿈 하나는 편집기용이라 읽을 때 지운다. Windows 줄바꿈은 \n으로 읽는다. 프롬프트를 고치면 LLM 입력이 바뀌므로 manual 재생 기록(`fixtures/llm_exchange`)은 다시 만들어야 한다.
+- 검증: `pytest` 177 passed · 3 skipped (각 단계마다 실행).
+

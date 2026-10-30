@@ -34,14 +34,14 @@ def test_requirements_stage_feedback_then_functions_and_data(sample_doc, capsys)
     assert "이 버전은 **요구사항**까지 만들었다" in (out / "sample" / "v1" / "requirements.md").read_text(encoding="utf-8")
 
     assert cli.main(["confirm", "sample", "v1", "--note", "고객 회의"]) == 0
-    assert find_version(out, "sample", "1")["confirmed"] and "rerun function_designer sample --from v1" in capsys.readouterr().out
+    assert find_version("sample", "1")["confirmed"] and "rerun function_designer sample --from v1" in capsys.readouterr().out
 
     # 요구사항 의견 반영 → 다음 최상위 번호 v2 (다시 추출하지 않고 요청 1회)
     fake = _use(FakeLLM(broken_fk=False))
     assert cli.main(["rerun", "requirements_analyst", "sample", "--from", "v1",
                      "--feedback", "담당자 배정은 이번 범위에서 제외하고 요청 취소 기능을 추가"]) == 0
     assert fake.calls["RequirementFeedbackOut"] == 1 and fake.calls["ExtractionOut"] == 0
-    record = find_version(out, "sample", "2")
+    record = find_version("sample", "2")
     assert (record["parent"], record["stage"], record["until"]) == ("1", "requirements_analyst", "requirements_analyst")
     reqs = {r["requirement_id"]: r for r in _design(out, "2")["requirements"]}
     excluded = [r for r in reqs.values() if r["status"] == "EXCLUDED"]
@@ -86,7 +86,7 @@ def test_function_stage_from_requirements_version_redesigns_only_changed_groups(
     out = _full_base(sample_doc)
     _use(FakeLLM(broken_fk=False))
     assert cli.main(["rerun", "requirements_analyst", "sample", "--from", "v1", "--feedback", "제목 조건을 바꿔 주세요"]) == 0
-    assert find_version(out, "sample", "2")["parent"] == "1"
+    assert find_version("sample", "2")["parent"] == "1"
     req_md = (out / "sample" / "v2" / "requirements.md").read_text(encoding="utf-8")
     assert "다음 기능 명세 단계(rerun function_designer)에서 이 기능들의 그룹만 다시 설계" in req_md
 
@@ -127,7 +127,7 @@ def test_by_stage_asks_at_each_stage_and_continues_with_reruns(sample_doc, monke
     monkeypatch.setattr("builtins.input", lambda *_: next(answers))
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer", "--by-stage"]) == 0
-    made = [(v["design_version"], v.get("confirmed", False)) for v in load_versions(out, "sample")]
+    made = [(v["design_version"], v.get("confirmed", False)) for v in load_versions("sample")]
     assert made == [("1", True), ("1.1", False), ("1.2", True), ("1.2.1", True)], \
         "요구사항 v1 확정 → 기능 명세 v1.1 → 의견으로 v1.2 확정 → 데이터 설계 v1.2.1 확정"
     assert "모든 단계를 확정했습니다" in capsys.readouterr().out

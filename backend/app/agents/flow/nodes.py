@@ -9,8 +9,11 @@ from pathlib import Path
 from langgraph.types import interrupt
 
 from app.core.config import get_settings
-from app.schemas.design import (USER_SOURCE, DbValidationResult, DesignVersion, DocumentBlock, FunctionSpec, Question,
-                                Requirement, RequirementSource)
+from app.schemas.data_model import DbValidationResult
+from app.schemas.document import DocumentBlock, RequirementSource
+from app.schemas.function import FunctionSpec
+from app.schemas.requirement import Question, Requirement, USER_SOURCE
+from app.schemas.version import DesignVersion
 from app.agents.roles.coordinator import (STAGE_LABELS, designs_data, designs_functions, pending_stages, semantic_enabled,
                                           stuck_stages)
 from app.agents.roles.function_designer import mark_decided, record_answers
@@ -23,6 +26,7 @@ from app.agents.tools.document_parser import check_supported, file_fingerprint
 from app.agents.tools.exporter import export_db_report, export_design
 from app.agents.tools.model_validator import USER_EDITED_NOTE, validate_model
 from app.agents.tools.search import quote_in_text
+from app.agents.storage import get_store
 from app.agents.tools.versions import claim_next_version, latest_top_level, load_versions, project_of, save_version, update_version
 
 log = logging.getLogger(__name__)
@@ -381,11 +385,11 @@ def deliver(state: AgentState) -> dict:
     한 단계만 다시 만든 실행(rerun)은 기준 버전 아래 번호를 받는다 (v2 기준 데이터 설계 → v2.1, v2.2 …).
     이전 버전(parent)은 이 실행이 앞서 만든 버전, 없으면 기준 버전, 그것도 없으면 프로젝트의 마지막 최상위 버전이다.
     """
-    root, project = get_settings().output_dir, project_of(state)
+    project = project_of(state)
     options = state.get("options") or {}
     base, stage = options.get("base_version"), options.get("stage", "full")
-    previous = load_versions(root, project)
-    version, out_dir = claim_next_version(root, project, base)
+    previous = load_versions(project)
+    version = claim_next_version(project, base)
     versions = list(state.get("versions") or [])
     last_step = versions[-1]["summary_until_step"] if versions else 0
     summary = [f"#{d['step']} {d['action']}({d.get('mode', '')}): {d['reason']}"
@@ -394,18 +398,18 @@ def deliver(state: AgentState) -> dict:
     parent = versions[-1]["design_version"] if versions else (options.get("parent_version") or base
                                                               or latest_top_level(previous))
     # 추적표의 '이전 버전 대비 변경'은 parent 버전 폴더와 비교한다
-    files = export_design({**state, "design_version": version, "parent_version": parent}, out_dir, version)
+    files = export_design({**state, "design_version": version, "parent_version": parent}, version)
     record = DesignVersion(design_version=version, parent=parent,
                            created_at=datetime.now().isoformat(timespec="seconds"), summary=summary,
-                           output_dir=str(out_dir)).model_dump()
-    save_version(root, project, {**record, "run_id": state["run_id"], "stage": stage, "base": base,
+                           output_dir=get_store().version_location(project, version)).model_dump()
+    save_version(project, {**record, "run_id": state["run_id"], "stage": stage, "base": base,
                                  "until": options.get("stop_after"), "standard": options.get("standard"),
                                  "feedback": (options.get("feedback") or {}).get(stage, ""),
                                  "rework": (state.get("function_rework") if stage == "function_designer" else
                                             state.get("model_rework")) if base else None,
                                  "document": (state.get("document") or {}).get("file_name", "")})
     record["summary_until_step"] = state.get("step") or 0
-    log.info("[제공] %s 설계 버전 v%s 산출물 %d개 → %s", project, version, len(files), out_dir)
+    log.info("[제공] %s 설계 버전 v%s 산출물 %d개 → %s", project, version, len(files), record["output_dir"])
     return {"design_version": version, "versions": versions + [record]}
 
 
@@ -447,14 +451,9 @@ def route_after_db(state: AgentState) -> str:
     return "pass" if (state.get("db_validation") or {}).get("passed") else "fail"
 
 
-def _version_dir(state: AgentState) -> Path:
-    """현재 설계 버전의 산출물 폴더 (deliver가 기록한 위치)."""
-    return Path(state["versions"][-1]["output_dir"])
-
-
 def _record_db_result(state: AgentState, result: DbValidationResult) -> None:
     """프로젝트 버전 기록(versions.json)에 DB 검증 결과를 남긴다."""
-    update_version(get_settings().output_dir, project_of(state), state.get("design_version") or "",
+    update_version(project_of(state), state.get("design_version") or "",
                    db_validation="PASSED" if result.passed else "FAILED", db_engine=result.engine,
                    db_errors=result.errors[:5])
 
@@ -462,7 +461,7 @@ def _record_db_result(state: AgentState, result: DbValidationResult) -> None:
 def db_report(state: AgentState) -> dict:
     """DB 구조·검증 보고서 제공. 통과하면 남아 있던 DB 이슈를 해결 처리한다."""
     result = DbValidationResult.model_validate(state["db_validation"])
-    path = export_db_report(result, _version_dir(state))
+    path = export_db_report(result, project_of(state))
     _record_db_result(state, result)
     update: dict = {}
     if result.passed:
@@ -476,7 +475,7 @@ def record_db_failure(state: AgentState) -> dict:
     """오류와 관련 설계 버전을 기록하고, 수정 담당(데이터 모델 Agent)에게 넘길 이슈를 만든다."""
     s = get_settings()
     result = DbValidationResult.model_validate(state["db_validation"])
-    export_db_report(result, _version_dir(state))
+    export_db_report(result, project_of(state))
     _record_db_result(state, result)
     version = state.get("design_version") or ""
     model = get_data_model(state)

@@ -5,7 +5,7 @@ import re
 from collections import Counter
 from difflib import SequenceMatcher
 
-from app.schemas.design import DocumentBlock
+from app.schemas.document import DocumentBlock
 
 _STRIP = re.compile(r"[\s\-·○●□■◦•※*\"'“”‘’()\[\]{}.,:;/|]+")
 # 바뀌면 요구사항의 뜻이 달라지는 말: 숫자는 따로 비교한다

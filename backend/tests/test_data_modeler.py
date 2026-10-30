@@ -4,7 +4,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from fake_llm import FakeLLM
 from app.agents.llm import client as llm_module
 from app.agents.flow.graph import build_graph
-from app.schemas.design import Attribute, DataModel, Entity
+from app.schemas.data_model import Attribute, DataModel, Entity
 from app.agents.tools.model_validator import normalize_model, validate_model
 
 
@@ -111,7 +111,7 @@ def test_rerun_data_design_makes_sub_versions(sample_doc, capsys):
     assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1", "--full"]) == 0
     assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1.2", "--full"]) == 0
 
-    versions = {v["design_version"]: v for v in load_versions(out, "sample")}
+    versions = {v["design_version"]: v for v in load_versions("sample")}
     assert set(versions) == {"1", "1.1", "1.2", "1.3"}
     assert (versions["1.1"]["stage"], versions["1.1"]["base"], versions["1.1"]["parent"]) == ("data_modeler", "1", "1")
     assert versions["1.3"]["base"] == "1", "같은 단계를 다시 만든 버전(v1.2)에서 출발하면 형제 번호"
@@ -138,7 +138,7 @@ def test_rerun_data_design_makes_sub_versions(sample_doc, capsys):
 # ------------------------------------------------------------------ 입력·토큰
 def test_function_line_has_actors_and_is_not_truncated():
     from app.agents.roles.data_modeler import _function_line
-    from app.schemas.design import FunctionIO, FunctionSpec
+    from app.schemas.function import FunctionIO, FunctionSpec
 
     f = FunctionSpec(function_id="FN-1", group="G", name="정비 이력 등록", description="", requirement_ids=["R1"],
                      actors=["차량 소유자", "시스템(알림 스케줄러)"],
@@ -178,7 +178,7 @@ def test_group_constraints_are_enforced_in_ddl():
 
     import pytest
 
-    from app.schemas.design import RequiredWhen
+    from app.schemas.data_model import RequiredWhen
     from app.agents.tools.ddl import render_script, render_statements
 
     model = DataModel(entities=[
@@ -373,7 +373,7 @@ def test_batch_reply_with_slightly_different_names_is_not_requested_again():
 def test_cover_matches_entity_names_written_differently():
     """연결 보완 응답이 기존 엔티티를 'ServiceRequest'처럼 다르게 적어도 기존 엔티티에 연결하고 새로 만들지 않는다."""
     from app.agents.roles.data_modeler import CoverageOut, EntityPlanOut, MappingOut, _cover
-    from app.schemas.design import FunctionSpec
+    from app.schemas.function import FunctionSpec
 
     class CoverLLM(FakeLLM):
         def _CoverageOut(self, user):
@@ -427,7 +427,7 @@ def test_rerun_keeps_model_in_run_settings(sample_doc):
         build_graph(saver).invoke({"run_id": "base", "source_path": str(sample_doc),
                                    "options": {"ask_mode": "defer", "validate_db": False}}, cli._config("base"))
     assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1", "--full", "--model", "claude-sonnet-5-5"]) == 0
-    run_id = next(v for v in load_versions(out, "sample") if v["design_version"] == "1.1")["run_id"]
+    run_id = next(v for v in load_versions("sample") if v["design_version"] == "1.1")["run_id"]
     with open_checkpointer(out) as saver:
         settings = build_graph(saver).get_state(cli._config(run_id)).values["options"]["settings"]
     assert "claude-sonnet-5-5" in (settings.get("anthropic_model"), settings.get("openai_model"))
@@ -490,7 +490,7 @@ def test_rerun_entities_redesigns_only_named_entity(sample_doc):
     assert _entities(out, "1.1")["app_user"] == _entities(out, "1")["app_user"], "지정하지 않은 엔티티는 그대로"
     report = (out / "sample" / "v1.1" / "review_report.md").read_text(encoding="utf-8")
     assert "다시 설계한 범위: 엔티티 1개 (service_request)" in report
-    record = next(v for v in load_versions(out, "sample") if v["design_version"] == "1.1")
+    record = next(v for v in load_versions("sample") if v["design_version"] == "1.1")
     assert record["rework"]["redesigned"] == ["service_request"] and record["db_validation"] == "PASSED"
 
 
@@ -587,7 +587,7 @@ def test_value_checks_are_normalized_and_enforced_in_ddl():
 
     import pytest
 
-    from app.schemas.design import CheckRule
+    from app.schemas.data_model import CheckRule
     from app.agents.tools.ddl import render_script, render_statements
 
     model = DataModel(entities=[Entity(entity_id="rest_record", attributes=[

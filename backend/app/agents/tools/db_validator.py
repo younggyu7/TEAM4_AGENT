@@ -13,7 +13,7 @@ import re
 import sqlite3
 
 from app.core.security import mask_url
-from app.schemas.design import DataModel, DbValidationResult
+from app.schemas.data_model import DataModel, DbValidationResult
 from app.agents.tools.ddl import render_statements
 
 log = logging.getLogger(__name__)

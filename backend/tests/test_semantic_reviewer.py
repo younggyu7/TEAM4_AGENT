@@ -1,6 +1,6 @@
 """의미 검토 Agent: 이미 처리된 지적을 버리는 규칙과 데이터 모델 입력에 여러 컬럼 제약이 들어가는지."""
 from app.agents.roles.semantic_reviewer import FunctionFinding, ModelFinding, _already_handled, _entity_line
-from app.schemas.design import Attribute, CheckRule, Entity, RequiredWhen
+from app.schemas.data_model import Attribute, CheckRule, Entity, RequiredWhen
 
 FNS = {"FN-1", "FN-2"}
 

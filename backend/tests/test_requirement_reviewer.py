@@ -12,7 +12,7 @@ from app.agents.roles import coordinator, function_designer, requirement_reviewe
 from app.agents.roles.requirement_reviewer import (EXCLUDE, INCLUDE, ConflictReviewOut, MissingRequirement,
                                                    RequirementConflict, RequirementVerdict, SourceReviewOut, signals)
 from app.agents.flow.graph import build_graph
-from app.schemas.design import Requirement
+from app.schemas.requirement import Requirement
 
 FUNC = ("FUNCTIONAL", "SYSTEM", "기능")
 
@@ -350,7 +350,8 @@ def test_failed_conflict_review_is_retried(sample_doc):
 def test_conflict_mark_on_function_is_short():
     """기능 규칙에는 충돌 제목만 붙고 추천안은 붙지 않는다 (추천안은 설계 프롬프트의 요구사항 줄로만 간다)."""
     from app.agents.roles.function_designer import _review_marks
-    from app.schemas.design import FunctionSpec, Requirement, ReviewNote
+    from app.schemas.function import FunctionSpec
+    from app.schemas.requirement import Requirement, ReviewNote
 
     req = Requirement(requirement_id="R-1", source_key="R", source_ref="", type="FUNCTIONAL", scope="SYSTEM",
                       category="기능", title="이력 보관", description="-", priority="MUST",

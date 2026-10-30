@@ -1,11 +1,6 @@
-"""새 버전 만들기 작업: 화면의 요청을 CLI(`python -m app …`) 하위 프로세스로 실행하고 진행 상황을 기록한다.
+"""작업 공통: 작업 기록(Job), CLI 하위 프로세스 실행기(_Runner), 종료 코드·LLM 오류 안내.
 
-- 문서 업로드: `run <문서> --defer --until function_designer` → 기능 명세 초안 첫 버전 (ERD는 사람이 확정한 뒤)
-- 기능 명세 화면에서 확인 질문에 새로 답함: `rerun function_designer --answers` (추천과 다른 답이 바꾼 것만 다시 설계)
-- 기능 명세 내보내기 / ERD 저장: `rerun data_modeler` (확정한 기능 명세는 --design, 고친 데이터 모델은 --data-model, 의견은 --feedback)
-- ERD 최종 확정: `review <프로젝트> v<버전>` → 최종본 v<버전>.1 (추적·의미 검토 결과와 그 사용량)
-- 확인 질문에서 멈추면(종료 코드 3) `resume --defer`로 보류(가정) 처리하고 이어 간다.
-
+서비스별 작업 시작은 run.py(문서 업로드)·rerun.py(새 버전 만들기)·review.py(ERD 최종 확정)에 있다.
 LLM 작업은 몇 분씩 걸리므로 서버 안에서 돌리지 않고 하위 프로세스로 띄운다. 작업 기록은 메모리에만 있어 서버를 다시 띄우면 사라진다.
 """
 from __future__ import annotations
@@ -24,10 +19,12 @@ from datetime import datetime
 from functools import cache
 from pathlib import Path
 
+from app.agents.storage import get_store
 from app.core.security import redact
 from app.services.output_store import version_key, version_labels
 
-BACKEND_ROOT = Path(__file__).resolve().parents[2]
+# backend 폴더 (CLI를 이 폴더에서 실행한다). 이 파일은 app/services/jobs/ 안에 있다
+BACKEND_ROOT = Path(__file__).resolve().parents[3]
 MAX_LOG = 300
 
 # 종료 코드 → 화면에 보여 줄 이유 (app/cli.py의 _drive·_rerun과 같은 뜻)
@@ -88,13 +85,14 @@ def capabilities() -> dict:
 class _Runner:
     """작업 하나: CLI를 실행하고, 확인 질문에서 멈추면 resume --defer로 이어 가고, 끝나면 새 버전을 찾는다."""
 
-    def __init__(self, job: Job, project_dir: Path, output_dir: Path, *, submitted_md: str | None = None,
+    def __init__(self, job: Job, project: str, output_dir: Path, *, submitted_md: str | None = None,
                  pre: list[str] | None = None, temp: list[Path] | None = None,
                  on_done: Callable[[str], None] | None = None, result: str | None = None):
-        self.job, self.project_dir, self.output_dir = job, project_dir, output_dir
+        # project: 산출물 저장소의 프로젝트 ID (새 버전 찾기·결과 읽기) / output_dir: CLI에 --output-dir로 넘길 폴더
+        self.job, self.project, self.output_dir = job, project, output_dir
         self.submitted_md, self.pre, self.temp, self.on_done = submitted_md, pre or [], temp or [], on_done
         self.result = result     # 최종 확정: 새 최종본 폴더에서 읽을 결과 파일 이름 (semantic_review.json)
-        self.before = version_labels(project_dir)
+        self.before = version_labels(project)
 
     def start(self, args: list[str]) -> None:
         threading.Thread(target=self._run, args=(args,), daemon=True).start()
@@ -139,16 +137,15 @@ class _Runner:
             self._finish("failed", f"작업 중 오류가 났습니다: {e}")
 
     def _done(self) -> None:
-        created = version_labels(self.project_dir) - self.before
+        created = version_labels(self.project) - self.before
         if not created:
-            return self._finish("failed", "실행은 끝났지만 새 버전 폴더를 찾지 못했습니다.")
+            return self._finish("failed", "실행은 끝났지만 새 버전을 찾지 못했습니다.")
         newest = max(created, key=version_key)
-        folder = self.project_dir / f"v{newest}"
         self.job.new_version = newest
-        # Agent에 넘긴 기능 명세를 새 버전 폴더에 남긴다 (어떤 명세로 만든 ERD인지 확인용)
+        # Agent에 넘긴 기능 명세를 새 버전에 남긴다 (어떤 명세로 만든 ERD인지 확인용)
         if self.submitted_md:
-            (folder / "functions.submitted.md").write_text(self.submitted_md, encoding="utf-8")
-        self.job.warnings = [*_llm_errors(self.job.log), *self.pre, *_run_warnings(folder / "design.json")]
+            get_store().write(self.project, newest, "functions.submitted.md", self.submitted_md)
+        self.job.warnings = [*_llm_errors(self.job.log), *self.pre, *_run_warnings(self.project, newest)]
         if self.on_done:
             self.on_done(newest)
         self._finish("done", f"v{newest}을 만들었지만 Agent 단계 일부가 실패했습니다." if self.job.warnings
@@ -156,14 +153,14 @@ class _Runner:
 
     def _reviewed(self) -> None:
         """ERD 최종 확정: 새로 생긴 최종본(v1.1.1 …)을 찾아 그 의미 검토 결과로 끝낸다."""
-        created = version_labels(self.project_dir) - self.before
+        created = version_labels(self.project) - self.before
         if not created:
-            return self._finish("failed", "최종 확정은 끝났지만 최종본 폴더를 찾지 못했습니다.")
+            return self._finish("failed", "최종 확정은 끝났지만 최종본을 찾지 못했습니다.")
         newest = max(created, key=version_key)
         self.job.new_version = newest
         try:
-            data = json.loads((self.project_dir / f"v{newest}" / self.result).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+            data = json.loads(get_store().read(self.project, newest, self.result) or "{}")
+        except ValueError:
             data = {}
         failed = data.get("failed") or []
         self.job.warnings = [*_llm_errors(self.job.log), *([f"의미 검토 실패(미검증): {', '.join(failed)}"] if failed else [])]
@@ -190,81 +187,12 @@ def _temp_file(job: Job, name: str, body: str, temp: list[Path]) -> Path:
     return f
 
 
-def start_rerun(*, output_dir: Path, project: str, base: str, source: str, data_model=None, design=None,
-                spec_md: str | None = None, spec_summary: str | None = None, answers: dict | None = None,
-                feedback: str | None = None, on_done: Callable[[str], None] | None = None) -> Job:
-    """기준 버전에서 한 단계만 다시 만들어 새 버전(v4.1 …)을 만든다."""
-    project_dir = (output_dir / project).resolve()
-    # rerun은 '--output-dir 아래의 프로젝트 이름'으로 찾으므로 한 단계 위 폴더와 이름으로 나눈다
-    rerun_root, name = project_dir.parent, project_dir.name
-    if source == "spec" and answers:
-        source = "answers"
-    job = _new_job(project=project, base=base, source=source,
-                   message=f"기능 명세 v{base}에 확인 질문 답 {len(answers or {})}건을 반영하는 중" if source == "answers"
-                   else f"기능 명세 v{base}로 ERD를 만드는 중" if source == "spec" else f"ERD v{base}에서 새 버전을 만드는 중")
-    temp: list[Path] = []
-    pre: list[str] = []   # 시작 전에 정해지는 안내 (완료 화면 경고에 합친다)
-    model_file = _temp_file(job, "data_model.json", json.dumps(data_model, ensure_ascii=False, indent=2), temp) \
-        if data_model else None
-    feedback = (feedback or "").strip()
-    summary = (spec_summary or "").strip()
-    spec_args: list[str] = []
-    if source == "answers":
-        # 기능 명세 수정은 rerun function_designer가 파일로 받지 않으므로 변경 요약을 의견으로 함께 넘긴다
-        spec_args += ["--answers", str(_temp_file(job, "answers.json", json.dumps(answers, ensure_ascii=False), temp))]
-        if summary:
-            feedback = "\n\n".join(x for x in (summary, feedback) if x)
-            pre.append("기능 명세 수정 내용은 Agent 의견으로 넘겼습니다 (그 수정과 관련된 기능만 다시 설계).")
-    elif source == "spec":
-        caps = capabilities()
-        if caps["design"] and design:
-            spec_args += ["--design", str(_temp_file(job, "design.json", json.dumps(design, ensure_ascii=False), temp))]
-        if caps["spec_md"] and spec_md:
-            spec_args += ["--spec-md", str(_temp_file(job, "functions.md", spec_md, temp))]
-        if not caps["design"] and not caps["spec_md"] and summary:
-            feedback = "\n\n".join(x for x in (summary, feedback) if x)
-            pre.append("백엔드 rerun에 기능 명세 수정본 옵션(--design·--spec-md)이 아직 없어 수정 내용을 Agent 의견으로 넘겼습니다.")
-        # 수정도 의견도 없으면 이 기능 명세로 ERD를 처음부터 설계한다
-        if not spec_args and not feedback and not model_file:
-            spec_args.append("--full")
-
-    args = ["rerun", "function_designer" if source == "answers" else "data_modeler", name, "--from", f"v{base}",
-            "--output-dir", _path_arg(rerun_root),
-            *(["--data-model", str(model_file)] if model_file else []),
-            *spec_args,
-            *(["--feedback", feedback] if feedback else [])]
-    _Runner(job, project_dir, rerun_root, submitted_md=spec_md if source == "spec" else None, pre=pre, temp=temp,
-            on_done=on_done).start(args)
-    return job
-
-
-def start_run(*, output_dir: Path, document: Path, project: str, title: str = "", validate_db: bool = False) -> Job:
-    """업로드한 문서로 기능 명세 초안까지 실행한다 (확인 질문은 추천안으로 가정). ERD는 사람이 기능 명세를 확정하고
-    '내보내기 → ERD 만들기'를 할 때 만든다. validate_db는 그때 이어받는다."""
-    job = _new_job(project=project, base="", source="run", message=f"{document.name}을(를) 분석하는 중")
-    args = ["run", _path_arg(document), "--project", project, "--defer", "--until", "function_designer",
-            "--output-dir", _path_arg(output_dir),
-            *(["--title", title] if title else []), *(["--validate-db"] if validate_db else [])]
-    _Runner(job, output_dir / project, output_dir).start(args)
-    return job
-
-
-def start_review(*, output_dir: Path, project: str, version: str) -> Job:
-    """ERD 최종 확정: 그 ERD 아래 최종본(v1.1 → v1.1.1)을 만들고 추적 검토·의미 검토(ERD ↔ 기능 명세)를 한 번 한다."""
-    project_dir = (output_dir / project).resolve()
-    root, name = project_dir.parent, project_dir.name
-    job = _new_job(project=project, base=version, source="review", message=f"ERD v{version} 최종 확정: 최종본을 만들고 기능 명세와 대조해 검토하는 중")
-    _Runner(job, project_dir, root, result="semantic_review.json").start(
-        ["review", name, f"v{version}", "--output-dir", _path_arg(root)])
-    return job
-
-
-def _run_warnings(design_file: Path) -> list[str]:
+def _run_warnings(project: str, version: str) -> list[str]:
     """실행은 끝났어도 Agent가 단계를 반복 실패하면 남은 결과로 '현재 상태로 제공'한다.
     그런 경우를 화면에 알리도록 판단 기록의 실패 결과와 충족 못 한 완료 조건을 모은다."""
     try:
-        d = json.loads(design_file.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        d = json.loads(get_store().read(project, version, "design.json") or "")
+    except ValueError:
         return []
     failed = [x for x in d.get("decisions") or [] if re.search(r"실패|검토 못 함", x.get("result") or "")]
     checks = [c for c in (d.get("completion") or {}).get("checks") or [] if not c.get("passed")]

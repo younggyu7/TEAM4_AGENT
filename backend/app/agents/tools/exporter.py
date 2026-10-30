@@ -2,20 +2,24 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 import re
 from collections import OrderedDict
 from datetime import datetime
-from pathlib import Path
 
-from app.schemas.design import (QUESTION_STAGES, DataModel, DbValidationResult, DocumentBlock, FunctionSpec, Issue, Question,
-                                Requirement, RequirementSource, TraceLink)
+from app.schemas.data_model import DataModel, DbValidationResult
+from app.schemas.document import DocumentBlock, RequirementSource
+from app.schemas.function import FunctionSpec
+from app.schemas.requirement import QUESTION_STAGES, Question, Requirement
+from app.schemas.review import Issue, TraceLink
 from app.agents.tools.ddl import render_script
 from app.agents.tools.erd import render_mermaid
 from app.agents.tools.model_edits import ReworkSummary
 from app.agents.flow.rerun import STAGES
-from app.agents.tools.convention import ConventionReport, apply_profile, ddl_model, profile_of, write_names
+from app.agents.tools.convention import ConventionReport, apply_profile, ddl_model, names_csv, profile_of
 from app.agents.tools.trace_diff import compare_versions, load_previous, version_changes
+from app.agents.storage import get_store
 from app.agents.tools.versions import project_of
 
 SEVERITY_ORDER = {"ERROR": 0, "WARNING": 1, "INFO": 2}
@@ -33,15 +37,12 @@ def table(headers: list[str], rows: list[list]) -> str:
     return "\n".join(lines)
 
 
-def _write(path: Path, text: str) -> Path:
-    """UTF-8로 파일을 쓰고 경로를 돌려준다."""
-    path.write_text(text, encoding="utf-8")
-    return path
+def export_design(state: dict, version: str) -> list[str]:
+    """설계 버전 하나의 산출물 파일(요구사항·기능·ERD·DDL·추적표·검토·JSON)을 산출물 저장소에 모두 쓰고 위치 목록을 돌려준다."""
+    project = project_of(state)
 
-
-def export_design(state: dict, out_dir: Path, version: str) -> list[Path]:
-    """설계 버전 하나의 산출물 파일(요구사항·기능·ERD·DDL·추적표·검토·JSON)을 모두 쓴다."""
-    out_dir.mkdir(parents=True, exist_ok=True)
+    def _write(name: str, text: str) -> str:
+        return get_store().write(project, version, name, text)
     reqs = [Requirement.model_validate(r) for r in state.get("requirements") or []]
     questions = [Question.model_validate(q) for q in state.get("questions") or []]
     funcs = [FunctionSpec.model_validate(f) for f in state.get("functions") or []]
@@ -80,7 +81,7 @@ def export_design(state: dict, out_dir: Path, version: str) -> list[Path]:
     # 이전 버전 대비 변경 (추적표 4절). 기능 명세 단계 버전은 데이터 설계 전이라 엔티티 대신 데이터 설계 영향을 보여 준다
     stage_only = until == "function_designer"
     requirements_only = until == "requirements_analyst"
-    previous = load_previous(out_dir.parent, state.get("parent_version"))
+    previous = load_previous(project, state.get("parent_version"))
     changes = None
     if previous and requirements_only:   # 요구사항만 비교하고, 영향은 기준 버전의 기능·엔티티로 보여 준다
         changes = compare_versions({"requirements": reqs, "functions": [], "model": None}, previous, False)
@@ -93,9 +94,9 @@ def export_design(state: dict, out_dir: Path, version: str) -> list[Path]:
     req_text = _requirements_md(head, reqs, questions, blocks, sources)
     if requirements_only and changes:
         req_text += "\n" + "\n".join(changes_md(changes, f"## 5. 이전 버전(v{changes['from']}) 대비 변경")) + "\n"
-    files = [_write(out_dir / "requirements.md", req_text)]
+    files = [_write("requirements.md", req_text)]
     if not requirements_only:
-        files.append(_write(out_dir / "functions.md", _functions_md(head, funcs, reqs, state.get("function_common"),
+        files.append(_write("functions.md", _functions_md(head, funcs, reqs, state.get("function_common"),
                                                                     questions, state.get("function_confirm"))))
     # 설계 표준(--standard): ERD·테이블 정의서·DDL만 표준 이름, data_model.json은 설계 이름 그대로 (다시 설계·사용자 수정의 기준)
     profile = profile_of(options)
@@ -108,23 +109,23 @@ def export_design(state: dict, out_dir: Path, version: str) -> list[Path]:
                                 "tables": conv.count("table"), "columns": conv.count("column"),
                                 "missing_words": len(conv.missing), "violations": len(conv.violations)}
         files += [
-            _write(out_dir / "erd.mmd", render_mermaid(physical)),
-            _write(out_dir / "erd.md", _erd_md(head, physical, version, conv)),
-            _write(out_dir / "schema.sql", render_script(ddl_model(physical, profile), version, "postgresql")),
-            _write(out_dir / "data_model.json", model.model_dump_json(indent=2)),
+            _write("erd.mmd", render_mermaid(physical)),
+            _write("erd.md", _erd_md(head, physical, version, conv)),
+            _write("schema.sql", render_script(ddl_model(physical, profile), version, "postgresql")),
+            _write("data_model.json", model.model_dump_json(indent=2)),
         ]
         if conv:
-            files.append(write_names(out_dir / "standard_names.csv", conv))
+            files.append(_write("standard_names.csv", names_csv(conv)))
     if not requirements_only:
         files += [
-            _write(out_dir / "traceability.md", _trace_md(head, reqs, funcs, model, questions, stage_only, changes)),
-            _write_csv(out_dir / "traceability.csv", links, version),
+            _write("traceability.md", _trace_md(head, reqs, funcs, model, questions, stage_only, changes)),
+            _write("traceability.csv", _trace_csv(links, version)),
         ]
     files += [
-        _write(out_dir / "review_report.md", _review_md(head, state, issues, questions, conv)),
+        _write("review_report.md", _review_md(head, state, issues, questions, conv)),
         # 데이터 모델·추적 링크는 data_model.json·traceability.csv와 겹치므로 넣지 않고 위치만 적는다.
         # 사람이 읽는 파일이 아니라서 들여쓰기 없이 쓴다 (크기 약 60% 감소).
-        _write(out_dir / "design.json", json.dumps({
+        _write("design.json", json.dumps({
             "meta": {**meta, "until": until, "files": {"data_model": "data_model.json" if model else None,
                                                        "trace_links": None if requirements_only else "traceability.csv"}},
             "requirements": state.get("requirements"), "questions": state.get("questions"),
@@ -135,14 +136,14 @@ def export_design(state: dict, out_dir: Path, version: str) -> list[Path]:
     return files
 
 
-def _write_csv(path: Path, links: list[TraceLink], version: str) -> Path:
-    """추적 링크 CSV를 쓴다 (Excel에서 한글이 깨지지 않게 BOM 포함)."""
-    with path.open("w", encoding="utf-8-sig", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["from_id", "to_id", "link_type", "design_version"])
-        for l in links:
-            w.writerow([l.from_id, l.to_id, l.link_type, version])
-    return path
+def _trace_csv(links: list[TraceLink], version: str) -> str:
+    """추적 링크 CSV 내용 (Excel에서 한글이 깨지지 않게 BOM 포함)."""
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["from_id", "to_id", "link_type", "design_version"])
+    for l in links:
+        w.writerow([l.from_id, l.to_id, l.link_type, version])
+    return "\ufeff" + out.getvalue()
 
 
 # ------------------------------------------------------------------ 요구사항 정의서
@@ -609,8 +610,8 @@ def _semantic_md(state: dict, issues: list[Issue]) -> list[str]:
     return head + [body, "", *notes, *([""] if notes else [])]
 
 
-def export_semantic_review(state: dict, out_dir: Path, project: str, version: str, source: bool) -> list[Path]:
-    """ERD 최종 확정 때의 의미 검토 결과(review 명령)를 그 버전 폴더에 쓴다: semantic_review.md(보고서)·json(화면용).
+def export_semantic_review(state: dict, project: str, version: str, source: bool) -> list[str]:
+    """ERD 최종 확정 때의 의미 검토 결과(review 명령)를 최종본에 쓴다: semantic_review.md(보고서)·json(화면용).
     산출물 내용은 바뀌지 않으므로 새 버전을 만들지 않고, 다시 확정하면 덮어쓴다."""
     issues = [Issue.model_validate(i) for i in state.get("issues") or []]
     meta = state.get("semantic_review") or {}
@@ -632,9 +633,9 @@ def export_semantic_review(state: dict, out_dir: Path, project: str, version: st
                             "message": what, "evidence": evidence, "suggestion": suggestion, "owner": owner})
     data = {"project": project, "version": version, "reviewed_at": reviewed_at, "scope": scope,
             "parts": meta.get("parts") or [], "failed": meta.get("failed") or [], "remarks": remarks, "usage": usage}
-    out_dir.mkdir(parents=True, exist_ok=True)
-    return [_write(out_dir / "semantic_review.md", "\n".join(head + _semantic_md(state, issues))),
-            _write(out_dir / "semantic_review.json", json.dumps(data, ensure_ascii=False, indent=2) + "\n")]
+    store = get_store()
+    return [store.write(project, version, "semantic_review.md", "\n".join(head + _semantic_md(state, issues))),
+            store.write(project, version, "semantic_review.json", json.dumps(data, ensure_ascii=False, indent=2) + "\n")]
 
 
 def _split_remark(text: str) -> tuple[str, str, str]:
@@ -687,9 +688,8 @@ def _short(items: list[str], n: int = 6) -> str:
     return ", ".join(items[:n]) + (f" 외 {len(items) - n}" if len(items) > n else "")
 
 
-def export_db_report(result: DbValidationResult, out_dir: Path) -> Path:
-    """DB 구조·검증 보고서를 쓴다."""
-    out_dir.mkdir(parents=True, exist_ok=True)
+def export_db_report(result: DbValidationResult, project: str) -> str:
+    """DB 구조·검증 보고서를 그 설계 버전에 쓰고 위치를 돌려준다."""
     verdict = "✅ 통과" if result.passed else "❌ 실패"
     lines = ["# DB 구조·검증 보고서", "",
              f"- 설계 버전: v{result.design_version}",
@@ -702,4 +702,4 @@ def export_db_report(result: DbValidationResult, out_dir: Path) -> Path:
     if result.errors:
         lines += ["## 오류", "", *[f"- {e}" for e in result.errors], ""]
     lines += ["> 검사 통과는 스키마 생성과 기본 제약(PK·FK·CHECK) 존재를 뜻하며, 업무 정확성이나 운영 성능을 보장하지 않는다.", ""]
-    return _write(out_dir / "db_validation.md", "\n".join(lines))
+    return get_store().write(project, result.design_version, "db_validation.md", "\n".join(lines))

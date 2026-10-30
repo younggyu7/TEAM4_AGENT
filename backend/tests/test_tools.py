@@ -1,7 +1,7 @@
 """결정적 도구 단위 테스트 (LLM 불필요)."""
 import pytest
 
-from app.schemas.design import Attribute, DataModel, Entity
+from app.schemas.data_model import Attribute, DataModel, Entity
 from app.agents.flow.state import finding, reconcile_issues
 from app.agents.tools.db_validator import validate_ddl
 from app.agents.tools.ddl import render_script
@@ -146,7 +146,7 @@ def test_quote_conflict_keeps_numbers_conditions_and_targets(quote, line, same):
 
 def _research(blocks, claimed: str, quote: str) -> dict:
     from app.agents.roles import document_analyst
-    from app.schemas.design import Evidence, Requirement
+    from app.schemas.requirement import Evidence, Requirement
     req = Requirement(requirement_id="R-1", type="FUNCTIONAL", scope="SYSTEM", category="기능", title="t",
                       description="", evidence=[Evidence(source_block_id=claimed, quote=quote)])
     state = {"blocks": [b.model_dump() for b in blocks], "requirements": [req.model_dump()],
@@ -170,7 +170,7 @@ def test_research_relinks_same_quote_but_not_altered_quote(tmp_path):
 
 
 def test_prefix_inconsistent_in_same_category():
-    from app.schemas.design import BlockLocation, DocumentBlock
+    from app.schemas.document import BlockLocation, DocumentBlock
 
     def table(i, code, name):
         return DocumentBlock(document_id="d", document_version="v", source_block_id=f"B{i:04d}",
@@ -184,7 +184,7 @@ def test_prefix_inconsistent_in_same_category():
 
 def test_category_checks_ignore_notation_umbrella_headings_and_bullets():
     """고객요구사항7~10에서 본 표기 차이는 경고하지 않고, 실제 원문 문제만 경고한다."""
-    from app.schemas.design import BlockLocation, DocumentBlock
+    from app.schemas.document import BlockLocation, DocumentBlock
 
     def table(i, code, name, category, heading):
         return DocumentBlock(document_id="d", document_version="v", source_block_id=f"B{i:04d}",

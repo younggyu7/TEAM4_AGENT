@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
-from app.schemas.design import Attribute, DataModel, Entity
+from app.schemas.data_model import Attribute, DataModel, Entity
 from app.agents.tools.model_validator import INTEGER_TYPES, PG_RESERVED
 
 Dialect = Literal["postgresql", "sqlite"]

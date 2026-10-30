@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 
 from app.core.config import get_settings
-from app.schemas.design import DocumentBlock, Requirement
+from app.schemas.document import DocumentBlock
+from app.schemas.requirement import Requirement
 from app.agents.flow.state import AgentState, dump, issues_of, load, reconcile_issues
 from app.agents.tools.doc_quality import build_sources, check_document
 from app.agents.tools.document_parser import document_codes, parse_document, textless_pages

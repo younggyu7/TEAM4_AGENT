@@ -20,9 +20,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.agents.prompts import load_prompt
 from app.core.config import get_settings
 from app.agents.llm.client import get_llm, run_parallel
-from app.schemas.design import DataModel, FunctionSpec, Requirement
+from app.schemas.data_model import DataModel
+from app.schemas.function import FunctionSpec
+from app.schemas.requirement import Requirement
 from app.agents.tools.search import normalize, quote_in_text
 from app.agents.flow.state import (AgentState, basis, finding, get_data_model, issues_of, load, merge_usage, reconcile_issues, rev,
                                    semantic_stale_parts)
@@ -32,54 +35,11 @@ BY = "semantic_reviewer"
 PART_LABELS = {"functions": "기능 명세", "model": "데이터 모델"}
 PART_PREFIX = {"functions": "SEM_FUNC_", "model": "SEM_MODEL_"}
 
-COMMON_RULES = """
-규칙
-1. 제공된 내용으로 확인되는 문제만 지적한다. 표현 다듬기, 일반적인 권고, 내용에 없는 추측은 쓰지 않는다.
-2. target_ids에는 제공된 목록에 있는 ID만 쓴다.
-3. message는 무엇이 문제인지 한 문장, evidence는 문제를 보여주는 문장·항목을 제공된 내용에서 그대로 인용, suggestion은 고칠 내용을 구체적으로 쓴다.
-   quote에는 지적의 근거가 되는 문장 하나를 제공된 내용에서 글자 그대로 복사한다 (10자 이상, 앞에 '기능 명세:' 같은 말을 붙이지 않는다).
-   제공된 내용에서 복사할 수 없는 지적은 버려진다.
-4. 같은 문제를 여러 번 쓰지 않는다. 문제가 없으면 findings는 빈 배열이다. 중요한 것부터 최대 {limit}건.
-5. 지적하기 전에 해당 기능·엔티티 내용을 다시 확인한다. 이미 처리됐으면 already_covered를 true로 하고, 그런 지적은 버려진다.
-6. 모든 서술은 한국어."""
+COMMON_RULES = load_prompt("semantic_reviewer/common_rules")   # {limit}을 채워 각 검토 프롬프트 뒤에 붙인다
 
-FUNCTIONS_PROMPT = """당신은 기능 명세 검토자다. 요구사항과 기능 명세를 대조해 기능 명세가 요구사항을 제대로 구현하는지 검토한다.
+FUNCTIONS_PROMPT = load_prompt("semantic_reviewer/functions") + COMMON_RULES.format(limit=20)
 
-지적 종류 (category)
-- GAP: 기능이 연결된 요구사항의 내용·수용 기준 일부를 다루지 않음 (빠진 동작·조건·입출력).
-- CONFLICT: 기능의 업무 규칙·흐름이 요구사항 원문과 어긋나거나, 기능끼리 같은 대상에 서로 다른 규칙을 정함.
-- UNMARKED_ASSUMPTION: 원문·수용 기준·결정에 없는 수치·기간·횟수·절차를 업무 규칙에 '(가정)' 표시 없이 단정함.
-- UNCLEAR: 요구사항에도 없는 세부가 정해지지 않았거나 불명확함 (시점·범위·대상·수치·역할 분담을 더 정하라는 지적).
-  이 종류는 고객 확인 후보로만 쓰이고 지적으로 남지 않는다. '불명확', '명시해야', '정의되지 않음'으로 끝나는 지적은 대부분 이것이다.
-target_ids에는 관련 기능 ID(반드시 하나 이상)와 요구사항 ID를 쓴다.
-
-지적하지 않는 것
-- 앞에 '(가정)'·'(확인 필요)'·'(확인 필요 질문 ID)'·'(결정 질문 ID)'가 붙은 규칙: 이미 고객 확인 대상으로 표시됐다. 그 내용을 다시 지적하지 않는다.
-- 요구사항끼리의 문제(개발 일정·우선순위, 요구사항 사이의 충돌, 요구사항 문장 자체의 모호함): 요구사항 검토 Agent가 기능 명세 전에 본다.
-- 요구사항·수용 기준에도 없는 세부 정의를 더 쓰라는 요구 (예: 원문에 없는 참여 조건 항목·진행 단계 목록·'실시간'의 수치 정의)는
-  GAP·CONFLICT가 아니라 UNCLEAR다. 기능 명세는 원문에 없는 판단을 최소로 한다.
-  GAP은 요구사항·수용 기준에 있는 내용이 기능에서 빠진 경우만이며, quote에 그 요구사항 문장을 복사한다.
-""" + COMMON_RULES.format(limit=20)
-
-MODEL_PROMPT = """당신은 데이터 모델 검토자다. 기능 명세와 데이터 모델을 대조해 모델이 기능에 필요한 데이터와 규칙을 담는지 검토한다.
-
-지적 종류 (category)
-- GAP: 기능의 입력·출력·업무 규칙에 필요한 데이터를 저장할 컬럼이나 엔티티가 없음
-  (예: 승인 기능인데 승인자·승인 일시 컬럼이 없음, 업무 규칙에 나온 상태값이 허용값에 없음).
-- INTEGRITY: 업무 규칙상 지켜야 할 제약이 모델에 없음
-  (예: 한 행이 여러 부모 중 정확히 하나만 가리켜야 하는데 NULL 허용 FK만 여러 개 있음,
-   반드시 있어야 할 참조가 NULL 허용, 중복되면 안 되는 값에 UNIQUE가 없음).
-- APP_LOGIC: 저장할 데이터나 DB 제약이 아니라 애플리케이션이 처리할 일 (검증 시점, 자동 처리, 계산, 형식 검사, 동시성, 세션, 인덱스·성능,
-  '업무 규칙을 명시하라'는 제안). 이 종류는 지적으로 남지 않는다.
-target_ids에는 엔티티명과 관련 기능 ID를 쓴다.
-
-지적하지 않는 것
-- 엔티티 줄에 이미 있는 것: 컬럼, NOT NULL, UNIQUE, 허용값 [..], 조합 유일, 정확히 하나, 조건부 필수, 값 조건, 참조(→).
-- 기존 컬럼으로 표현되는 것 (예: locked_until이 있으면 잠금 시작 시각 컬럼은 필요 없음, 마지막 변경 일시로 주기 계산 가능).
-- 저장할 데이터가 아닌 애플리케이션 처리(조회 기본값, 동시성 제어, 알림 발송, 자동 회수·만료 작업, 세션 관리)는 APP_LOGIC이다.
-  업무 규칙이 그 결과를 기록하라고 할 때만 GAP이다.
-- 감사 컬럼·명명 규칙·평문 인증 정보는 별도 규칙 검사가 확인한다. 정규화 방식이나 이름 취향도 지적하지 않는다.
-""" + COMMON_RULES.format(limit=20)
+MODEL_PROMPT = load_prompt("semantic_reviewer/model") + COMMON_RULES.format(limit=20)
 
 
 # LLM 응답 스키마: 지적 하나의 공통 항목

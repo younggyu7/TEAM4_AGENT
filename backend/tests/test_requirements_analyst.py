@@ -7,7 +7,7 @@ from app.agents.llm import client as llm_module
 from app.agents.roles import requirements_analyst as ra
 from app.agents.roles.requirements_analyst import EvidenceOut, ExtractionOut, QuestionOut, RequirementOut
 from app.agents.llm.client import LLMClient, LLMError
-from app.schemas.design import BlockLocation, DocumentBlock, RequirementSource
+from app.schemas.document import BlockLocation, DocumentBlock, RequirementSource
 
 
 class ScriptedLLM(LLMClient):

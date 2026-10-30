@@ -28,7 +28,7 @@ def test_rerun_of_same_document_gets_next_version(sample_doc, capsys):
     assert (out / "sample" / "v1" / "schema.sql").exists() and (out / "sample" / "v2" / "schema.sql").exists()
     assert not (out / "run-a").exists(), "실행 ID 폴더는 만들지 않음"
 
-    versions = load_versions(out, "sample")
+    versions = load_versions("sample")
     assert [(v["design_version"], v["run_id"], v["parent"]) for v in versions] == [("1", "run-a", None), ("2", "run-b", "1")]
     assert all(v["db_validation"] == "PASSED" and v["document"] == "sample.txt" for v in versions)
     assert "> 프로젝트: **sample** · 설계 버전: **v2**" in (out / "sample" / "v2" / "review_report.md").read_text(
@@ -50,8 +50,10 @@ def test_project_option_and_name_cleanup(sample_doc):
     assert (get_settings().output_dir / "화물차_운행관리_1차" / "v1").exists() and state["design_version"] == "1"
 
 
-def test_claim_next_version_skips_taken_numbers(tmp_path):
-    (tmp_path / "p" / "v1").mkdir(parents=True)
-    (tmp_path / "p" / "v3").mkdir()
-    assert claim_next_version(tmp_path, "p")[0] == "4", "가장 큰 번호 다음"
-    assert claim_next_version(tmp_path, "p")[0] == "5", "이미 잡힌 번호는 다시 쓰지 않음"
+def test_claim_next_version_skips_taken_numbers():
+    root = get_settings().output_dir
+    (root / "p" / "v1").mkdir(parents=True)
+    (root / "p" / "v3").mkdir()
+    assert claim_next_version("p") == "4", "가장 큰 번호 다음"
+    assert claim_next_version("p") == "5", "이미 잡힌 번호는 다시 쓰지 않음"
+    assert claim_next_version("p", "4") == "4.1", "기준 번호 아래"

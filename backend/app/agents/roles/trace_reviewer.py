@@ -11,7 +11,9 @@ from __future__ import annotations
 import logging
 
 from app.core.config import get_settings
-from app.schemas.design import FunctionSpec, Requirement, TraceLink
+from app.schemas.function import FunctionSpec
+from app.schemas.requirement import Requirement
+from app.schemas.review import TraceLink
 from app.agents.flow.state import AgentState, basis, dump, finding, get_data_model, issues_of, load, reconcile_issues, rev
 
 log = logging.getLogger(__name__)

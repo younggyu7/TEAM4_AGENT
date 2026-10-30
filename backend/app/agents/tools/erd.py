@@ -1,7 +1,7 @@
 """DataModel → Mermaid erDiagram (DDL과 같은 모델에서 생성)."""
 from __future__ import annotations
 
-from app.schemas.design import DataModel
+from app.schemas.data_model import DataModel
 
 _CARDINALITY = {
     ("1:N", False): "||--o{",

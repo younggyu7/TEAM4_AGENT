@@ -47,6 +47,7 @@ def kobaco_path() -> Path:
 def isolated_settings(tmp_path, monkeypatch):
     from app.core import config
     from app.agents.llm import client as llm
+    from app.agents.storage import set_store
 
     # 테스트는 가짜 LLM을 쓰지만 공급자 선택이 키 존재를 확인하므로, .env 키가 없는 환경(CI)에서도 돌게 한다
     if not (os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")):
@@ -55,3 +56,4 @@ def isolated_settings(tmp_path, monkeypatch):
     yield
     config._settings = None
     llm.set_llm(None)
+    set_store(None)   # 저장소를 바꿔 끼운 테스트 뒤에는 설정의 로컬 폴더로 되돌린다

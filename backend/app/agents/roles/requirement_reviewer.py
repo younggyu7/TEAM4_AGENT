@@ -30,10 +30,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.agents.prompts import load_prompt
 from app.core.config import get_settings
 from app.agents.llm.client import LLMFatalError, get_llm, run_parallel
-from app.schemas.design import (USER_SOURCE, DocumentBlock, Evidence, FunctionSpec, Issue, Question, Requirement,
-                                RequirementCategory, RequirementScope, RequirementSource, RequirementType, ReviewNote)
+from app.schemas.document import DocumentBlock, RequirementSource
+from app.schemas.function import FunctionSpec
+from app.schemas.requirement import (Evidence, Question, Requirement, RequirementCategory, RequirementScope, RequirementType, ReviewNote, USER_SOURCE)
+from app.schemas.review import Issue
 from app.agents.flow.state import AgentState, dump, finding, load, merge_usage, rev
 from app.agents.tools.search import normalize, quote_in_text
 
@@ -64,62 +67,10 @@ PROJECT_WORDS = re.compile(r"교육|훈련|산출물|하자\s*보수|인력|투�
 ACTION_WORDS = re.compile(r"(등록|조회|검색|신청|승인|반려|알림|발송|통보|다운로드|업로드|출력|연계|배정|접수|저장|삭제|수정)"
                           r"\s*(할\s*수\s*있|하는\s*기능|기능을\s*제공|기능\s*제공|하여야|해야)")
 
-SOURCE_PROMPT = """당신은 공공·기업 IT 구축 사업의 요구사항 검토자다. 원문 블록과 요구사항 Agent가 그 원문에서 추출한 요구사항을 대조한다.
-
-분류 기준 (요구사항 Agent와 같다)
-- type
-  · FUNCTIONAL: 시스템이 사용자·외부 시스템에 제공하는 동작 (등록, 조회, 접수, 배정, 승인, 알림, 연계, 다운로드 등)
-  · NON_FUNCTIONAL: 성능, 보안, 가용성, 호환성, 데이터 관리 정책, 품질, 제약, 장비 구성, 테스트, 사업관리·지원 등 기능이 아닌 조건
-- scope
-  · SYSTEM: 구축될 시스템이 갖추거나 충족해야 하는 것
-  · PROJECT: 수행업체의 사업 수행 의무 (보안서약·교육·산출물 제출·하자보수·장비 납품·검수 절차·인력 투입 등)
-- category: 기능, 성능, 보안, 인터페이스, 데이터, 품질, 제약, 장비구성, 테스트, 사업관리, 사업지원 중 하나.
-  FUNCTIONAL이면 보통 '기능'이다. 원문 표의 '분류' 칸이 있으면 그것을 우선한다.
-
-입력: 원문 단위마다 '요구사항 제목'(그 단위에서 추출된 요구사항), '담기지 않은 원문 문장'(어느 요구사항과도 겹침이 적은 문장),
-'판정할 요구사항'(근거 원문은 인용 앞뒤만).
-
-할 일
-1. verdicts: '판정할 요구사항'마다 한 번씩 낸다.
-   - type·scope·category: 원문 내용으로 판단한 분류 (지금 분류가 맞으면 그대로).
-     내용(무엇을 하는 것인지, 무엇을 지켜야 하는 조건인지, 누가 하는 일인지)으로 판단한다. '의심 이유'와 번호 접두어는 참고일 뿐이다.
-     예: PER 번호라도 알림을 보내는 동작이면 FUNCTIONAL, SFR 번호라도 화면 응답 시간 기준이면 NON_FUNCTIONAL.
-   - confidence: 원문으로 분류가 분명하면 high, 해석에 따라 갈려 고객 확인이 필요하면 low.
-   - in_source: 요구사항 내용이 원문에 근거하면 true. 원문에 없는 기능·조건을 추가로 판단해 만들었으면 false이고
-     source_note에 원문에 없는 부분을 한 문장으로 쓴다. 원문 표현을 요약·정리한 것은 근거가 있는 것이다.
-   - reason은 분류 이유 한 문장, evidence는 원문에서 그대로 인용한 구간.
-2. missing: '담기지 않은 원문 문장' 중 검증 가능한 요구인데 '요구사항 제목' 어디에도 해당하지 않는 것만 쓴다.
-   제목 목록의 요구사항에 이미 담긴 내용, 입찰 안내·평가 기준·사업 개요처럼 요구사항이 아닌 내용은 쓰지 않는다.
-   원문 단위 키와 근거 블록 ID는 그 문장에 붙은 것을 쓰고, quote는 그 문장에서 그대로 복사한 연속 구간(15~120자)이다. 없으면 빈 배열이다.
-3. requirement_id는 제공된 것만 쓴다. 모든 서술은 한국어."""
+SOURCE_PROMPT = load_prompt("requirement_reviewer/source")
 
 
-CONFLICT_PROMPT = """당신은 공공·기업 IT 구축 사업의 요구사항 검토자다. 고객 문서에서 추출한 요구사항 목록을 보고 서로 충돌하는 요구사항을 찾는다.
-
-충돌: 한 요구사항을 지키면 다른 요구사항을 반드시 어기게 되어, 둘을 동시에 만족하는 구현이 없는 경우만이다.
-같은 대상·같은 조건에 대해 수치·기간·권한·절차·상태·책임 주체가 서로 양립할 수 없게 다르다.
-(예: 같은 이력에 '보관 1년'과 '보관 3년 후 삭제' / 같은 게시글에 '관리자만 삭제'와 '작성자가 삭제')
-
-충돌이 아닌 것 (쓰지 않는다)
-- 중복·포함: 같은 내용을 두 곳에서 말하거나 한쪽이 더 엄격함 (예: '별도 서버로 구분'과 '별도 서버로 zone 구분' → 엄격한 쪽을 지키면 둘 다 만족)
-- 보완: 대상이나 범위를 나눠 각각 정함 (예: '조회 3초 이내'와 '입력·수정 3초 이내', '1개월 이내 5초'와 '1개월 초과는 5초 이상 가능')
-- 조건부: 한쪽이 다른 쪽의 특정 경우만 정함 (예: '오픈소스 또는 상용 제안 가능'과 '상용 제안 시 비용 세분화')
-- 함께 적용: 여러 통제·기능을 모두 요구함 (예: 'IP ACL·포트 변경'과 '2-Factor·캡차')
-- 무관: 대상이 다름, 숫자나 단어만 같음, 기산점이 다른 별개 일정, 같은 기한
-- 모호함·누락: 상한이 없거나 세부가 정해지지 않음 (충돌이 아니라 확인할 미정 사항이다)
-
-규칙
-1. 제공된 내용으로 확인되는 충돌만 쓴다. 추측으로 의존성·우선순위 문제를 만들지 않는다.
-2. 각 충돌마다 incompatible에 '한쪽을 지키면 다른 쪽을 어기는 이유'를 두 요구사항의 문장으로 쓴다.
-   둘을 함께 만족하는 구현이 하나라도 있으면 both_possible을 true로 하고, 그런 지적은 버려진다. 확신이 없으면 쓰지 않는다.
-3. 요구사항의 '결정'이 이미 충돌을 정리했으면 쓰지 않는다.
-4. requirement_ids에는 충돌하는 요구사항 ID를 목록에 있는 것만 2개 이상 쓴다.
-5. title은 무엇이 충돌하는지 20자 안팎의 명사구, conflict는 무엇이 어떻게 다른지 한 문장,
-   evidence는 두 요구사항의 해당 문장을 그대로 인용한다.
-6. question은 고객에게 확인할 질문 한 문장, options는 두 요구사항 중 어느 쪽을 따를지 등 구체적인 해결안 2~4개,
-   recommended는 options 중 하나. 해결안에 요구사항에 없는 새 조건(하드웨어·수치·절차 등)을 만들지 않는다.
-7. 같은 충돌을 여러 번 쓰지 않는다. 충돌이 없으면 conflicts는 빈 배열이며, 이것이 흔한 정상 결과다. 최대 5건.
-8. 모든 서술은 한국어."""
+CONFLICT_PROMPT = load_prompt("requirement_reviewer/conflict")
 
 
 # LLM 응답 스키마: 요구사항 하나의 원문 대조 판정

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from app.schemas.design import DataModel, Entity
+from app.schemas.data_model import DataModel, Entity
 
 # 엔티티 비교 항목 (사용자가 고칠 수 있는 내용)
 COMPARED = {"label", "description", "kind", "attributes", "function_ids", "parents", "unique_together",

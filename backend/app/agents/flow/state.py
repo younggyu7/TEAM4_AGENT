@@ -8,7 +8,8 @@ from typing import Callable, Iterable, TypedDict, TypeVar
 
 from pydantic import BaseModel
 
-from app.schemas.design import DataModel, Issue
+from app.schemas.data_model import DataModel
+from app.schemas.review import Issue
 
 M = TypeVar("M", bound=BaseModel)
 

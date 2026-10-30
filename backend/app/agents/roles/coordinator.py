@@ -23,7 +23,8 @@ from __future__ import annotations
 import logging
 
 from app.core.config import get_settings
-from app.schemas.design import CoordinatorDecision, Question
+from app.schemas.requirement import Question
+from app.schemas.review import CoordinatorDecision
 from app.agents.roles import requirement_reviewer
 from app.agents.flow.state import (AgentState, actionable_issues, functions_stale, get_data_model, issues_of, load,
                                    model_stale, rev, review_stale, semantic_stale_parts)

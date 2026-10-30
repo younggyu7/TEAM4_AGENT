@@ -56,7 +56,7 @@ def test_function_rerun_redesigns_group_keeps_ids_and_stops_before_data(sample_d
     assert v11["completion"]["satisfied"], "데이터 설계 조건은 해당 없음으로 통과"
     report = (folder / "review_report.md").read_text(encoding="utf-8")
     assert "다시 만든 단계: **기능 명세**" in report and "데이터 설계는 이 버전 확정 후" in report
-    record = next(v for v in load_versions(out, "sample") if v["design_version"] == "1.1")
+    record = next(v for v in load_versions("sample") if v["design_version"] == "1.1")
     assert record["stage"] == "function_designer" and record["rework"]["groups"]
 
 
@@ -88,13 +88,13 @@ def test_feedback_patches_only_changed_function_and_data_design_reuses_model(sam
     v1_model = {e["entity_id"]: e for e in json.loads(
         (out / "sample" / "v1" / "data_model.json").read_text(encoding="utf-8"))["entities"]}
     assert model["app_user"] == v1_model["app_user"], "바뀐 기능과 관계없는 엔티티는 그대로"
-    record = next(v for v in load_versions(out, "sample") if v["design_version"] == "1.1.1")
+    record = next(v for v in load_versions("sample") if v["design_version"] == "1.1.1")
     assert record["rework"]["inherited_from"] == "1" and record["rework"]["changed_functions"] == changed
 
 
 def test_ids_follow_names_and_removed_numbers_are_not_reused():
     from app.agents.roles.function_designer import FunctionOut, _from_design
-    from app.schemas.design import FunctionSpec
+    from app.schemas.function import FunctionSpec
 
     def out(name, reqs=("R1",)):
         return FunctionOut(name=name, description="", requirement_ids=list(reqs), nfr_ids=[], actors=[], preconditions=[],
@@ -109,7 +109,7 @@ def test_ids_follow_names_and_removed_numbers_are_not_reused():
 
 def test_renamed_functions_keep_ids_by_requirements():
     from app.agents.roles.function_designer import FunctionOut, _from_design
-    from app.schemas.design import FunctionSpec
+    from app.schemas.function import FunctionSpec
 
     def out(name, reqs):
         return FunctionOut(name=name, description="", requirement_ids=reqs, nfr_ids=[], actors=[], preconditions=[],
@@ -276,7 +276,7 @@ def test_group_scope_hides_requirements_owned_elsewhere_and_targets_owner():
     from collections import OrderedDict
 
     from app.agents.roles.function_designer import _groups_for, _group_scope
-    from app.schemas.design import Requirement
+    from app.schemas.requirement import Requirement
 
     reqs = {i: Requirement(requirement_id=i, source_key="G", type="FUNCTIONAL", scope="SYSTEM", category="기능",
                            title=f"요구 {i}", description="설명", priority="MUST") for i in ("A1", "A2", "B1")}
@@ -303,7 +303,8 @@ class _StubLLM:
 
 
 def _confirm_case():
-    from app.schemas.design import FunctionSpec, Requirement
+    from app.schemas.function import FunctionSpec
+    from app.schemas.requirement import Requirement
 
     reqs = [Requirement(requirement_id=i, source_key="G", type="FUNCTIONAL", scope="SYSTEM", category="기능",
                         title=f"요구 {i}", description="설명", priority="MUST", status=s)
