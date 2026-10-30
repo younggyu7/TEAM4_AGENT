@@ -4,7 +4,8 @@ Agent·흐름·API는 이 인터페이스만 쓰고, 실제 저장 위치(로컬
   - 프로젝트: 고객 문서 단위. ID는 'sample'처럼 이름 하나거나 'team/sample'처럼 묶음 아래 경로일 수 있다.
   - 버전: '1', '1.1', '1.1.1' 같은 번호. 번호를 잡은 뒤(claim_version) 그 버전의 산출물 파일을 쓴다.
   - 산출물: 버전마다 이름으로 읽고 쓰는 텍스트 파일 (design.json, schema.sql, functions.md …).
-  - 프로젝트 파일: 버전에 속하지 않는 파일 (versions.json, 화면 버전 제목 titles.json, diff 결과).
+  - 버전 기록·제목: 버전마다 기록(부모·단계·실행 ID …)과 화면에서 붙인 제목.
+  - 프로젝트 파일: 버전에 속하지 않는 파일 (버전 비교 diff 결과 등).
 번호 규칙·기록 정렬 같은 업무 규칙은 포트 밖(tools/versions.py)에 두고, 포트는 읽기·쓰기만 맡는다.
 """
 from __future__ import annotations
@@ -30,6 +31,19 @@ class ArtifactStore(Protocol):
 
     def write_project_file(self, project: str, name: str, text: str) -> str:
         """프로젝트 파일을 쓰고 위치를 돌려준다."""
+
+    # ---------------------------------------------------------------- 버전 기록·제목
+    def load_version_records(self, project: str) -> list[dict]:
+        """버전 기록 (versions.json의 versions 항목). 없으면 빈 목록."""
+
+    def save_version_records(self, project: str, records: list[dict]) -> None:
+        """버전 기록 전체를 바꾼다."""
+
+    def load_titles(self, project: str) -> dict[str, str]:
+        """화면에서 붙인 버전 제목 {번호: 제목}."""
+
+    def save_titles(self, project: str, titles: dict[str, str]) -> None:
+        """화면에서 붙인 버전 제목 전체를 바꾼다."""
 
     # ---------------------------------------------------------------- 버전 공간
     def claim_version(self, project: str, base: str | None = None) -> str:

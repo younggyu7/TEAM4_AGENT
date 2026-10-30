@@ -47,10 +47,7 @@ def version_key(label) -> tuple[int, ...]:
 
 def load_versions(project: str) -> list[dict]:
     """프로젝트의 버전 기록 (번호 순). 예전 기록의 숫자 번호도 문자열로 맞춘다."""
-    text = get_store().read_project_file(project_name(project), INDEX)
-    if text is None:
-        return []
-    versions = json.loads(text).get("versions", [])
+    versions = get_store().load_version_records(project_name(project))
     for v in versions:
         v["design_version"] = str(v["design_version"])
         if v.get("parent") is not None:
@@ -82,8 +79,7 @@ def save_version(project: str, record: dict) -> None:
     record = {**record, "design_version": label, "output_dir": get_store().version_location(project, label)}
     versions = [v for v in load_versions(project) if v["design_version"] != label]
     versions = sorted([*versions, record], key=lambda v: version_key(v["design_version"]))
-    get_store().write_project_file(project, INDEX, json.dumps({"project": project_name(project), "versions": versions},
-                                                              ensure_ascii=False, indent=2))
+    get_store().save_version_records(project, versions)
 
 
 def update_version(project: str, version, **fields) -> None:

@@ -1,4 +1,4 @@
-"""실행 설정. 환경변수(.env)를 읽고, CLI 인자로 일부를 덮어쓴다."""
+"""실행 설정. 환경변수(프로젝트 루트 TEAM4_AGENT/.env)를 읽고, CLI 인자로 일부를 덮어쓴다."""
 from __future__ import annotations
 
 import os
@@ -7,19 +7,29 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+BACKEND_ROOT = Path(__file__).resolve().parents[2]   # backend/
+PROJECT_ROOT = BACKEND_ROOT.parent                    # TEAM4_AGENT/ (.env·compose.yaml·Dockerfile)
 
-# DDL 검증 기본 DB: docker-compose.yml의 validation-db (docker compose up -d validation-db)
-DEFAULT_VALIDATION_DB_URL = "postgresql://reqagent:reqagent@localhost:55432/reqagent"
+# 이미 있는 환경변수(docker env_file·셸에서 준 값)가 우선. 루트에 .env가 없으면(docker 이미지 안) 환경변수만 쓴다
+load_dotenv(PROJECT_ROOT / ".env")
+
+# DDL 검증 기본 DB: 루트 compose.yaml의 db 컨테이너 안 reqagent_validation DB (서비스 DB reqagent와 따로)
+DEFAULT_VALIDATION_DB_URL = "postgresql://reqagent:reqagent@localhost:55432/reqagent_validation"
 DEFAULT_CORS_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
 
 
 def _validation_db_url() -> str:
-    """VALIDATION_DB_URL: 비우면 기본 PostgreSQL(validation-db), 'sqlite'면 SQLite로만 검증 (빈 문자열로 표현)."""
+    """VALIDATION_DB_URL: 비우면 기본 PostgreSQL(db 컨테이너의 reqagent_validation), 'sqlite'면 SQLite로만 검증 (빈 문자열로 표현)."""
     value = os.getenv("VALIDATION_DB_URL", "").strip()
     if value.lower() == "sqlite":
         return ""
     return value or DEFAULT_VALIDATION_DB_URL
+
+
+def _dir(name: str, default: str) -> Path:
+    """폴더 경로 환경변수. 상대 경로는 backend/ 기준 (서버를 어느 폴더에서 띄워도 같은 곳)"""
+    path = Path(os.getenv(name, "").strip() or default)
+    return path if path.is_absolute() else BACKEND_ROOT / path
 
 
 def _int(name: str, default: int) -> int:
@@ -71,6 +81,7 @@ class Settings:
     data_dir: Path = Path("data")                          # 입력 문서 폴더 (parse 기본 대상, run에서 이름만 줘도 찾음)
     output_dir: Path = Path("output")
     llm_exchange_dir: Path = Path("output/llm_exchange")   # manual 공급자 요청·응답 파일
+    database_url: str = ""                              # 서비스 DB (PostgreSQL). 비우면 output 폴더·SQLite 체크포인트 (로컬·테스트)
     validation_db_url: str = DEFAULT_VALIDATION_DB_URL   # 빈 문자열이면 SQLite로만 검증
     keep_validation_schema: bool = False
     semantic_review: bool = True                         # 의미 검토 Agent 실행 여부 (run --no-semantic-review로 끔)
@@ -105,9 +116,10 @@ class Settings:
             func_fix_attempts=_int("FUNC_FIX_ATTEMPTS", cls.func_fix_attempts),
             model_fix_attempts=_int("MODEL_FIX_ATTEMPTS", cls.model_fix_attempts),
             max_db_attempts=_int("MAX_DB_ATTEMPTS", cls.max_db_attempts),
-            data_dir=Path(os.getenv("DATA_DIR", "data")),
-            output_dir=Path(os.getenv("OUTPUT_DIR", "output")),
-            llm_exchange_dir=Path(os.getenv("LLM_EXCHANGE_DIR", "output/llm_exchange")),
+            data_dir=_dir("DATA_DIR", "data"),
+            output_dir=_dir("OUTPUT_DIR", "output"),
+            llm_exchange_dir=_dir("LLM_EXCHANGE_DIR", "output/llm_exchange"),
+            database_url=os.getenv("DATABASE_URL", "").strip(),
             validation_db_url=_validation_db_url(),
             keep_validation_schema=_bool("KEEP_VALIDATION_SCHEMA", False),
             semantic_review=_bool("SEMANTIC_REVIEW", True),

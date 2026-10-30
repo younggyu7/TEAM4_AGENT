@@ -1,0 +1,18 @@
+# 빌드 컨텍스트는 TEAM4_AGENT. 이미지에 필요한 backend/ 코드만 보내고 나머지는 제외한다
+*
+!backend/
+
+# backend/ 안에서도 제외: 설정·비밀 값, 가상환경, 실행 산출물·DB 파일, 캐시
+**/.env
+**/.env.*
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.DS_Store
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+backend/output
+backend/data/uploads

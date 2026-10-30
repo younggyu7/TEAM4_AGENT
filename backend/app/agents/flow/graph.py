@@ -23,9 +23,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Iterator
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
+from app.core.config import get_settings
+from app.core.database import psycopg_url
 from app.agents.flow import nodes
 from app.agents.roles import (coordinator, data_modeler, document_analyst, function_designer, requirement_reviewer,
                               requirements_analyst, semantic_reviewer, trace_reviewer)
@@ -108,9 +111,25 @@ def build_graph(checkpointer=None):
     return g.compile(checkpointer=checkpointer)
 
 
+_PG_READY: set[str] = set()   # 체크포인트 테이블을 이미 준비한 DB (프로세스마다 한 번만 setup)
+
+
 @contextmanager
-def open_checkpointer(output_dir: Path) -> Iterator[SqliteSaver]:
-    """실행 체크포인트 저장소. 질문 대기 중 프로세스가 끝나도 run_id로 재개할 수 있다."""
+def open_checkpointer(output_dir: Path) -> Iterator[BaseCheckpointSaver]:
+    """실행 체크포인트 저장소. 질문 대기 중 프로세스가 끝나도 run_id로 재개할 수 있다.
+
+    DATABASE_URL이 있으면 서비스 DB(PostgreSQL)의 LangGraph 체크포인트 테이블, 없으면 output_dir/checkpoints.sqlite.
+    """
+    url = get_settings().database_url
+    if url:
+        from langgraph.checkpoint.postgres import PostgresSaver   # DB를 쓸 때만 불러온다
+
+        with PostgresSaver.from_conn_string(psycopg_url(url)) as saver:
+            if url not in _PG_READY:
+                saver.setup()   # 체크포인트 테이블 만들기·올리기 (LangGraph가 관리, 몇 번 불러도 안전)
+                _PG_READY.add(url)
+            yield saver
+        return
     output_dir.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(output_dir / "checkpoints.sqlite", check_same_thread=False)
     try:

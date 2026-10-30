@@ -1,7 +1,17 @@
 __pycache__/
 *.pyc
 .venv/
+
+# 설정·비밀 값 (예시 파일 .env.example만 올린다)
 .env
+.env.*
+!.env.example
+
+# 데이터베이스 파일 (PostgreSQL 데이터는 docker 볼륨에 있어 저장소에 없다)
+*.sqlite
+*.sqlite3
+*.db
+pgdata/
 .pytest_cache/
 .ruff_cache/
 .DS_Store

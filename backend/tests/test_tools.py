@@ -117,7 +117,7 @@ def test_postgres_unreachable_falls_back_to_sqlite():
     model, _ = normalize_model(_model(), {"FN-1": []})
     result = validate_ddl(model, 1, "test", "postgresql://u:secret@127.0.0.1:1/none")
     assert result.passed and result.engine == "sqlite"
-    assert "접속 실패" in result.note and "docker compose up -d validation-db" in result.note
+    assert "접속 실패" in result.note and "docker compose up -d db" in result.note
     assert "secret" not in result.note, "접속 비밀번호는 보고서에 남기지 않음"
 
 

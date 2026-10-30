@@ -3,7 +3,8 @@
 기준일: 2026-10-30 · 대상: `TEAM4_AGENT` (백엔드). 프론트는 별도 폴더 `TEAM4_AGENT_FRONT`.
 
 - `📁` 폴더 · `📄` 파일. 이름 옆 `#` 뒤가 한 줄 설명이다.
-- 실행하면 생기는 것(`.venv/`, `backend/output/`, `backend/data/uploads/`, `__pycache__/`)과 비밀 값(`.env`)은 git에 올리지 않는다.
+- 실행하면 생기는 것(`.venv/`, `backend/output/`, `backend/data/uploads/`, `__pycache__/`), 비밀 값(`.env`), DB 파일(`*.sqlite`·`*.db`)은 git에 올리지 않는다.
+- 서비스 데이터는 docker의 PostgreSQL(`db` 컨테이너, 볼륨 `team4_agent_pgdata`)에 있다. docker 명령은 루트에서 실행한다. `DATABASE_URL`이 없으면 `backend/output/` 폴더를 쓴다.
 - 같은 형식이 반복되는 자료(LLM 응답 기록, 골든셋 문서별 폴더)는 패턴으로 줄여 적었다.
 
 ## 전체
@@ -14,7 +15,14 @@
 ├── 📄 README.md                                   # 실행 방법·화면 흐름·API·구조 요약
 ├── 📄 IMPLEMENTATION_STATUS_FOR_FASTAPI.md        # FastAPI 전환 이후 구현 현황·변경 기록
 ├── 📄 PROJECT_STRUCTURE.md                        # 이 문서: 폴더·파일 구조와 한 줄 설명
-├── 📄 .gitignore                                  # git 제외 목록 (.venv, output, uploads, .env …)
+├── 📄 .gitignore                                  # git 제외 목록 (.venv, .env, DB 파일(*.sqlite·*.db), output, uploads …)
+├── 📄 compose.yaml                                # docker: db(PostgreSQL 16: 서비스·DDL 검증·테스트 DB, 볼륨 team4_agent_pgdata) + api(backend 이미지)
+├── 📄 Dockerfile                                  # 서버 이미지 (backend/ 코드만 넣음, 산출물은 /data/output 볼륨)
+├── 📄 .dockerignore                               # 이미지에 backend/만 보내고 .env·.venv·output·uploads·DB 파일 제외
+├── 📄 .env                                        # 실제 설정·API 키 하나 (git 제외): LLM·실행 한도·서비스 DB 주소·docker PostgreSQL
+├── 📄 .env.example                                # 설정 예시 (POSTGRES_*·LLM·재시도 횟수·의미 검토 방식·서비스 DB·DB 검증·CORS)
+├── 📁 docker/postgres-init/
+│   └── 📄 01-databases.sql                        # db 컨테이너를 처음 만들 때 reqagent_validation·reqagent_test DB 생성
 ├── 📄 debug-design                                # 예전 디버그 실행 스크립트 (없는 모듈을 불러 지금은 동작 안 함)
 ├── 📁 .venv/                                      # 파이썬 가상환경 (git 제외, python3.12 -m venv .venv)
 ├── 📁 .github/workflows/
@@ -36,11 +44,12 @@
 📁 backend/
 ├── 📄 requirements.txt                            # 파이썬 의존성 (FastAPI·uvicorn·langgraph·anthropic·openai·pdfplumber …)
 ├── 📄 pyproject.toml                              # 도구 설정 (pytest·ruff)
-├── 📄 .env                                        # 실제 설정·API 키 (git 제외)
-├── 📄 .env.example                                # 설정 예시 (LLM·재시도 횟수·의미 검토 방식·DB 검증·CORS)
-├── 📄 Dockerfile                                  # 서버 이미지 (산출물은 /data/output 볼륨)
-├── 📄 .dockerignore                               # 이미지 제외 목록 (.venv·.env·output·uploads)
-└── 📄 compose.yaml                                # validation-db(DDL 검증용 PostgreSQL) + api 서비스
+├── 📄 alembic.ini                                 # Alembic 설정 (DB 주소는 .env의 DATABASE_URL)
+└── 📁 alembic/                                    # 서비스 DB 마이그레이션
+    ├── 📄 env.py                                  # 실행 환경: app/models 기준, LangGraph 체크포인트 테이블은 제외
+    ├── 📄 script.py.mako                          # 새 마이그레이션 파일 틀
+    └── 📁 versions/
+        └── 📄 20261030_634de8920307_service_tables.py   # 첫 마이그레이션: projects·design_versions·artifacts·project_files·jobs
 ```
 
 ## backend/app/ (애플리케이션 코드)
@@ -65,6 +74,7 @@
 ├── 📁 services/                                   # API가 쓰는 앱 서비스
 │   ├── 📄 __init__.py                             # 패키지 표시
 │   ├── 📄 output_store.py                         # 화면용 산출물 읽기: 프로젝트·버전 목록, design 합치기, 파일, 버전 제목
+│   ├── 📄 output_import.py                        # 로컬 output 폴더 → 서비스 DB 가져오기 (import-output, 체크포인트 포함)
 │   └── 📁 jobs/                                   # 화면 요청을 CLI 하위 프로세스 작업으로 실행·기록
 │       ├── 📄 __init__.py                         # 패키지 공개 이름 (jobs.start_run 등)
 │       ├── 📄 common.py                           # 공통: 작업 기록(Job)·실행기(_Runner)·종료 코드·LLM 오류 안내
@@ -83,7 +93,8 @@
 │
 ├── 📁 core/                                       # 공통 기반
 │   ├── 📄 __init__.py                             # 패키지 표시
-│   ├── 📄 config.py                               # .env 설정 (LLM·단계별 재시도 횟수·의미 검토 방식·경로·CORS)
+│   ├── 📄 config.py                               # .env 설정 (LLM·단계별 재시도 횟수·의미 검토 방식·서비스 DB·경로·CORS)
+│   ├── 📄 database.py                             # 서비스 DB 연결, session_scope(블록 하나 = 트랜잭션 하나)
 │   ├── 📄 exceptions.py                           # API 오류(400·404·409·413)와 오류 응답 형식
 │   ├── 📄 guards.py                               # 요청 값 검사: 경로 탈출 차단·버전 형식·프로젝트 이름·업로드 크기
 │   ├── 📄 logging.py                              # 로그 형식
@@ -93,7 +104,7 @@
 │   ├── 📄 __init__.py                             # 패키지 표시
 │   ├── 📁 flow/                                   # 실행 흐름
 │   │   ├── 📄 __init__.py                         # 패키지 표시
-│   │   ├── 📄 graph.py                            # LangGraph 그래프 구성·체크포인트(checkpoints.sqlite)
+│   │   ├── 📄 graph.py                            # LangGraph 그래프 구성·체크포인트 (서비스 DB PostgresSaver, DB 없으면 SQLite)
 │   │   ├── 📄 nodes.py                            # Agent 외 노드: 접수·결과 검사·질문·완료 조건·산출물 제공·DB 검증
 │   │   ├── 📄 state.py                            # 실행 상태 정의, 이슈 갱신(reconcile_issues)
 │   │   └── 📄 rerun.py                            # 단계만 다시 만들기: 기준 버전 읽기·확정 명세(--design)·답 코드 반영
@@ -128,8 +139,9 @@
 │   │   └── 📄 client.py                           # LLMClient(포트)·Anthropic·OpenAI·Manual 어댑터, get_llm·set_llm, 병렬 호출
 │   ├── 📁 storage/                                # 산출물 저장소 포트·어댑터
 │   │   ├── 📄 __init__.py                         # get_store·set_store (어댑터 선택·교체)
-│   │   ├── 📄 port.py                             # ArtifactStore(포트): 버전 기록·버전 번호·산출물 읽기·쓰기
-│   │   └── 📄 local.py                            # LocalArtifactStore: output/<프로젝트>/v<버전>/ 폴더 어댑터
+│   │   ├── 📄 port.py                             # ArtifactStore(포트): 버전 기록·제목·버전 번호·산출물 읽기·쓰기
+│   │   ├── 📄 postgres.py                         # PostgresArtifactStore: 서비스 DB 어댑터 (DATABASE_URL이 있을 때)
+│   │   └── 📄 local.py                            # LocalArtifactStore: output/<프로젝트>/v<버전>/ 폴더 어댑터 (DB가 없을 때)
 │   └── 📁 tools/                                  # 코드 도구 (LLM 없음)
 │       ├── 📄 __init__.py                         # 패키지 표시
 │       ├── 📄 document_parser.py                  # PDF·DOCX·HWPX·TXT 파싱, 요구사항 표 인식·복구
@@ -146,9 +158,21 @@
 │       ├── 📄 trace_diff.py                       # 이전 버전 대비 변경과 영향 (추적표 4절·diff)
 │       └── 📄 versions.py                         # 버전 번호 규칙·버전 기록(versions.json)
 │
+├── 📁 models/                                     # 서비스 DB 테이블 (SQLAlchemy ORM, 기능별)
+│   ├── 📄 __init__.py                             # 모든 테이블 불러오기 (Alembic이 Base.metadata를 봄)
+│   ├── 📄 base.py                                 # Base, 시각 기본값
+│   ├── 📄 project.py                              # projects 프로젝트 · project_files 프로젝트 파일(diff 등)
+│   ├── 📄 version.py                              # design_versions 버전 번호·버전 기록(JSONB)·화면 제목
+│   ├── 📄 artifact.py                             # artifacts 버전별 산출물 파일 내용
+│   └── 📄 job.py                                  # jobs 작업 진행 기록
+├── 📁 repositories/                               # 서비스 DB 읽기·쓰기 (세션 안에서, 트랜잭션은 session_scope)
+│   ├── 📄 __init__.py                             # 저장소 목록·트랜잭션 규칙
+│   ├── 📄 project_repository.py                   # 프로젝트 만들기·잠그기·목록, 프로젝트 파일
+│   ├── 📄 version_repository.py                   # 버전 번호 잡기(프로젝트 행 잠금)·버전 기록·제목
+│   ├── 📄 artifact_repository.py                  # 산출물 읽기·쓰기(덮어쓰기)·있는지
+│   └── 📄 job_repository.py                       # 작업 기록 저장·조회, 서버 재시작 때 진행 중 작업 닫기
 ├── 📁 integrations/                               # (비어 있음 · 예전 구조에서 남은 폴더)
-├── 📁 rag/                                        # (비어 있음 · 예전 구조에서 남은 폴더)
-└── 📁 repositories/                               # (비어 있음 · 예전 구조에서 남은 폴더)
+└── 📁 rag/                                        # (비어 있음 · 예전 구조에서 남은 폴더)
 ```
 
 ## backend/ 자료·테스트·평가
@@ -158,7 +182,7 @@
 ├── 📁 data/                                       # 입력 문서
 │   ├── 📄 고객요구사항*.pdf / .hwpx / .docx        # 샘플 고객 요구사항 문서 (1~13)
 │   └── 📁 uploads/<시각-ID>/<원본 파일>           # 화면에서 올린 문서 (git 제외)
-├── 📁 output/                                     # 산출물 저장소 (git 제외)
+├── 📁 output/                                     # DATABASE_URL이 없을 때의 산출물 저장소 (git 제외, import-output으로 DB에 가져옴)
 │   ├── 📄 checkpoints.sqlite                      # 실행 체크포인트 (resume·rerun의 출발 상태)
 │   └── 📁 <프로젝트>/                             # 고객 문서 하나
 │       ├── 📄 versions.json                       # 버전 기록 (부모·단계·실행 ID·DB 검증·확정)
@@ -205,6 +229,7 @@
     ├── 📄 test_api.py                             # 화면 API: 목록·design·파일·제목·작업 인자·입력 검사
     ├── 📄 test_core.py                            # core: 경로·값 검사, 비밀 값 가리기, 오류 응답
     ├── 📄 test_storage.py                         # 저장소 포트: 로컬 어댑터, 메모리 어댑터로 전체 흐름
+    ├── 📄 test_postgres.py                        # 서비스 DB: 마이그레이션·어댑터·동시 번호·전체 흐름·작업 기록·가져오기 (TEST_DATABASE_URL)
     ├── 📄 test_graph_offline.py                   # 전체 흐름·재질문·누락 채우기·재시도 라운드
     ├── 📄 test_coordinator_stages.py              # 단계별 버전(요구사항→기능 명세→데이터 설계)·확정·diff
     ├── 📄 test_hitl_flow.py                       # 화면 흐름: 초안 멈춤·--design·답 코드 반영·최종본

@@ -1,7 +1,7 @@
 """PostgreSQL 실검증 경로 (TEST_PG_URL 이 있을 때만 실행).
 
-  docker compose up -d
-  TEST_PG_URL=postgresql://reqagent:reqagent@localhost:55432/reqagent pytest tests/test_pg_validation.py
+  (TEAM4_AGENT에서) docker compose up -d db
+  TEST_PG_URL=postgresql://reqagent:reqagent@localhost:55432/reqagent_validation pytest tests/test_pg_validation.py
 
 실제 DB에서만 드러나는 오류(시스템 컬럼명 xmin)를 넣어
 DB 검증 실패 → 오류·설계 버전 기록 → 조정 Agent → 데이터 모델 수정 → v2 재검증 통과 경로를 확인한다.

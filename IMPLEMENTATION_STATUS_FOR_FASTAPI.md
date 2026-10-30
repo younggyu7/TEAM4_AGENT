@@ -17,8 +17,8 @@
 # 백엔드 — 가상환경은 저장소 루트(TEAM4_AGENT/.venv)에 하나 둔다
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r backend/requirements.txt
+cp .env.example .env                 # 루트 .env 하나: ANTHROPIC_API_KEY 또는 OPENAI_API_KEY
 cd backend
-cp .env.example .env                 # ANTHROPIC_API_KEY 또는 OPENAI_API_KEY
 uvicorn app.main:app --reload        # http://127.0.0.1:8000/docs
 
 # 프론트 (TEAM4_AGENT_FRONT)
@@ -31,7 +31,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 
 - 가상환경을 켠 뒤 서버·CLI는 `backend/` 폴더에서 실행한다 (`output/`·`data/`·`standards/`를 이 폴더 기준으로 찾는다). 작업(rerun·run)의 하위 프로세스는 서버와 같은 파이썬(`sys.executable`)을 쓴다.
 - CLI 명령은 `python -m req_agent …` → **`python -m app …`** 으로 바뀌었다. 하위 명령·옵션은 그대로다 (`run`·`resume`·`rerun`·`versions`·`confirm`·`diff`·`parse`·`standards`).
-- DDL PostgreSQL 검증: `docker compose up -d validation-db` (없으면 SQLite 대체 검증).
+- DDL PostgreSQL 검증: 루트에서 `docker compose up -d db` → `reqagent_validation` (없으면 SQLite 대체 검증).
 
 ## 3. 코드 이동 (`req_agent` → `backend/app`)
 
@@ -212,4 +212,24 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 
 - 프롬프트 파일 규칙: 파일 끝 줄바꿈 하나는 편집기용이라 읽을 때 지운다. Windows 줄바꿈은 \n으로 읽는다. 프롬프트를 고치면 LLM 입력이 바뀌므로 manual 재생 기록(`fixtures/llm_exchange`)은 다시 만들어야 한다.
 - 검증: `pytest` 177 passed · 3 skipped (각 단계마다 실행).
+
+## 12. 서비스 DB: PostgreSQL(docker) · SQLAlchemy 모델 · 저장소 · Alembic (2026-10-30)
+
+사용자 결정: 서버 데이터를 모두 PostgreSQL로, 기존 output은 DB로 가져오기, 기본 테스트는 DB 없이 + PostgreSQL 테스트 따로.
+
+| 저장하는 것 | 이전 | 이후 |
+| --- | --- | --- |
+| 산출물·버전 기록·화면 제목·diff | `output/<프로젝트>/` 파일 | 서비스 DB `reqagent`: `artifacts`·`design_versions`(record·title)·`projects`·`project_files` |
+| 실행 체크포인트 | `output/checkpoints.sqlite` | 서비스 DB의 LangGraph 체크포인트 테이블 (`PostgresSaver`, 테이블은 LangGraph `setup()`이 관리) |
+| 작업 기록 (`/jobs`) | 서버 메모리 (재시작하면 사라짐) | 메모리 + `jobs` 테이블 (상태가 바뀔 때·실행 기록 2초마다 저장). 서버 시작 때 '진행 중'으로 남은 작업은 실패로 닫음 |
+| DDL 검증 | `validation-db` 컨테이너 `reqagent` | 같은 `db` 컨테이너의 `reqagent_validation` (서비스 DB와 분리) |
+
+- 구조: `app/models/`(테이블, 기능별 project·version·artifact·job) · `app/repositories/`(세션 안의 읽기·쓰기, 버전 번호는 프로젝트 행 잠금) · `app/core/database.py`(연결·`session_scope` 트랜잭션) · `app/agents/storage/postgres.py`(저장소 포트의 PostgreSQL 어댑터) · `alembic.ini`·`alembic/versions/20261030_634de8920307_service_tables.py`.
+- 저장소 포트에 `load/save_version_records`·`load/save_titles`를 더했다 (DB는 버전 행의 컬럼, 로컬 폴더는 지금과 같은 versions.json·titles.json).
+- `DATABASE_URL`이 없으면 예전처럼 폴더·SQLite (기존 테스트 177개는 이 모드).
+- docker: 루트 `compose.yaml`(프로젝트 이름 `team4-agent`)의 `db`(postgres:16, 포트 55432, 볼륨 `team4_agent_pgdata`, 처음 만들 때 `docker/postgres-init`이 `reqagent_validation`·`reqagent_test` 생성), `api`는 시작할 때 `alembic upgrade head`.
+- 가져오기: `python -m app import-output` — 로컬 output의 산출물·기록·제목·diff와 실행마다 마지막 체크포인트·대기 중 쓰기. 실제 데이터: 프로젝트 5개·버전 13개·파일 122개·실행 체크포인트 13개, 가져온 실행 상태 13/13이 SQLite 원본과 같음.
+- 검증: DB 없이 177 passed · 9 skipped, `TEST_DATABASE_URL` 포함 183 passed · 3 skipped (`tests/test_postgres.py` 6개: 마이그레이션·모델 일치·되돌리기, 어댑터·경로 차단, 동시 번호 잡기 8개 중복 없음, PostgreSQL에서 전체 흐름(초안→--design ERD→최종본→화면 API), 작업 기록 재시작·고아 작업 닫기, 가져오기 후 rerun). `reqagent_validation`에서 DDL 검증 테스트 통과·임시 스키마 0개 남음. CI에 postgres 서비스 추가.
+- 남은 것: 화면 수정 초안·확인 체크·확정 표시는 여전히 브라우저(localStorage). 업로드 원본은 `data/uploads` 파일.
+- docker 위치 이동: `backend/compose.yaml`·`backend/docker/` → 루트 `compose.yaml`·`docker/` 이어서 `backend/Dockerfile`·`.dockerignore`·`.env`·`.env.example`도 루트로 옮겼다. 설정은 루트 `.env` 하나 (`POSTGRES_*`는 compose, 나머지는 `app/core/config.py`가 `load_dotenv(PROJECT_ROOT/.env)`로 읽음, `DATABASE_URL`·`VALIDATION_DB_URL`은 `POSTGRES_*`와 같은 값). `DATA_DIR`·`OUTPUT_DIR`·`LLM_EXCHANGE_DIR`의 상대 경로는 `backend/` 기준으로 바꿔 어느 폴더에서 띄워도 같다. 이미지는 루트를 빌드 컨텍스트로 `backend/`만 넣고, compose api는 `env_file: .env`에 DB 주소·`OUTPUT_DIR=/data/output`을 덮어쓴다. `.gitignore`에 `.env.*`(예시 제외)·`*.sqlite`·`*.db`·`pgdata/`를 더했다. 볼륨 이름을 `team4_agent_pgdata`로 고정하고 예전 `backend_pgdata` 데이터를 복사했다 (프로젝트 5·버전 13·파일 122·체크포인트 13 그대로, 예전 볼륨은 백업으로 남김).
 

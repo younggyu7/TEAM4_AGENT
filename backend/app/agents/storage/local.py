@@ -4,14 +4,17 @@
 """
 from __future__ import annotations
 
+import json
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from app.core.guards import inside
 
 VERSION_DIR = re.compile(r"^v(\d+(?:\.\d+)*)$")
 MAX_DEPTH = 3                                   # 프로젝트를 찾을 때 내려갈 폴더 깊이 (output/묶음/프로젝트)
 SKIP_DIRS = ("llm_exchange",)                   # 프로젝트가 아닌 작업 폴더
+INDEX = "versions.json"                         # 버전 기록
+TITLES = "titles.json"                          # 화면에서 붙인 버전 제목
 
 
 class LocalArtifactStore:
@@ -74,6 +77,24 @@ class LocalArtifactStore:
 
     def write_project_file(self, project: str, name: str, text: str) -> str:
         return self._write(self._file(project, name), text)
+
+    # ---------------------------------------------------------------- 버전 기록·제목 (versions.json·titles.json)
+    def load_version_records(self, project: str) -> list[dict]:
+        text = self.read_project_file(project, INDEX)
+        return json.loads(text).get("versions", []) if text else []
+
+    def save_version_records(self, project: str, records: list[dict]) -> None:
+        self.write_project_file(project, INDEX, json.dumps({"project": PurePosixPath(project).name, "versions": records},
+                                                          ensure_ascii=False, indent=2))
+
+    def load_titles(self, project: str) -> dict[str, str]:
+        try:
+            return json.loads(self.read_project_file(project, TITLES) or "{}") or {}
+        except ValueError:
+            return {}
+
+    def save_titles(self, project: str, titles: dict[str, str]) -> None:
+        self.write_project_file(project, TITLES, json.dumps(titles, ensure_ascii=False, indent=2) + "\n")
 
     # ---------------------------------------------------------------- 버전 공간
     def claim_version(self, project: str, base: str | None = None) -> str:

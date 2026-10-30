@@ -11,6 +11,20 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # PostgreSQL 테스트용 (tests/test_postgres.py: 마이그레이션·저장소·체크포인트·작업 기록·가져오기,
+    # tests/test_pg_validation.py: DDL 검증). 나머지 테스트는 DB 없이 돈다.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: reqagent
+          POSTGRES_PASSWORD: reqagent
+          POSTGRES_DB: reqagent_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U reqagent -d reqagent_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,4 +35,7 @@ jobs:
       - run: pip install -r requirements.txt
       # LLM은 가짜 응답(tests/fake_llm.py)을 쓰므로 API 키가 없어도 된다
       - name: Test
+        env:
+          TEST_DATABASE_URL: postgresql://reqagent:reqagent@localhost:5432/reqagent_test
+          TEST_PG_URL: postgresql://reqagent:reqagent@localhost:5432/reqagent_test
         run: pytest -q

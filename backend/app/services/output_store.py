@@ -19,8 +19,6 @@ FILES = {
     "functions.md", "traceability.md", "traceability.csv", "db_validation.md", "data_model.json", "functions.submitted.md",
     "semantic_review.md", "semantic_review.json",
 }
-# 백엔드 versions.json과 따로 화면에서 붙인 버전 제목만 둔다
-TITLES = "titles.json"
 
 
 def output_root() -> Path:
@@ -53,8 +51,8 @@ def _project_versions(project: str) -> list[dict]:
     """versions.json이 있으면 버전 정보를 거기서, 없으면 design.json의 meta에서 가져온다."""
     store = get_store()
     labels = [n for n in store.version_labels(project) if store.exists(project, n, "design.json")]
-    recorded = (_json(store.read_project_file(project, "versions.json")) or {}).get("versions") or []
-    titles = _json(store.read_project_file(project, TITLES)) or {}
+    recorded = store.load_version_records(project)
+    titles = store.load_titles(project)
     out = []
     for n in labels:
         record = next((v for v in recorded if _label(v.get("design_version")) == n), None)
@@ -131,9 +129,9 @@ def read_design(project: str, version: str) -> dict | None:
 
 def save_title(project: str, version: str, title: str) -> None:
     store = get_store()
-    titles = _json(store.read_project_file(project, TITLES)) or {}
+    titles = store.load_titles(project)
     if title.strip():
         titles[version] = title.strip()[:80]
     else:
         titles.pop(version, None)
-    store.write_project_file(project, TITLES, json.dumps(titles, ensure_ascii=False, indent=2) + "\n")
+    store.save_titles(project, titles)

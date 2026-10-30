@@ -6,9 +6,10 @@
   review.py  ERD 최종 확정 → 최종본 (`review`)
 API는 `from app.services import jobs` 후 `jobs.start_run(...)`처럼 이 패키지의 이름으로 부른다.
 """
-from app.services.jobs.common import Job, _jobs, _new_job, _Runner, capabilities, get_job, running_job
+from app.services.jobs.common import (Job, _jobs, _new_job, _Runner, capabilities, close_orphaned_jobs, get_job,
+                                      running_job)
 from app.services.jobs.rerun import start_rerun
 from app.services.jobs.review import start_review
 from app.services.jobs.run import start_run
 
-__all__ = ["Job", "capabilities", "get_job", "running_job", "start_rerun", "start_review", "start_run"]
+__all__ = ["Job", "capabilities", "close_orphaned_jobs", "get_job", "running_job", "start_rerun", "start_review", "start_run"]

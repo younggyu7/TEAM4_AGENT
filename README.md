@@ -11,16 +11,47 @@ FastAPI가 화면(`TEAM4_AGENT_FRONT`)에 산출물 조회와 새 버전 만들�
 python3.12 -m venv .venv
 source .venv/bin/activate          # Windows: .\.venv\Scripts\Activate.ps1
 pip install -r backend/requirements.txt
+cp .env.example .env               # 설정 하나 (TEAM4_AGENT/.env): ANTHROPIC_API_KEY 또는 OPENAI_API_KEY 설정, DB 값은 예시 그대로
+docker compose up -d db            # 서비스 DB·DDL 검증 DB (PostgreSQL 16, 데이터는 docker 볼륨 team4_agent_pgdata)
 cd backend
-cp .env.example .env               # ANTHROPIC_API_KEY 또는 OPENAI_API_KEY 설정
+alembic upgrade head               # 서비스 DB 테이블 만들기·최신으로 올리기
+python -m app import-output        # (처음 한 번) 예전 output 폴더의 산출물·체크포인트를 DB로 가져오기
 uvicorn app.main:app --reload      # http://127.0.0.1:8000/docs
 ```
 
-가상환경은 루트의 `.venv`를 쓰고, 서버는 반드시 `backend/` 폴더에서 띄운다 (산출물 `output/`, 입력 `data/`, 설계 표준 `standards/`를 이 폴더 기준으로 찾는다).
+가상환경과 설정(`.env`)은 루트에 하나씩 두고, 서버·CLI·alembic은 `backend/` 폴더에서 실행한다 (`app` 패키지가 이 폴더에 있다). `.env`의 상대 경로(`DATA_DIR`·`OUTPUT_DIR`)는 어디서 띄워도 `backend/` 기준이다.
 
 프론트는 별도 폴더 `TEAM4_AGENT_FRONT`에서 `npm install && npm run dev` (http://localhost:5173). 개발 서버가 `/api`를 `http://127.0.0.1:8000`으로 넘긴다.
 
-DDL을 PostgreSQL로 검증하려면 `docker compose up -d validation-db` (없으면 SQLite로 대체 검증하고 보고서에 표시).
+### 데이터 저장 (PostgreSQL)
+
+| 저장하는 것 | 위치 |
+| --- | --- |
+| 산출물·버전 기록·화면 제목·작업 기록 | 서비스 DB `reqagent`의 테이블 (`app/models`, 트랜잭션은 `app/repositories`, 마이그레이션은 `alembic/`) |
+| 실행 체크포인트 (resume·rerun·review) | 서비스 DB `reqagent`의 LangGraph 체크포인트 테이블 (PostgresSaver가 관리) |
+| Agent가 만든 DDL 검증 | 같은 컨테이너의 `reqagent_validation` (검증마다 임시 스키마를 만들고 지움) |
+
+- `DATABASE_URL`을 비우면 예전처럼 `OUTPUT_DIR` 폴더 + `checkpoints.sqlite`에 저장한다 (테스트 기본값).
+- 모델을 바꾸면 `alembic revision --autogenerate -m "설명"` → `alembic upgrade head`.
+- docker 명령(`docker compose …`)은 루트(`TEAM4_AGENT`)에서 실행한다. DB 데이터까지 지우려면 `docker compose down -v` (볼륨 삭제).
+
+#### PostgreSQL 환경변수
+
+루트 `.env` 한 파일에 두 묶음이 있고 **같은 값**이어야 한다. 기본값 그대로 쓰면 아무것도 바꿀 필요 없다.
+
+| 변수 | 쓰는 곳 |
+| --- | --- |
+| `POSTGRES_USER` · `POSTGRES_PASSWORD` · `POSTGRES_DB` · `POSTGRES_PORT` | docker가 DB 컨테이너를 만들 때 (`compose.yaml`) |
+| `DATABASE_URL` · `VALIDATION_DB_URL` | 서버·CLI·alembic이 DB에 접속할 때 (`app/core/config.py`가 루트 `.env`를 읽음) |
+
+```
+DATABASE_URL=postgresql://<POSTGRES_USER>:<POSTGRES_PASSWORD>@localhost:<POSTGRES_PORT>/<POSTGRES_DB>
+VALIDATION_DB_URL=postgresql://<POSTGRES_USER>:<POSTGRES_PASSWORD>@localhost:<POSTGRES_PORT>/reqagent_validation
+```
+
+- 사용자·비밀번호는 볼륨을 처음 만들 때만 적용된다. 바꾸려면 `docker compose down -v`로 지우고 다시 만든 뒤 `alembic upgrade head` → `python -m app import-output`.
+- `docker compose up -d`로 api까지 docker에서 띄우면 같은 `.env`를 쓰되, DB 주소(`db` 서비스 이름)와 산출물 폴더(`/data/output` 볼륨)는 compose가 덮어쓴다. 이미지(루트 `Dockerfile`)에는 `backend/` 코드만 들어가고 `.env`·산출물·DB 파일은 `.dockerignore`로 뺀다.
+- `.env`와 DB 파일(`*.sqlite`·`*.db`)은 `.gitignore`로 git에 올리지 않는다. 올리는 것은 `.env.example`뿐이다.
 
 ## 문서 처리 (CLI)
 
@@ -45,7 +76,7 @@ python -m app resume <실행 ID> --defer                                  # 확�
 4. **ERD 수정·저장**: 고친 테이블만 넘기며, 수정만 있으면 LLM 없이 정리·검증한다.
 5. **'ERD 최종 확정'**: 최종본 v<ERD>.1을 만들고 추적 검토(코드)·의미 검토(ERD ↔ 기능 명세, LLM 1회)를 한다 (`review`). 결과·토큰 사용량은 최종본에 남고 최종 산출물 화면에 나온다.
 
-| 설정 (`backend/.env`) | 뜻 |
+| 설정 (`.env`) | 뜻 |
 | --- | --- |
 | `MAX_FIX_ATTEMPTS` | 아래 단계별 값이 비었거나 0일 때 쓰는 자동 수정·재시도 횟수 (문서 분석·요구사항 등) |
 | `FUNC_FIX_ATTEMPTS` | 기능 명세: 누락 재설계·실패 재시도 횟수 |
@@ -73,17 +104,22 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET /health` | 서버 상태 |
 
 오류 응답은 `{"detail": "..."}`. LLM 작업(몇 분)은 서버 안에서 돌리지 않고 `python -m app …` 하위 프로세스로 띄운다.
-작업 기록은 메모리에만 있어 서버를 다시 띄우면 사라진다 (산출물 폴더는 남는다). 서버는 작업자 1개로 띄운다.
+작업 기록은 서비스 DB `jobs` 테이블에도 남아 서버를 다시 띄워도 조회된다 (그때 진행 중이던 작업은 실패로 닫는다). 서버는 작업자 1개로 띄운다.
 
 ## 구조
 
 ```text
+compose.yaml · docker/     # (루트) PostgreSQL(db: reqagent·reqagent_validation·reqagent_test) + api
+Dockerfile · .dockerignore # (루트) 서버 이미지: backend/ 코드만 넣음
+.env · .env.example        # (루트) 설정 하나: LLM·실행 한도·서비스 DB·docker PostgreSQL (.env는 git 제외)
 backend/
 ├── app/
 │   ├── main.py            # FastAPI 앱: CORS·오류 처리, /health, 기능별 라우터를 /api/v1 아래에 연결
 │   ├── cli.py             # python -m app run·resume·rerun·review·versions·confirm·diff·parse
 │   ├── api/v1/            # 기능별 라우터: projects(목록·제목) · artifacts(design·파일) · versions(새 버전) · review(최종 확정)
 │   │                      #   · runs(문서 업로드) · jobs(작업 상황) · deps(공통 입력 검사)
+│   ├── models/            # 서비스 DB 테이블 (기능별): project · version · artifact · job
+│   ├── repositories/      # 서비스 DB 트랜잭션 (기능별): project · version(번호 잠금) · artifact · job
 │   ├── services/          # output_store.py: 화면용 산출물 읽기 · jobs/: CLI 하위 프로세스 작업
 │   │                      #   (common 공통 실행기 · run 문서 업로드 · rerun 새 버전 · review 최종 확정)
 │   ├── agents/
@@ -91,15 +127,16 @@ backend/
 │   │   ├── prompts/       # Agent 시스템 프롬프트 .md (<Agent>/<이름>.md 하나에 프롬프트 하나, load_prompt로 읽음)
 │   │   ├── flow/          # LangGraph 그래프(graph)·노드(nodes)·상태(state)·단계 다시 만들기(rerun)
 │   │   ├── llm/           # LLM 포트(LLMClient)와 어댑터 (Anthropic·OpenAI·manual), get_llm()·set_llm()
-│   │   ├── storage/       # 산출물 저장소 포트(ArtifactStore)와 로컬 폴더 어댑터, get_store()·set_store()
+│   │   ├── storage/       # 산출물 저장소 포트(ArtifactStore)와 어댑터(PostgreSQL·로컬 폴더), get_store()·set_store()
 │   │   └── tools/         # 문서 파서·청킹·검색·모델 검사·DDL·ERD·내보내기·버전 규칙·DB 검증 (산출물 읽기·쓰기는 storage 포트로)
 │   ├── schemas/           # 기능별 입력·출력: document · requirement · function · data_model · review · version(화면 요청 포함)
-│   └── core/              # config(.env 설정) · exceptions(오류 응답) · guards(요청 값·경로 검사) · logging · security(CORS·비밀 값 가리기)
-├── tests/                 # pytest (가짜 LLM, API 키 없이 실행)
+│   └── core/              # config(.env 설정) · database(서비스 DB 연결·트랜잭션) · exceptions(오류 응답) · guards(요청 값·경로 검사) · logging · security
+├── alembic.ini · alembic/ # 서비스 DB 마이그레이션 (DB 주소는 .env의 DATABASE_URL)
+├── tests/                 # pytest (가짜 LLM, API 키 없이. PostgreSQL 테스트는 TEST_DATABASE_URL이 있을 때만)
 ├── evals/                 # 문서 분석·요구사항 추출 골든셋 평가 (python -m evals.eval_document_analyst)
 ├── standards/             # 회사별 설계 표준 프로필 (run --standard public)
 ├── data/                  # 샘플 고객 요구사항 문서, 업로드 문서(data/uploads, git 제외)
-└── output/                # 산출물 버전 폴더·체크포인트 (git 제외)
+└── output/                # DATABASE_URL이 없을 때의 산출물 폴더·체크포인트 (git 제외, import-output으로 DB에 가져옴)
 ```
 
 ## 검증
@@ -108,5 +145,7 @@ backend/
 cd backend
 ../.venv/bin/pytest -q
 ```
+
+PostgreSQL 테스트까지: `TEST_DATABASE_URL=postgresql://reqagent:reqagent@localhost:55432/reqagent_test ../.venv/bin/pytest -q`
 
 테스트는 가짜 LLM으로 돈다. 실제 LLM 출력 품질과 PostgreSQL 검증은 따로 실행해 확인한다.

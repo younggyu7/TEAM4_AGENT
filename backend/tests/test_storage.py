@@ -35,6 +35,18 @@ class MemoryArtifactStore:
         self.files[(project, None, name)] = text
         return f"memory://{project}/{name}"
 
+    def load_version_records(self, project):
+        return json.loads(self.files.get((project, None, "versions.json"), "[]"))
+
+    def save_version_records(self, project, records):
+        self.files[(project, None, "versions.json")] = json.dumps(records, ensure_ascii=False)
+
+    def load_titles(self, project):
+        return json.loads(self.files.get((project, None, "titles.json"), "{}"))
+
+    def save_titles(self, project, titles):
+        self.files[(project, None, "titles.json")] = json.dumps(titles, ensure_ascii=False)
+
     def claim_version(self, project, base=None):
         prefix = f"{base}." if base else ""
         taken = [int(v[len(prefix):]) for v in self.versions.get(project, set())

@@ -1,0 +1,54 @@
+# 실행: TEAM4_AGENT에서 docker compose up -d db (서비스 DB만) / docker compose up -d (db + api)
+# 설정은 이 폴더의 .env 하나 (.env.example 참고). POSTGRES_* 값이 없으면 아래 기본값을 쓴다.
+# 서버를 docker 밖에서 띄울 때 쓰는 같은 .env의 DATABASE_URL·VALIDATION_DB_URL도 같은 사용자·비밀번호·포트로 맞춘다.
+name: team4-agent
+
+services:
+  # PostgreSQL 하나에 DB 세 개 (docker/postgres-init/01-databases.sql)
+  #   ${POSTGRES_DB}       서비스 DB: 산출물·버전 기록·작업 기록·실행 체크포인트 (볼륨 pgdata에 저장)
+  #   reqagent_validation  Agent가 만든 DDL을 적용해 보는 검증용 DB
+  #   reqagent_test        pytest의 PostgreSQL 테스트용 DB
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-reqagent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reqagent}
+      POSTGRES_DB: ${POSTGRES_DB:-reqagent}
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-reqagent} -d ${POSTGRES_DB:-reqagent}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .          # Dockerfile (backend/ 코드만 이미지에 넣는다)
+    env_file:
+      - path: .env
+        required: false
+    # .env는 docker 밖 실행용 값이라 컨테이너에 맞게 덮어쓴다:
+    #   DB는 localhost가 아니라 db 서비스 이름으로, 산출물 폴더는 storage 볼륨(/data)으로
+    environment:
+      OUTPUT_DIR: /data/output
+      LLM_EXCHANGE_DIR: /data/output/llm_exchange
+      DATABASE_URL: postgresql://${POSTGRES_USER:-reqagent}:${POSTGRES_PASSWORD:-reqagent}@db:5432/${POSTGRES_DB:-reqagent}
+      VALIDATION_DB_URL: postgresql://${POSTGRES_USER:-reqagent}:${POSTGRES_PASSWORD:-reqagent}@db:5432/reqagent_validation
+    # 시작할 때 테이블을 최신으로 올린 뒤 서버를 띄운다
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - storage:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:     # 서비스 DB 데이터 (컨테이너를 지워도 남는다. 지우려면 docker compose down -v)
+    name: team4_agent_pgdata
+  storage:    # 업로드 원본·LLM 응답 기록 등 파일
+    name: team4_agent_storage

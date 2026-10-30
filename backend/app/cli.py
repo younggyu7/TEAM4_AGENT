@@ -5,7 +5,8 @@
   python -m app resume <run_id> [--defer] [--retry-failed]
   python -m app rerun data_modeler <프로젝트> --from v2 [--feedback "의견"]   # 데이터 설계만 다시 → v2.1, v2.2 …
   python -m app rerun data_modeler <프로젝트> --from v2 --design <확정한 design.json>   # 화면에서 확정한 기능 명세로 ERD
-  python -m app review <프로젝트> v2.1 [--source]    # ERD 최종 확정 때 의미 검토 1회 → 그 버전 폴더의 semantic_review.md·json
+  python -m app review <프로젝트> v2.1 [--source]    # ERD 최종 확정 → 최종본 v2.1.1 (추적·의미 검토)
+  python -m app import-output [--from output]        # 로컬 output 폴더를 서비스 DB(PostgreSQL)로 가져오기
   python -m app confirm <프로젝트> v2 [--note 메모]   # 단계 버전 확정 (다음 단계는 확정한 버전에서)
   python -m app diff <프로젝트> v1.1 v1.2             # 두 버전의 요구사항·기능·엔티티 변경과 영향
   python -m app versions [프로젝트]   # 프로젝트의 설계 버전 목록. 생략하면 프로젝트 목록
@@ -132,6 +133,13 @@ def main(argv: list[str] | None = None) -> int:
                           help="기능 명세 ↔ 요구사항(원문)도 검토 (생략하면 SEMANTIC_REVIEW_SOURCE)")
     p_review.add_argument("--output-dir")
 
+    p_import = sub.add_parser("import-output", help="로컬 output 폴더의 산출물·버전 기록·제목·실행 체크포인트를 서비스 DB로 가져온다 "
+                                                     "(DATABASE_URL 필요, 여러 번 실행해도 같은 내용으로 덮어씀)")
+    p_import.add_argument("--from", dest="source", default="", help="가져올 로컬 output 폴더 (생략하면 OUTPUT_DIR, 기본 output)")
+    p_import.add_argument("--no-checkpoints", action="store_true", help="실행 체크포인트(checkpoints.sqlite)는 옮기지 않음")
+    p_import.add_argument("--overwrite-runs", action="store_true", help="DB에 이미 있는 실행 체크포인트도 다시 덮어씀")
+    p_import.add_argument("--output-dir")
+
     p_versions = sub.add_parser("versions", help="프로젝트의 설계 버전 목록 (생략하면 프로젝트 목록)")
     p_versions.add_argument("project", nargs="?")
     p_versions.add_argument("--output-dir")
@@ -182,6 +190,8 @@ def main(argv: list[str] | None = None) -> int:
         return _rerun(args)
     if args.command == "review":
         return _review(args)
+    if args.command == "import-output":
+        return _import_output(args)
     if args.command == "run":
         if args.provider:
             override_settings(llm_provider=args.provider)
@@ -623,6 +633,25 @@ def _review(args) -> int:
     print(f"LLM 호출 {usage.get('calls', 0)}회 · 토큰 in {usage.get('input_tokens', 0):,} / out {usage.get('output_tokens', 0):,}")
     if failed:
         print(f"검토 실패(미검증): {', '.join(failed)} — 최종본 보고서에 표시함")
+    return 0
+
+
+def _import_output(args) -> int:
+    """로컬 output 폴더 → 서비스 DB (DB로 옮기기 전에 만든 산출물을 화면·rerun에서 계속 쓰게)."""
+    from app.services.output_import import import_output
+
+    source = Path(args.source) if args.source else get_settings().output_dir
+    if not get_settings().database_url:
+        print("DATABASE_URL이 없습니다. .env에 서비스 DB 주소를 넣고 alembic upgrade head를 먼저 실행하세요.")
+        return 2
+    if not source.is_dir():
+        print(f"폴더가 없습니다: {source}")
+        return 2
+    report = import_output(source, checkpoints=not args.no_checkpoints, overwrite_runs=args.overwrite_runs)
+    print(f"가져옴: 프로젝트 {len(report.projects)}개 ({', '.join(report.projects) or '없음'}) · 버전 {report.versions}개 · "
+          f"파일 {report.files}개 · 실행 체크포인트 {report.runs}개" + (f" (이미 있어 건너뜀 {report.skipped_runs}개)"
+                                                              if report.skipped_runs else ""))
+    print(f"→ {get_store().location}")
     return 0
 
 

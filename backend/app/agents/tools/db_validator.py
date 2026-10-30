@@ -1,6 +1,6 @@
 """격리된 검증용 DB에 DDL을 적용하고 구조를 검사한다.
 
-- 기본: PostgreSQL (VALIDATION_DB_URL, 비우면 docker-compose의 validation-db).
+- 기본: PostgreSQL (VALIDATION_DB_URL, 비우면 루트 compose.yaml의 db 컨테이너 안 reqagent_validation).
   실행마다 임시 스키마를 만들어 DDL 실행 → 구조 검사 → 스키마 삭제
 - PostgreSQL에 접속할 수 없으면 SQLite 메모리 DB로 대체 검증하고 그 사실을 보고서에 남긴다
   (문법·FK 대상 존재 수준. PostgreSQL 전용 문법은 검증하지 못함). VALIDATION_DB_URL=sqlite면 처음부터 SQLite.
@@ -17,7 +17,7 @@ from app.schemas.data_model import DataModel, DbValidationResult
 from app.agents.tools.ddl import render_statements
 
 log = logging.getLogger(__name__)
-START_HINT = "docker compose up -d validation-db 로 검증용 PostgreSQL을 띄우면 PostgreSQL로 검증한다"
+START_HINT = "TEAM4_AGENT 폴더에서 docker compose up -d db 로 PostgreSQL을 띄우면 PostgreSQL로 검증한다"
 
 
 class DbUnavailable(RuntimeError):

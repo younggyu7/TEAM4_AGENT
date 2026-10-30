@@ -11,7 +11,9 @@ import re
 import subprocess
 import sys
 import tempfile
+import logging
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -20,11 +22,14 @@ from functools import cache
 from pathlib import Path
 
 from app.agents.storage import get_store
+from app.core.database import database_enabled, session_scope
+from app.repositories import job_repository
 from app.core.security import redact
 from app.services.output_store import version_key, version_labels
 
 # backend 폴더 (CLI를 이 폴더에서 실행한다). 이 파일은 app/services/jobs/ 안에 있다
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
+log = logging.getLogger(__name__)
 MAX_LOG = 300
 
 # 종료 코드 → 화면에 보여 줄 이유 (app/cli.py의 _drive·_rerun과 같은 뜻)
@@ -53,16 +58,43 @@ class Job:
         return {k: v for k, v in asdict(self).items() if v is not None}
 
 
-_jobs: dict[str, Job] = {}
+_jobs: dict[str, Job] = {}       # 이 서버가 띄운 작업 (진행 중 상태는 여기서 바뀐다)
 _lock = threading.Lock()
+SAVE_EVERY = 2.0                 # 서비스 DB가 있으면 실행 기록을 이 간격(초)으로 저장한다 (상태가 바뀔 때는 바로)
+
+
+def _persist(job: Job) -> None:
+    """서비스 DB가 있으면 작업 기록을 저장한다 (서버를 다시 띄워도 /jobs로 볼 수 있게). 저장 실패는 작업을 멈추지 않는다."""
+    if not database_enabled():
+        return
+    try:
+        with session_scope() as s:
+            job_repository.save(s, job.to_dict())
+    except Exception as e:  # noqa: BLE001 - 기록 저장 실패로 작업을 멈추지 않는다
+        log.warning("작업 기록 저장 실패 %s: %s", job.id, e)
 
 
 def get_job(job_id: str) -> Job | None:
-    return _jobs.get(job_id)
+    job = _jobs.get(job_id)
+    if job is None and database_enabled():
+        with session_scope() as s:
+            saved = job_repository.get(s, job_id)
+        job = Job(**saved) if saved else None
+    return job
 
 
 def running_job(project: str) -> Job | None:
     return next((j for j in _jobs.values() if j.project == project and j.status == "running"), None)
+
+
+def close_orphaned_jobs() -> int:
+    """서버를 다시 띄웠을 때: 서비스 DB에 '진행 중'으로 남은 작업은 더 추적할 수 없으므로 실패로 닫는다. 닫은 수."""
+    if not database_enabled():
+        return 0
+    with session_scope() as s:
+        return job_repository.fail_running(
+            s, "서버가 다시 시작되어 진행 상황을 더 추적할 수 없습니다. 만들어진 버전은 버전 목록에서 확인하세요.",
+            datetime.now().isoformat(timespec="seconds"))
 
 
 def _cli(*args: str) -> list[str]:
@@ -93,6 +125,7 @@ class _Runner:
         self.submitted_md, self.pre, self.temp, self.on_done = submitted_md, pre or [], temp or [], on_done
         self.result = result     # 최종 확정: 새 최종본 폴더에서 읽을 결과 파일 이름 (semantic_review.json)
         self.before = version_labels(project)
+        self._saved = time.monotonic()
 
     def start(self, args: list[str]) -> None:
         threading.Thread(target=self._run, args=(args,), daemon=True).start()
@@ -101,6 +134,12 @@ class _Runner:
         if line.strip():
             self.job.log.append(redact(line.rstrip()))
             del self.job.log[:-MAX_LOG]
+            if time.monotonic() - self._saved >= SAVE_EVERY:
+                self._save()
+
+    def _save(self) -> None:
+        self._saved = time.monotonic()
+        _persist(self.job)
 
     def _exec(self, args: list[str]) -> int:
         self._push(f"$ python -m app {' '.join(args)}")
@@ -123,6 +162,7 @@ class _Runner:
                 run_id = next((m[1] for line in self.job.log if (m := re.search(r"\(실행 (\S+?)\)", line))), None)
                 if run_id:
                     self.job.message = "확인 질문을 보류(가정)로 처리하고 계속하는 중"
+                    self._save()
                     code = self._exec(["resume", run_id, "--defer", "--output-dir", _path_arg(self.output_dir)])
             if code == 0:
                 self._reviewed() if self.result else self._done()
@@ -169,6 +209,7 @@ class _Runner:
     def _finish(self, status: str, message: str) -> None:
         self.job.status, self.job.message = status, message
         self.job.finished_at = datetime.now().isoformat(timespec="seconds")
+        self._save()
         for f in self.temp:
             f.unlink(missing_ok=True)
 
@@ -177,6 +218,7 @@ def _new_job(**kw) -> Job:
     job = Job(id=f"job-{uuid.uuid4().hex[:10]}", status="running", **kw)
     with _lock:
         _jobs[job.id] = job
+    _persist(job)
     return job
 
 
