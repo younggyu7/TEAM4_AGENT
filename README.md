@@ -21,7 +21,7 @@ uvicorn app.main:app --reload      # http://127.0.0.1:8000/docs
 
 가상환경과 설정(`.env`)은 루트에 하나씩 두고, 서버·CLI·alembic은 `backend/` 폴더에서 실행한다 (`app` 패키지가 이 폴더에 있다). `.env`의 상대 경로(`DATA_DIR`·`OUTPUT_DIR`)는 어디서 띄워도 `backend/` 기준이다.
 
-프론트는 별도 폴더 `TEAM4_AGENT_FRONT`에서 `npm install && npm run dev` (http://localhost:5173). 개발 서버가 `/api`를 `http://127.0.0.1:8000`으로 넘긴다.
+프론트는 이 저장소 옆 폴더 `../TEAM4_AGENT_FRONT`(별도 프로젝트, [README](../TEAM4_AGENT_FRONT/README.md))에서 `npm install && npm run dev` (http://localhost:5173). 개발 서버가 `/api`를 `http://127.0.0.1:8000`으로 넘긴다.
 
 ### 데이터 저장 (PostgreSQL)
 

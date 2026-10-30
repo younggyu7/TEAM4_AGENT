@@ -1,6 +1,6 @@
 # 프로젝트 폴더 구조
 
-기준일: 2026-10-30 · 대상: `TEAM4_AGENT` (백엔드). 프론트는 별도 폴더 `TEAM4_AGENT_FRONT`.
+기준일: 2026-10-30 · 대상: `TEAM4_AGENT` (백엔드). 프론트는 옆 폴더 `../TEAM4_AGENT_FRONT` (별도 프로젝트, 화면 설명은 그 폴더 README).
 
 - `📁` 폴더 · `📄` 파일. 이름 옆 `#` 뒤가 한 줄 설명이다.
 - 실행하면 생기는 것(`.venv/`, `backend/output/`, `backend/data/uploads/`, `__pycache__/`), 비밀 값(`.env`), DB 파일(`*.sqlite`·`*.db`)은 git에 올리지 않는다.
