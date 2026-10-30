@@ -35,7 +35,8 @@ class ReviewCreate(BaseModel):
 
 class VersionCreate(BaseModel):
     """기능 명세 내보내기(source: spec) 또는 ERD 저장(source: erd)으로 새 버전 만들기.
-    source: spec에 answers가 있으면 확인 질문 답을 반영해 기능 명세 새 버전을 만든다."""
+    source: spec에 answers가 있으면 확인 질문 답을 반영해 기능 명세 새 버전을 만든다 ('AI로 답 반영').
+    confirm_rules는 내보내기면 확정한 명세와 함께, 'AI로 답 반영'이면 그 실행에 넘겨 코드로 '(결정)'으로 바꾼다."""
     project: str
     base: str
     source: Literal["spec", "erd"] = "erd"
@@ -44,5 +45,7 @@ class VersionCreate(BaseModel):
     functions_md: str | None = None  # Agent에 넘길 기능 명세 Markdown
     spec_summary: str | None = None  # 백엔드가 수정본을 못 받을 때 의견으로 넘길 변경 요약
     answers: dict[str, str] | None = None  # 기능 명세 화면에서 새로 답한 확인 질문 (질문 ID → 답)
+    # 기능 명세 화면에서 '추천안 맞음'으로 확인한 '(확인 필요)' 규칙 [{"function_id", "rule"}] → LLM 없이 '(결정)'
+    confirm_rules: list[dict[str, str]] | None = None
     feedback: str | None = None
     title: str | None = None

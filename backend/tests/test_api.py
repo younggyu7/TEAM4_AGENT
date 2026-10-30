@@ -1,5 +1,6 @@
 """/api/v1: 산출물 폴더를 읽는 API와 작업 API의 입력 검사 (LLM·하위 프로세스 없이)."""
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -132,3 +133,36 @@ def test_rerun_args_follow_screen_request(monkeypatch, tmp_path):
     for f in seen["runner"].temp:
         f.unlink(missing_ok=True)
     jobs._jobs.clear()
+
+
+def test_confirmed_rules_follow_the_screen_request(monkeypatch, tmp_path):
+    """'추천안 맞음'으로 확인한 규칙: 'AI로 답 반영'이면 --confirm-rules, 내보내기면 확정한 design.json의 confirm_rules (LLM 없이 '(결정)')"""
+    import json
+
+    seen = {}
+    monkeypatch.setattr(jobs._Runner, "start", lambda self, args: seen.update(args=args, runner=self))
+    (tmp_path / "p" / "v2").mkdir(parents=True)
+    rules = [{"function_id": "FN-1", "rule": "(확인 필요) 기한은 7일"}]
+    job = jobs.start_rerun(output_dir=tmp_path, project="p", base="2", source="spec", answers={"FQ-001": "예"},
+                           confirm_rules=rules)
+    args = seen["args"]
+    assert job.source == "answers" and "추천안 확인 1건" in job.message
+    assert json.loads(Path(args[args.index("--confirm-rules") + 1]).read_text(encoding="utf-8")) == rules
+    for f in seen["runner"].temp:
+        f.unlink(missing_ok=True)
+    jobs.start_rerun(output_dir=tmp_path, project="p", base="2", source="spec", design={"functions": []},
+                     confirm_rules=rules)
+    args = seen["args"]
+    assert args[1] == "data_modeler" and "--confirm-rules" not in args
+    assert json.loads(Path(args[args.index("--design") + 1]).read_text(encoding="utf-8"))["confirm_rules"] == rules
+    for f in seen["runner"].temp:
+        f.unlink(missing_ok=True)
+    jobs._jobs.clear()
+
+
+def test_spec_format_and_dev_spec_files_are_served(client, project):
+    r = client.get("/api/v1/spec-format")
+    assert r.status_code == 200 and r.text.startswith("# 개발 스펙 문서 형식 (spec-format v1)")
+    assert client.get(f"/api/v1/file?project={project}&version=1&name=openapi.yaml").status_code == 404, \
+        "허용된 이름이지만 ERD 버전에는 없다"
+    assert client.get(f"/api/v1/file?project={project}&version=1&name=secret.yaml").status_code in (400, 404)

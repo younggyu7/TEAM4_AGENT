@@ -186,3 +186,27 @@ class FakeLLM(LLMClient):
             ModelFinding(category="GAP", target_ids=["ghost_table"], message="없는 엔티티", evidence="-",
                          suggestion="-", quote="-"),
         ])
+
+    # API 설계: 기능마다 POST 하나 (연결 테이블의 첫 일반 컬럼을 요청 필드로). 경로는 기능 ID로 겹치지 않게 한다
+    def _ApiDesignOut(self, user):
+        from app.agents.roles.api_designer import ApiDesignOut, ApiFieldOut, ApiOperationOut, FunctionApiOut
+        tables = dict(re.findall(r"^- (\w+) \([^)]*\): (.+)$", user, re.M))
+        out = []
+        for fid, name in re.findall(r"^### \[([^\]]+)\] (.+)$", user, re.M):
+            linked = re.search(rf"### \[{re.escape(fid)}\].*?연결 테이블: ([^\n]*)", user, re.S).group(1)
+            table = next((t.strip() for t in linked.split(",") if t.strip() in tables), "")
+            columns = [c.split()[0] for c in tables.get(table, "").split(", ") if c and " PK" not in c]
+            fields = [ApiFieldOut(name="value", column=f"{table}.{columns[0]}")] if table and columns else []
+            out.append(FunctionApiOut(function_id=fid, operations=[ApiOperationOut(
+                method="POST", path=f"/{(table or 'item').replace('_', '-')}s/{fid.lower()}", operation_id="",
+                summary=name, actors=["사용자"], request=fields, response=fields)]))
+        return ApiDesignOut(functions=out)
+
+    # 아키텍처: 원문이 개발 언어를 정한 것으로 둔다 (기술 스택 질문은 테스트에서 따로 확인)
+    def _ArchitectureOut(self, user):
+        from app.agents.roles.api_designer import ArchitectureOut, ArchItemOut, StackMentionOut
+        nfr = re.findall(r"^- \[([^\]]+)\] \((\w+)\)", user, re.M)
+        return ArchitectureOut(
+            summary="웹 서버와 DB로 구성한다.",
+            performance=[ArchItemOut(name="응답 시간", detail="3초 이내", requirement_ids=[rid for rid, cat in nfr if cat == "성능"])],
+            stack_in_source=[StackMentionOut(layer="언어", value="Python", requirement_ids=[])])

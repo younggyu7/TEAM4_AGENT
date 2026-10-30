@@ -106,6 +106,7 @@ def test_semantic_final_mode_reviews_only_when_confirmed(sample_doc):
     fake = _use(FakeLLM(broken_fk=False))
     assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer"]) == 0
     assert fake.calls["FunctionReviewOut"] == fake.calls["ModelReviewOut"] == 0, "실행 중에는 의미 검토를 하지 않는다"
+    assert fake.calls["ApiDesignOut"] == fake.calls["ArchitectureOut"] == 0, "실행 중에는 API 설계를 하지 않는다 (최종 확정 때만)"
     assert "'ERD 최종 확정' 때 한 번 검토" in (_folder("1") / "review_report.md").read_text(encoding="utf-8")
 
     # ERD 최종 확정 → 그 ERD 아래 최종본 v1.1 (산출물은 그대로, 추적·의미 검토와 그 사용량만 새로)
@@ -118,7 +119,12 @@ def test_semantic_final_mode_reviews_only_when_confirmed(sample_doc):
     assert data["parts"] == ["model"] and data["failed"] == [] and data["usage"]["calls"] == 1
     assert (_folder("1.1") / "semantic_review.md").read_text(encoding="utf-8").startswith("# 의미 검토 (최종 확정)")
     report = (_folder("1.1") / "review_report.md").read_text(encoding="utf-8")
-    assert "호출 1회" in report, "최종본의 LLM 사용량은 최종 확정 단계에서 쓴 양 (화면 토큰 카드가 읽는 줄)"
+    assert "호출 3회" in report, "최종본의 LLM 사용량은 최종 확정 단계에서 쓴 양 (API 설계 2 + 의미 검토 1, 화면 토큰 카드가 읽는 줄)"
+    assert (fake.calls["ApiDesignOut"], fake.calls["ArchitectureOut"]) == (1, 1), "API 설계는 최종 확정 때만"
+    for name in ("API.md", "openapi.yaml", "ARCHITECTURE.md", "TASKS.md"):
+        assert (_folder("1.1") / name).exists(), "최종본에 개발 스펙"
+    assert not (_folder("1") / "API.md").exists(), "ERD 버전에는 개발 스펙이 없다"
+    assert _design("1.1")["api_design"]["usage"]["calls"] == 2
     model = lambda v: json.loads((_folder(v) / "data_model.json").read_text(encoding="utf-8"))   # noqa: E731
     assert model("1.1") == model("1"), "ERD·DDL은 확정한 ERD 그대로 (DDL 머리의 버전 번호만 다름)"
     assert _design("1.1")["functions"] == _design("1")["functions"]
@@ -127,6 +133,7 @@ def test_semantic_final_mode_reviews_only_when_confirmed(sample_doc):
     fake = _use(FakeLLM(broken_fk=False))
     assert cli.main(["review", "sample", "v1.1", "--source"]) == 0
     assert fake.calls["FunctionReviewOut"] == 1, "--source면 기능 명세 ↔ 요구사항도"
+    assert fake.calls["ApiDesignOut"] == fake.calls["ArchitectureOut"] == 0, "바뀐 기능이 없으면 이전 최종본의 API 설계를 그대로"
     assert find_version("sample", "1.2")["base"] == "1"
 
 

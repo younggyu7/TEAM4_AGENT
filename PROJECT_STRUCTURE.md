@@ -15,6 +15,7 @@
 ├── 📄 README.md                                   # 실행 방법·화면 흐름·API·구조 요약
 ├── 📄 IMPLEMENTATION_STATUS_FOR_FASTAPI.md        # FastAPI 전환 이후 구현 현황·변경 기록
 ├── 📄 PROJECT_STRUCTURE.md                        # 이 문서: 폴더·파일 구조와 한 줄 설명
+├── 📄 OUTPUTS.md                                  # 산출물 안내: 버전별 파일, 파일별 내용, 규칙 표시·질문 ID, 보는 순서
 ├── 📄 .gitignore                                  # git 제외 목록 (.venv, .env, DB 파일(*.sqlite·*.db), output, uploads …)
 ├── 📄 compose.yaml                                # docker: db(PostgreSQL 16: 서비스·DDL 검증·테스트 DB, 볼륨 team4_agent_pgdata) + api(backend 이미지)
 ├── 📄 Dockerfile                                  # 서버 이미지 (backend/ 코드만 넣음, 산출물은 /data/output 볼륨)
@@ -44,6 +45,7 @@
 📁 backend/
 ├── 📄 requirements.txt                            # 파이썬 의존성 (FastAPI·uvicorn·langgraph·anthropic·openai·pdfplumber …)
 ├── 📄 pyproject.toml                              # 도구 설정 (pytest·ruff)
+├── 📄 SPEC_FORMAT.md                              # 개발 스펙 문서 9개의 형식 정의 (spec-format v1, GET /spec-format으로 화면에 보임)
 ├── 📄 alembic.ini                                 # Alembic 설정 (DB 주소는 .env의 DATABASE_URL)
 └── 📁 alembic/                                    # 서비스 DB 마이그레이션
     ├── 📄 env.py                                  # 실행 환경: app/models 기준, LangGraph 체크포인트 테이블은 제외
@@ -65,7 +67,7 @@
 │   ├── 📄 __init__.py                             # 패키지 표시
 │   ├── 📄 deps.py                                 # 공통 입력 검사: 프로젝트·산출물 값, 진행 중 작업(409)
 │   ├── 📄 projects.py                             # GET /projects 프로젝트·버전 목록 · POST /projects/title 버전 제목
-│   ├── 📄 artifacts.py                            # GET /design design.json · GET·HEAD /file 산출물 원문
+│   ├── 📄 artifacts.py                            # GET /design design.json · GET·HEAD /file 산출물 원문 · GET /spec-format 개발 스펙 형식
 │   ├── 📄 versions.py                             # POST /projects/versions 새 버전(내보내기·ERD 저장·답 반영) · GET /capabilities
 │   ├── 📄 review.py                               # POST /projects/review ERD 최종 확정 → 최종본
 │   ├── 📄 runs.py                                 # POST /runs 문서 업로드 → 기능 명세 초안 실행
@@ -117,6 +119,7 @@
 │   │   ├── 📄 function_designer.py                # 기능 명세: 공통 결정·그룹 설계·누락 채우기·확인 질문·답 반영
 │   │   ├── 📄 data_modeler.py                     # 데이터 설계: 엔티티 카탈로그·속성 설계·수정·연결 보완
 │   │   ├── 📄 trace_reviewer.py                   # 추적 검토: 추적표 생성, 기능→ERD 연결 누락 (LLM 없음)
+│   │   ├── 📄 api_designer.py                     # API 설계: 기능별 API·아키텍처 요약·기술 스택 질문, 최종 확정 때만 (바뀐 기능만)
 │   │   └── 📄 semantic_reviewer.py                # 의미 검토: ERD↔기능 명세(·기능 명세↔요구사항), 최종 확정 때
 │   ├── 📁 prompts/                                # Agent 시스템 프롬프트 (.md 하나에 프롬프트 하나)
 │   │   ├── 📄 __init__.py                         # load_prompt(): .md를 읽어 문자열로 (끝 줄바꿈 하나 제거)
@@ -130,6 +133,9 @@
 │   │   ├── 📁 data_modeler/
 │   │   │   ├── 📄 catalog.md                      # 엔티티 카탈로그 설계 지침
 │   │   │   └── 📄 attribute.md                    # 속성(컬럼)·제약 설계 지침
+│   │   ├── 📁 api_designer/
+│   │   │   ├── 📄 api.md                          # 기능별 REST API 설계 지침
+│   │   │   └── 📄 architecture.md                 # 아키텍처 요약·기술 스택 지침
 │   │   └── 📁 semantic_reviewer/
 │   │       ├── 📄 functions.md                    # 기능 명세 의미 검토 지침 (본문)
 │   │       ├── 📄 model.md                        # 데이터 모델 의미 검토 지침 (본문)
@@ -155,6 +161,7 @@
 │       ├── 📄 ddl.py                              # PostgreSQL DDL 생성
 │       ├── 📄 db_validator.py                     # DDL을 격리 DB(PostgreSQL, 없으면 SQLite)에 적용해 검증
 │       ├── 📄 exporter.py                         # 산출물 쓰기: 요구사항·기능 명세·ERD·DDL·추적표·검토 보고서·의미 검토
+│       ├── 📄 dev_spec.py                         # 개발 스펙 9개(AGENTS·PRD·ARCHITECTURE·DATABASE·API·openapi·AC·TASKS·DECISIONS) 고정 형식 생성
 │       ├── 📄 trace_diff.py                       # 이전 버전 대비 변경과 영향 (추적표 4절·diff)
 │       └── 📄 versions.py                         # 버전 번호 규칙·버전 기록(versions.json)
 │
@@ -233,12 +240,13 @@
     ├── 📄 test_graph_offline.py                   # 전체 흐름·재질문·누락 채우기·재시도 라운드
     ├── 📄 test_coordinator_stages.py              # 단계별 버전(요구사항→기능 명세→데이터 설계)·확정·diff
     ├── 📄 test_hitl_flow.py                       # 화면 흐름: 초안 멈춤·--design·답 코드 반영·최종본
+    ├── 📄 test_dev_spec.py                        # 개발 스펙: 최종본에만 생성·형식 고정·기술 스택 가정·바뀐 기능만·경로 정리
     ├── 📄 test_versions.py                        # 버전 번호·프로젝트 이름
     ├── 📄 test_parsing.py                         # 문서 파서 (PDF·HWPX·DOCX)
     ├── 📄 test_broken_documents.py                # 깨진·나뉜 요구사항 표 복구
     ├── 📄 test_requirements_analyst.py            # 요구사항 추출
     ├── 📄 test_requirement_reviewer.py            # 요구사항 검토 (원문 대조·충돌)
-    ├── 📄 test_function_designer.py               # 기능 명세 (그룹·공통 결정·확인 질문·의견 반영)
+    ├── 📄 test_function_designer.py               # 기능 명세 (그룹·공통 결정·사용자 역할·가정 한도·질문 상한·추천안 확인)
     ├── 📄 test_data_modeler.py                    # 데이터 설계 (카탈로그·속성·사용자 수정·연결 보완)
     ├── 📄 test_trace_reviewer.py                  # 추적 검토
     ├── 📄 test_semantic_reviewer.py               # 의미 검토

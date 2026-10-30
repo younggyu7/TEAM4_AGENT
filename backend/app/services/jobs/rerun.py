@@ -1,5 +1,6 @@
 """새 버전 만들기 작업 (기준 버전에서 한 단계만 다시):
 - 기능 명세 화면에서 확인 질문 답을 AI로 반영: `rerun function_designer --answers` (추천과 다른 답이 바꾼 것만 다시 설계)
+  '추천안 맞음'으로 확인한 규칙은 `--confirm-rules`(AI로 답 반영) 또는 확정한 design.json의 confirm_rules(내보내기)로 넘겨 LLM 없이 '(결정)'
 - 기능 명세 내보내기 / ERD 저장: `rerun data_modeler` (확정한 기능 명세는 --design, 고친 데이터 모델은 --data-model, 의견은 --feedback)
 - 확인 질문에서 멈추면(종료 코드 3) `resume --defer`로 보류(가정) 처리하고 이어 간다 (공통 실행기).
 """
@@ -14,15 +15,17 @@ from app.services.jobs.common import Job, _Runner, _new_job, _path_arg, _temp_fi
 
 def start_rerun(*, output_dir: Path, project: str, base: str, source: str, data_model=None, design=None,
                 spec_md: str | None = None, spec_summary: str | None = None, answers: dict | None = None,
-                feedback: str | None = None, on_done: Callable[[str], None] | None = None) -> Job:
+                confirm_rules: list[dict] | None = None, feedback: str | None = None, on_done: Callable[[str], None] | None = None) -> Job:
     """기준 버전에서 한 단계만 다시 만들어 새 버전(v4.1 …)을 만든다."""
     project_dir = (output_dir / project).resolve()
     # rerun은 '--output-dir 아래의 프로젝트 이름'으로 찾으므로 한 단계 위 폴더와 이름으로 나눈다
     rerun_root, name = project_dir.parent, project_dir.name
     if source == "spec" and answers:
         source = "answers"
+    confirms = (confirm_rules or []) if source in ("spec", "answers") else []
     job = _new_job(project=project, base=base, source=source,
-                   message=f"기능 명세 v{base}에 확인 질문 답 {len(answers or {})}건을 반영하는 중" if source == "answers"
+                   message=f"기능 명세 v{base}에 확인 질문 답 {len(answers or {})}건"
+                           + (f"·추천안 확인 {len(confirms)}건" if confirms else "") + "을 반영하는 중" if source == "answers"
                    else f"기능 명세 v{base}로 ERD를 만드는 중" if source == "spec" else f"ERD v{base}에서 새 버전을 만드는 중")
     temp: list[Path] = []
     pre: list[str] = []   # 시작 전에 정해지는 안내 (완료 화면 경고에 합친다)
@@ -34,11 +37,16 @@ def start_rerun(*, output_dir: Path, project: str, base: str, source: str, data_
     if source == "answers":
         # 기능 명세 수정은 rerun function_designer가 파일로 받지 않으므로 변경 요약을 의견으로 함께 넘긴다
         spec_args += ["--answers", str(_temp_file(job, "answers.json", json.dumps(answers, ensure_ascii=False), temp))]
+        if confirms:
+            spec_args += ["--confirm-rules",
+                          str(_temp_file(job, "confirm_rules.json", json.dumps(confirms, ensure_ascii=False), temp))]
         if summary:
             feedback = "\n\n".join(x for x in (summary, feedback) if x)
             pre.append("기능 명세 수정 내용은 Agent 의견으로 넘겼습니다 (그 수정과 관련된 기능만 다시 설계).")
     elif source == "spec":
         caps = capabilities()
+        if confirms and design:   # 확정한 명세와 함께 넘겨 ERD 전에 코드로 '(결정)'
+            design = {**design, "confirm_rules": confirms}
         if caps["design"] and design:
             spec_args += ["--design", str(_temp_file(job, "design.json", json.dumps(design, ensure_ascii=False), temp))]
         if caps["spec_md"] and spec_md:

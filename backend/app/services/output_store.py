@@ -18,6 +18,9 @@ FILES = {
     "design.json", "schema.sql", "erd.mmd", "erd.md", "review_report.md", "requirements.md",
     "functions.md", "traceability.md", "traceability.csv", "db_validation.md", "data_model.json", "functions.submitted.md",
     "semantic_review.md", "semantic_review.json",
+    # 개발 스펙 (최종본, app/agents/tools/dev_spec.py)
+    "AGENTS.md", "PRD.md", "ARCHITECTURE.md", "DATABASE.md", "API.md", "openapi.yaml", "ACCEPTANCE_CRITERIA.md", "TASKS.md",
+    "DECISIONS.md",
 }
 
 

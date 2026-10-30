@@ -73,7 +73,8 @@ def test_feedback_patches_only_changed_function_and_data_design_reuses_model(sam
     after = {f["function_id"]: f for f in v11["functions"]}
     assert set(after) == set(before), "응답에 없는 기능은 그대로 남고 ID도 같음"
     changed = [i for i in after if after[i] != before[i]]
-    assert len(changed) == 1 and after[changed[0]]["business_rules"] == ["(가정) 의견 반영"]
+    # 고친 기능의 '(가정)' 규칙은 '(가정)' 한도(규칙이 적어 0개)를 넘어 추천안 그대로 '(확인 필요)'가 된다
+    assert len(changed) == 1 and after[changed[0]]["business_rules"] == ["(확인 필요) 의견 반영"]
     assert v11["meta"]["rework"]["changed"] == changed
 
     # 이 기능 명세 버전에서 데이터 설계: v1의 모델을 이어받아 바뀐 기능에 연결된 엔티티만 다시 설계
@@ -320,35 +321,108 @@ def _confirm_case():
     return reqs, funcs, common
 
 
-def test_confirm_asks_only_a_few_and_decides_the_rest_with_recommendations():
-    from app.agents.roles.function_designer import (ConfirmOut, ConfirmQuestionOut, ResolutionOut, _confirm)
+def _confirm_resolutions():
+    from app.agents.roles.function_designer import ResolutionOut
 
+    return [ResolutionOut(item_id="C1", rule="처리 기한은 시스템 설정값으로 둔다"),
+            ResolutionOut(item_id="C2", rule="(가정) 채팅은 1:1 방으로 한다"),
+            ResolutionOut(item_id="C3", rule="발송에 실패하면 재발송하지 않는다")]
+
+
+def test_confirm_asks_enough_to_keep_assumptions_under_the_limit():
+    from app.agents.roles.function_designer import ConfirmOut, ConfirmQuestionOut, _confirm
+    from app.core.config import override_settings
+
+    override_settings(func_assumption_limit=0.5)   # 업무 규칙 6개 → '(가정)' 3개까지
     reqs, funcs, common = _confirm_case()
     q = ConfirmQuestionOut(kind="MISSING", question="관리자 권한 범위와 채팅 기능을 둘 것인가?", context="권한·범위",
                            options=["관리자만, 채팅 둠", "역할별, 채팅 없음"], recommended=1, item_ids=["K2", "R1", "없음"])
-    extra = q.model_copy(update={"question": "두 번째 질문", "item_ids": ["C1"]})
-    stub = _StubLLM(ConfirmOut(questions=[q, extra], resolutions=[
-        ResolutionOut(item_id="C1", rule="처리 기한은 시스템 설정값으로 둔다"),
-        ResolutionOut(item_id="C2", rule="(가정) 채팅은 1:1 방으로 한다"),
-        ResolutionOut(item_id="C3", rule="발송에 실패하면 재발송하지 않는다")]))
+    second = q.model_copy(update={"question": "처리 기한은?", "item_ids": ["C1"]})
+    extra = q.model_copy(update={"question": "세 번째 질문", "item_ids": ["C2"]})
+    stub = _StubLLM(ConfirmOut(questions=[q, second, extra], resolutions=_confirm_resolutions()))
     result, questions, new_common, summary = _confirm(stub, funcs, {"FN-G-01", "FN-G-02"}, common, True, reqs, [],
                                                        "", whole=True)
     user = stub.users[0]
-    assert "최대 1개" in user and "resolutions에 반드시 다음 C 후보 모두: C1, C2, C3" in user, "후보 7개의 10% → 1개"
+    # 묻지 않으면 가정 1 + 확인 필요 3 + 공통 확인 필요가 붙은 곳 1 = 5개 → 한도 3개를 넘는 2만큼 질문
+    assert "업무 규칙 6개의 50% = 3개" in user and "가중치 합은 2이다" in user and "질문은 최대 2개" in user
+    assert "resolutions에 반드시 다음 C 후보 모두: C1, C2, C3" in user
+    assert "- [K2] 공통 규칙 P1: 관리자만 처리한다 (근거: 확인 필요, 규칙 1곳)" in user, "공통 규칙은 붙은 곳 수가 가중치"
     assert "- [R1] 요구사항 R2 요구 R2 (가정한 해석)" in user and "- [A1] (가정) 제목은 100자 이하" in user
     assert "### FN-G-01 요청 처리 (요구사항 R1) | 입력: 없음\n- [C1] (확인 필요) 처리 기한\n- 제목은 필수" in user, \
         "후보 규칙과 같은 기능의 다른 규칙·입력을 함께 보여 준다"
-    assert [x.question_id for x in questions] == ["FQ-001"], "한도를 넘는 질문은 버림"
+    assert [x.question_id for x in questions] == ["FQ-001", "FQ-002"], "최대 수를 넘는 질문은 버림"
     fq = questions[0]
     assert (fq.recommended, fq.requirement_ids, fq.confirms, fq.blocking, fq.stage) == \
         ("관리자만, 채팅 둠", ["R1", "R2"], ["R2"], True, "function_designer")
-    assert result[0].business_rules == ["(가정) 처리 기한은 시스템 설정값으로 둔다", "제목은 필수", "(가정) 제목은 100자 이하",
-                                        "(공통 P1, 확인 필요 FQ-001) 관리자만 처리한다"]
+    assert result[0].business_rules == ["(확인 필요 FQ-002) 처리 기한은 시스템 설정값으로 둔다", "제목은 필수",
+                                        "(가정) 제목은 100자 이하", "(공통 P1, 확인 필요 FQ-001) 관리자만 처리한다"]
     assert result[1].business_rules == ["(가정) 채팅은 1:1 방으로 한다", "(가정) 발송에 실패하면 재발송하지 않는다"], \
-        "묻지 않은 확인 필요는 추천안 + (가정) (괄호 없이 쓴 '확인 필요'도)"
+        "묻지 않은 확인 필요는 한도 안에서 추천안 + (가정) (괄호 없이 쓴 '확인 필요'도)"
     assert new_common["code_sets"][0]["basis"] == "가정" and new_common["policies"][0]["question"] == "FQ-001"
     assert common["policies"][0].get("question") is None, "입력 공통 결정은 바꾸지 않음"
-    assert (summary["candidates"], summary["budget"], summary["assumed"], summary["unresolved"]) == (7, 1, 3, 0)
+    assert {k: summary[k] for k in ("candidates", "need", "budget", "assumed", "kept", "unresolved", "assumed_rules",
+                                    "total_rules")} == \
+        {"candidates": 7, "need": 2, "budget": 2, "assumed": 2, "kept": 0, "unresolved": 0, "assumed_rules": 3,
+         "total_rules": 6}
+
+
+def test_confirm_keeps_checks_beyond_the_limit():
+    from app.agents.roles.function_designer import ConfirmOut, ConfirmQuestionOut, _confirm
+
+    reqs, funcs, common = _confirm_case()   # 기본 한도 10%: 업무 규칙 6개 → '(가정)' 0개까지
+    q = ConfirmQuestionOut(kind="MISSING", question="처리 기한은?", context="", options=["설정값", "7일"], recommended=1,
+                           item_ids=["C1"])
+    stub = _StubLLM(ConfirmOut(questions=[q], resolutions=_confirm_resolutions()))
+    result, questions, new_common, summary = _confirm(stub, funcs, {"FN-G-01", "FN-G-02"}, common, True, reqs, [],
+                                                       "", whole=True)
+    assert "질문은 최대 5개" in stub.users[0]
+    assert [x.question_id for x in questions] == ["FQ-001"]
+    assert result[0].business_rules == ["(확인 필요 FQ-001) 처리 기한은 시스템 설정값으로 둔다", "제목은 필수",
+                                        "(확인 필요) 제목은 100자 이하", "(공통 P1, 확인 필요) 관리자만 처리한다"], \
+        "한도를 넘는 공통 규칙은 확인 필요로 두고, 묻지 않은 (가정)도 한도를 넘으면 확인 필요로"
+    assert result[1].business_rules == ["(확인 필요) 채팅은 1:1 방으로 한다", "(확인 필요) 발송에 실패하면 재발송하지 않는다"], \
+        "한도를 넘는 확인 필요는 (가정)으로 바꾸지 않고 추천안을 확인 필요로 둔다 (괄호 없이 쓴 '확인 필요'도 앞 표시로)"
+    assert new_common["policies"][0]["basis"] == "확인 필요" and new_common["code_sets"][0]["basis"] == "가정", \
+        "규칙에 붙지 않는 분류값은 한도와 관계없이 추천안"
+    assert (summary["need"], summary["assumed"], summary["kept"], summary["assumed_rules"]) == (5, 0, 4, 0)
+
+
+def test_confirm_caps_questions_and_leaves_the_rest_for_review():
+    from app.agents.roles.function_designer import ConfirmOut, ConfirmQuestionOut, _confirm
+    from app.core.config import override_settings
+
+    override_settings(func_assumption_limit=0.5, func_max_questions=1)   # 한도를 맞추려면 2개가 필요하지만 1개만
+    reqs, funcs, common = _confirm_case()
+    q = ConfirmQuestionOut(kind="MISSING", question="관리자 권한은?", context="", options=["관리자만", "역할별"],
+                           recommended=1, item_ids=["K2", "R1"])
+    second = q.model_copy(update={"question": "처리 기한은?", "item_ids": ["C1"]})
+    stub = _StubLLM(ConfirmOut(questions=[q, second], resolutions=_confirm_resolutions()))
+    result, questions, _, summary = _confirm(stub, funcs, {"FN-G-01", "FN-G-02"}, common, True, reqs, [], "",
+                                             whole=True)
+    assert "가중치 합은 2이다" in stub.users[0] and "질문은 최대 1개" in stub.users[0]
+    assert [x.question_id for x in questions] == ["FQ-001"], "상한을 넘는 질문은 버림"
+    assert result[0].business_rules[0] == "(가정) 처리 기한은 시스템 설정값으로 둔다"
+    assert result[1].business_rules == ["(가정) 채팅은 1:1 방으로 한다", "(확인 필요) 발송에 실패하면 재발송하지 않는다"], \
+        "한도(3개)까지만 (가정), 나머지는 추천안을 확인 필요로"
+    assert (summary["need"], summary["budget"], summary["assumed"], summary["kept"], summary["assumed_rules"]) == \
+        (2, 1, 2, 1, 3)
+
+
+def test_confirm_without_limit_asks_nothing():
+    from app.agents.roles.function_designer import ConfirmOut, ConfirmQuestionOut, _confirm
+    from app.core.config import override_settings
+
+    override_settings(func_assumption_limit=1)
+    reqs, funcs, common = _confirm_case()
+    q = ConfirmQuestionOut(kind="MISSING", question="처리 기한은?", context="", options=["설정값", "7일"], recommended=1,
+                           item_ids=["C1"])
+    stub = _StubLLM(ConfirmOut(questions=[q], resolutions=_confirm_resolutions()))
+    result, questions, new_common, summary = _confirm(stub, funcs, {"FN-G-01", "FN-G-02"}, common, True, reqs, [],
+                                                       "", whole=True)
+    assert "질문을 만들지 않는다" in stub.users[0] and questions == []
+    assert result[0].business_rules[0] == "(가정) 처리 기한은 시스템 설정값으로 둔다"
+    assert result[0].business_rules[3] == "(공통 P1, 가정) 관리자만 처리한다"
+    assert (summary["assumed"], summary["kept"], summary["assumed_rules"]) == (3, 0, 5)
 
 
 def _answer_state(funcs, common, questions):
@@ -369,7 +443,7 @@ def test_answer_same_as_recommendation_only_marks_decided():
                                            whole=True)
     assert funcs[0].business_rules[0] == "(확인 필요 FQ-001) 처리 기한", "추천안 규칙이 없으면 원래 문장으로 질문 표시"
     assert funcs[0].business_rules[2] == "(확인 필요 FQ-001) 제목 길이는 시스템 설정값으로 둔다", "질문에 넣은 가정도 추천안대로"
-    assert funcs[1].business_rules[0].startswith("채팅 방 구성"), "정하지 못한 확인 필요는 그대로"
+    assert funcs[1].business_rules[0].startswith("(확인 필요) 채팅 방 구성"), "정하지 못한 확인 필요는 원래 문장 + 앞 표시"
     fq = questions[0].model_copy(update={"status": "ANSWERED", "answer": "관리자만"})
     update = record_answers(_answer_state(funcs, common, [fq]), [fq], reqs)
     rules = update["functions"][0]["business_rules"]
@@ -425,6 +499,10 @@ def _ask_run(sample_doc, fake, answer):
     from langgraph.checkpoint.memory import InMemorySaver
     from langgraph.types import Command
 
+    from app.core.config import override_settings
+
+    # 기능 3개 × 규칙 2개(가정 1·확인 필요 1)라 묻지 않으면 6개 모두 '(가정)': 한도 5개(90%)면 질문 하나로 맞춘다
+    override_settings(func_assumption_limit=0.9)
     llm_module.set_llm(fake)
     graph = build_graph(InMemorySaver())
     config = {"configurable": {"thread_id": "fq"}, "recursion_limit": 500}
@@ -518,3 +596,44 @@ def test_rerun_with_answers_applies_stage_one_answers_at_once(sample_doc, tmp_pa
     target = next(r for r in v12["requirements"] if any(d.startswith("[Q-001]") for d in r["decisions"]))
     assert target["status"] == "CONFIRMED"
     assert not (out / "sample" / "v1.2" / "data_model.json").exists()
+
+
+def test_confirmed_rules_become_decided_without_llm(sample_doc, tmp_path):
+    """화면 '추천안 맞음': 확인한 '(확인 필요)' 규칙은 LLM 없이 '(결정)'이 되고, 데이터 설계도 표시만 바뀐 기능을 다시 설계하지 않는다."""
+    from app.agents.flow.rerun import changed_functions
+
+    out = _base_with(sample_doc, _AskingFunctionLLM())
+    v1 = _design(out, "1")
+    fn = next(f for f in v1["functions"] if any(r.startswith("(확인 필요) ") for r in f["business_rules"]))
+    rule = next(r for r in fn["business_rules"] if r.startswith("(확인 필요) "))
+    path = tmp_path / "confirm.json"
+    path.write_text(json.dumps([{"function_id": fn["function_id"], "rule": rule}], ensure_ascii=False), encoding="utf-8")
+    fake = FakeLLM(broken_fk=False)
+    llm_module.set_llm(fake)
+    assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--confirm-rules", str(path)]) == 0
+    assert (fake.calls["FunctionDesignOut"], fake.calls["FunctionPatchOut"], fake.calls["FunctionScopeOut"]) == (0, 0, 0), \
+        "기능 명세를 다시 설계하지 않음"
+    v11 = _design(out, "1.1")
+    after = next(f for f in v11["functions"] if f["function_id"] == fn["function_id"])
+    assert "(결정) " + rule.removeprefix("(확인 필요) ") in after["business_rules"] and rule not in after["business_rules"]
+    assert changed_functions(v1["functions"], v11["functions"])[0] == [], "규칙 앞 표시만 바뀐 기능은 바뀐 것으로 보지 않음"
+    path.write_text("[]", encoding="utf-8")
+    assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1", "--confirm-rules", str(path)]) == 2, \
+        "기능 명세 단계 옵션"
+
+
+def test_actors_follow_common_roles():
+    """공통 결정의 사용자 역할: 기능 행위자의 다른 표현은 역할 이름으로, 공통 결정 블록에 역할이 보인다."""
+    from app.agents.roles.function_designer import SYSTEM_ACTOR, common_block, normalize_actors
+    from app.schemas.function import FunctionSpec
+
+    assert [a for a in ("시스템", "시스템(ERP 연계)", "외부 시스템(ERP)", "시스템 관리자") if SYSTEM_ACTOR.match(a)] == \
+        ["시스템", "시스템(ERP 연계)", "외부 시스템(ERP)"], "시스템 관리자는 사람 역할"
+
+    common = {"roles": [{"name": "결재자", "scope": "결재선에서 승인·반려", "aliases": ["승인자", "결재 승인자"]}],
+              "terms": [], "code_sets": [], "policies": []}
+    f = FunctionSpec(function_id="FN-1", group="G", name="결재", description="", requirement_ids=["R1"],
+                     actors=["승인자", "결재 승인자", "시스템(알림)"])
+    assert normalize_actors([f], common)[0].actors == ["결재자", "시스템(알림)"], "다른 표현은 역할 이름 하나로, 시스템은 그대로"
+    assert "사용자 역할 (사람 행위자는 이 이름만." in common_block(common) and "결재자(승인자·결재 승인자)" in common_block(common)
+    assert normalize_actors([f], {})[0] is f, "역할이 없으면 그대로"

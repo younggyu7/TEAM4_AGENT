@@ -44,10 +44,11 @@ class AgentState(TypedDict, total=False):
     function_common: dict         # 기능 명세 공통 결정 (업무 객체 이름·분류·상태 값·공통 규칙·공통 기능, CommonDecisionsOut)
     function_answers: list[str]   # 추천과 다른 답이 와서 기능 명세에 반영할 확인 질문 ID (바꿀 기능만 고친다)
     requirement_review: dict      # 요구사항 분류 검토: reviewed(검토한 요구사항 ID), changed(분류를 바꾼 ID), last(요약)
-    function_confirm: dict        # 마지막 확인 질문 고르기 요약 (후보 수, 질문 ID, 추천안으로 정한 수, 못 정한 수)
+    function_confirm: dict        # 마지막 확인 질문 고르기 요약 (후보 수, 질문 ID, '(가정)' 한도·규칙 수, 추천안으로 정한 수, 한도로 남긴 수, 못 정한 수)
     model_redesign: bool          # 데이터 설계 질문에 추천과 다른 답이 와서 데이터 모델을 다시 설계해야 함
     model_targets: list[str] | None  # 컬럼만 다시 설계할 엔티티 (rerun --entities, 빈 목록이면 의견과 관련된 엔티티)
     model_rework: dict            # 데이터 설계 다시 만들기 요약 (사용자 수정 반영·다시 설계 범위, ReworkSummary)
+    api_design: dict              # API 설계: functions(기능별 API), fingerprints(설계 당시 기능·테이블 지문), architecture, last(요약)
     design_version: str           # 프로젝트 단위 설계 버전 번호 ('2', '2.1' …)
     versions: list[dict]
     # 실행 제어

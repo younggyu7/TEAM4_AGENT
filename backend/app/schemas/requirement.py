@@ -93,4 +93,5 @@ class Question(BaseModel):
     confirms: list[str] = Field(default_factory=list)   # 답하면 확정(CONFIRMED)되는 요구사항 (기능 명세 질문이 확정 안 된 요구사항을 물은 경우)
 
 
-QUESTION_STAGES = {"requirements": "요구사항", "requirement_reviewer": "요구사항 검토", "function_designer": "기능 명세", "data_modeler": "데이터 설계"}
+QUESTION_STAGES = {"requirements": "요구사항", "requirement_reviewer": "요구사항 검토", "function_designer": "기능 명세",
+                   "data_modeler": "데이터 설계", "api_designer": "개발 스펙"}

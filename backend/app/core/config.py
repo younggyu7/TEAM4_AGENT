@@ -71,7 +71,8 @@ class Settings:
     func_group_size: int = 12
     func_common_decisions: bool = True                   # 기능 명세 전에 공통 결정(용어·분류값·공통 규칙)을 먼저 정함
     func_effort: str = ""                                # 기능 명세 그룹·확인 질문 요청의 생각 수준 (빈 값이면 ANTHROPIC_EFFORT·OPENAI_REASONING_EFFORT)
-    func_question_ratio: float = 0.1                     # 기능 명세 확인 대상 후보 중 고객에게 묻는 비율 (나머지는 추천안으로 정함)
+    func_assumption_limit: float = 0.1                   # 기능 명세 '(가정)' 규칙 한도 (전체 업무 규칙 대비). 넘으면 질문으로 정한다. 1이면 묻지 않음
+    func_max_questions: int = 12                         # 기능 명세 확인 질문 상한 (한도를 넘어 덮지 못한 것은 '(확인 필요)'로 남아 사람이 확인)
     attr_batch_size: int = 5
     max_steps: int = 40
     max_fix_attempts: int = 2                            # Agent 실패·이슈 자동 수정 횟수 (아래 단계별 값이 0이면 이 값)
@@ -92,6 +93,10 @@ class Settings:
     req_review_batch: int = 12                           # 원문 대조 요청 1건에 넣는 원문 단위 수 (보내는 내용이 작아 크게)
     req_review_coverage: float = 0.6                     # 원문 문장이 요구사항에 '담김'으로 보는 겹침 비율 (이보다 낮은 문장만 누락 검사로 보냄)
     req_review_effort: str = "low"                       # 요구사항 검토 요청의 생각 수준 (대조·판정 위주라 낮게. 빈 값이면 실행 설정)
+    api_design: bool = True                              # API 설계 Agent(개발 스펙의 API·아키텍처) 실행 여부 ('ERD 최종 확정' 때만)
+    api_fix_attempts: int = 1                            # API 검사 오류(없는 컬럼·API 없는 기능)를 그 기능만 다시 설계하는 횟수 (0이면 max_fix_attempts)
+    api_batch_size: int = 6                              # API 설계 요청 1건에 넣는 기능 수
+    api_effort: str = ""                                 # API 설계·아키텍처 요청의 생각 수준 (빈 값이면 실행 설정)
     log_level: str = "INFO"                              # API 서버 로그 수준
     cors_origins: tuple[str, ...] = DEFAULT_CORS_ORIGINS  # 브라우저 요청을 허용할 프론트 주소 (로컬 Vite 개발 서버는 proxy라 없어도 됨)
 
@@ -109,7 +114,8 @@ class Settings:
             func_group_size=_int("FUNC_GROUP_SIZE", cls.func_group_size),
             func_common_decisions=_bool("FUNC_COMMON_DECISIONS", True),
             func_effort=os.getenv("FUNC_EFFORT", "").strip().lower(),
-            func_question_ratio=float(os.getenv("FUNC_QUESTION_RATIO", "").strip() or cls.func_question_ratio),
+            func_assumption_limit=float(os.getenv("FUNC_ASSUMPTION_LIMIT", "").strip() or cls.func_assumption_limit),
+            func_max_questions=_int("FUNC_MAX_QUESTIONS", cls.func_max_questions),
             attr_batch_size=_int("ATTR_BATCH_SIZE", cls.attr_batch_size),
             max_steps=_int("MAX_STEPS", cls.max_steps),
             max_fix_attempts=_int("MAX_FIX_ATTEMPTS", cls.max_fix_attempts),
@@ -130,6 +136,10 @@ class Settings:
             req_review_batch=_int("REQ_REVIEW_BATCH", cls.req_review_batch),
             req_review_coverage=float(os.getenv("REQ_REVIEW_COVERAGE", "").strip() or cls.req_review_coverage),
             req_review_effort=os.getenv("REQ_REVIEW_EFFORT", cls.req_review_effort).strip().lower(),
+            api_design=_bool("API_DESIGN", True),
+            api_fix_attempts=_int("API_FIX_ATTEMPTS", cls.api_fix_attempts),
+            api_batch_size=_int("API_BATCH_SIZE", cls.api_batch_size),
+            api_effort=os.getenv("API_EFFORT", "").strip().lower(),
             log_level=os.getenv("LOG_LEVEL", "").strip().upper() or cls.log_level,
             cors_origins=tuple(o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip())
             or DEFAULT_CORS_ORIGINS,
@@ -138,7 +148,7 @@ class Settings:
     def fix_attempts(self, agent: str) -> int:
         """그 Agent의 반복 실패·이슈 자동 수정 한도. 단계별 값(FUNC·MODEL_FIX_ATTEMPTS 등)이 0이면 MAX_FIX_ATTEMPTS."""
         limit = {"function_designer": self.func_fix_attempts, "data_modeler": self.model_fix_attempts,
-                 "semantic_reviewer": self.semantic_review_attempts}.get(agent, 0)
+                 "semantic_reviewer": self.semantic_review_attempts, "api_designer": self.api_fix_attempts}.get(agent, 0)
         return limit or self.max_fix_attempts
 
     @property

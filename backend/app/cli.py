@@ -34,10 +34,10 @@ from app.agents.llm.client import LLMFatalError, LLMPending, pending_requests, r
 from app.agents.tools.doc_quality import build_sources, check_document
 from app.agents.tools.document_parser import (UnsupportedFormatError, check_supported, document_codes, file_fingerprint,
                                               parse_document, textless_pages)
-from app.agents.flow.rerun import (STAGES, RerunError, ancestor, base_for, changed_requirements, has_functions, has_model,
-                                   load_answers, load_submitted_design, prepare_data_model, prepare_functions,
-                                   prepare_requirements, read_design,
-                                   seed_state)
+from app.agents.flow.rerun import (STAGES, RerunError, ancestor, base_for, changed_requirements, confirm_note,
+                                   has_functions, has_model, load_answers, load_confirm_rules, load_submitted_design,
+                                   prepare_data_model, prepare_functions, prepare_requirements, read_design, seed_state)
+from app.schemas.function import FunctionSpec
 from app.schemas.requirement import QUESTION_STAGES
 from app.agents.tools.convention import ConventionError, list_profiles, load_profile
 from app.agents.tools.exporter import changes_md
@@ -113,6 +113,9 @@ def main(argv: list[str] | None = None) -> int:
     p_rerun.add_argument("--answers",
                          help="(function_designer) 확인 질문 답 JSON {\"질문 ID\": \"답\"}. 요구사항·분류·충돌·기능 명세 질문의 답을 "
                               "한 번에 반영하고, 추천과 다른 답이 바꾼 요구사항·기능만 다시 설계 (화면 1단계 제출)")
+    p_rerun.add_argument("--confirm-rules", dest="confirm_rules",
+                         help="(function_designer) 사람이 추천안대로 확인한 '(확인 필요)' 규칙 JSON "
+                              "[{\"function_id\": \"FN-…\", \"rule\": \"규칙 문장\"}]. LLM 없이 '(결정)'으로 바꾼다 (화면 '추천안 맞음')")
     p_rerun.add_argument("--design",
                          help="(data_modeler) 화면에서 고치고 확정한 기능 명세가 든 design.json. 기준 버전의 기능 명세 대신 "
                               "이 파일의 functions(와 common)로 데이터 설계를 한다 (화면 '내보내기 → ERD 만들기')")
@@ -519,7 +522,8 @@ def _rerun(args, out: dict | None = None) -> int:
             return 2
         try:
             answers = _rerun_answers(args, design)
-            model, targets, rework, plan = _rerun_scope(args, record, values, design, bool(answers))
+            confirms = _rerun_confirms(args)
+            model, targets, rework, plan = _rerun_scope(args, record, values, design, bool(answers) or bool(confirms))
         except RerunError as e:
             print(e)
             return 2
@@ -548,6 +552,8 @@ def _rerun(args, out: dict | None = None) -> int:
         options["settings"] = {**(options.get("settings") or {}), "llm_provider": resolve_provider(), **_model_settings()}
         if answers:
             plan.insert(0, _apply_answers(seeded, answers))
+        if confirms:
+            plan.insert(0, _apply_confirms(seeded, confirms))
         graph.update_state(_config(run_id), seeded, as_node="record_decision")   # 다음 노드: 조정 Agent
     if out is not None:
         out["run_id"] = run_id
@@ -566,7 +572,9 @@ def _review(args) -> int:
     """ERD 최종 확정: 확정한 ERD 버전 아래에 최종본(v1.1 → v1.1.1)을 만든다.
 
     산출물(요구사항·기능 명세·ERD·DDL)은 확정한 ERD 버전 그대로 두고, 추적 검토(코드)와 의미 검토(LLM, 기본은 ERD ↔ 기능 명세 1회)를
-    해서 최종본의 검토 보고서·semantic_review.*에 남긴다. 최종본의 'LLM 사용량'은 이 최종 확정 단계에서 쓴 양이다.
+    해서 최종본의 검토 보고서·semantic_review.*에 남긴다. API_DESIGN이면 그 앞에 API 설계 Agent가 기능별 API·아키텍처 요약을 만들고
+    개발 스펙 문서 9개(API.md·openapi.yaml …)를 최종본에 쓴다 (이전 최종본의 API 설계를 이어받아 바뀐 기능만 LLM으로).
+    최종본의 'LLM 사용량'은 이 최종 확정 단계에서 쓴 양이다.
     최종본에서 다시 하면 같은 ERD 아래 다음 최종본(v1.1.2)을 만든다.
     """
     from app.agents.roles import trace_reviewer
@@ -611,21 +619,26 @@ def _review(args) -> int:
                          "semantic_review": True, "semantic_review_mode": "final"}}
     state.update(trace_reviewer.run(state))   # 코드 검사: 기능 명세 → ERD 연결 (토큰 없음)
     try:
+        if get_settings().api_design:
+            state = _design_api(state, project)
+        before = dict(state.get("llm_usage") or {})   # 의미 검토 보고서에는 의미 검토가 쓴 양만
         state = review_saved(state, source)
     except LLMFatalError as e:
         print(f"LLM 오류로 멈췄습니다: {e}")
         return 4
     version = claim_next_version(project, base)
     files = export_design({**state, "design_version": version}, version)
-    files += export_semantic_review(state, project, version, source)
+    semantic_usage = {k: v - before.get(k, 0) if isinstance(v, int) else v for k, v in (state.get("llm_usage") or {}).items()}
+    files += export_semantic_review({**state, "llm_usage": semantic_usage}, project, version, source)
     if (db_report := store.read(project, base, "db_validation.md")) is not None:   # DB 검증은 확정한 ERD 그대로
         files.append(store.write(project, version, "db_validation.md", db_report))
     failed = (state.get("semantic_review") or {}).get("failed") or []
     usage = state.get("llm_usage") or {}
     save_version(project, {
         "design_version": version, "parent": base, "created_at": datetime.now().isoformat(timespec="seconds"),
-        "summary": [f"ERD v{base} 최종 확정: 추적 검토 · 의미 검토 (지적 "
-                    f"{sum(i['kind'].startswith('SEM_') and i['status'] != 'RESOLVED' for i in state['issues'])}건)"],
+        "summary": [f"ERD v{base} 최종 확정: 추적 검토 · "
+                    + (f"{(state.get('api_design') or {}).get('last')} · " if state.get("api_design") else "")
+                    + f"의미 검토 (지적 {sum(i['kind'].startswith('SEM_') and i['status'] != 'RESOLVED' for i in state['issues'])}건)"],
         "run_id": record["run_id"], "stage": "final", "base": base,
         "document": record.get("document", ""),
         **{k: record[k] for k in ("db_validation", "db_engine", "db_errors") if record.get(k)}})
@@ -634,6 +647,39 @@ def _review(args) -> int:
     if failed:
         print(f"검토 실패(미검증): {', '.join(failed)} — 최종본 보고서에 표시함")
     return 0
+
+
+def _design_api(state: dict, project: str) -> dict:
+    """ERD 최종 확정의 API 설계 (개발 스펙). 질문에서 멈추지 않는다 (기술 스택 질문 TQ-001은 추천안으로 가정).
+
+    가장 최근 최종본의 API 설계를 이어받아 기능·연결 테이블이 바뀐 기능만 다시 설계한다 (지문 비교, 같으면 LLM 없음).
+    API 검사 오류(없는 컬럼·API 없는 기능)는 API_FIX_ATTEMPTS번 그 기능만 다시 설계한다."""
+    from app.agents.flow.state import issues_of
+    from app.agents.roles import api_designer
+
+    state = {**state, "api_design": _previous_api_design(project),
+             "options": {**(state.get("options") or {}), "ask_mode": "defer"}}
+    state.update(api_designer.run({**state, "next_action": {"action": "api_designer", "mode": "partial"}}))
+    for _ in range(get_settings().fix_attempts("api_designer")):
+        targets = sorted({i.target_id for i in issues_of(state)
+                          if i.status == "OPEN" and i.target_agent == "api_designer" and i.severity == "ERROR"})
+        if not targets:
+            break
+        state.update(api_designer.run({**state, "next_action": {"action": "api_designer", "mode": "fix", "scope": targets}}))
+    usage = state.get("llm_usage") or {}
+    state["api_design"] = {**state["api_design"], "usage": {k: usage.get(k, 0) for k in ("calls", "input_tokens", "output_tokens")}}
+    print(f"API 설계: {state['api_design'].get('last', '')} · LLM 호출 {usage.get('calls', 0)}회")
+    return state
+
+
+def _previous_api_design(project: str) -> dict:
+    """가장 최근 최종본의 API 설계 (없으면 빈 dict). 지문으로 바뀐 기능만 다시 설계하므로 다른 ERD 버전의 것이어도 된다."""
+    for record in sorted(load_versions(project), key=lambda r: r.get("created_at") or "", reverse=True):
+        if record.get("stage") == "final":
+            api = (read_design(project, str(record["design_version"])) or {}).get("api_design") or {}
+            if api.get("functions"):
+                return api
+    return {}
 
 
 def _import_output(args) -> int:
@@ -685,10 +731,31 @@ def _apply_answers(seeded: dict, answers: dict[str, str]) -> str:
             + ("" if dirty or applied.get("function_targets") else " (모두 추천안과 같아 확정 표시만)"))
 
 
+def _rerun_confirms(args) -> list[dict]:
+    """--confirm-rules 파일을 읽는다 (기능 명세 단계만: 확인한 규칙은 기능 명세를 바꾼다)."""
+    if not getattr(args, "confirm_rules", None):
+        return []
+    if args.stage != "function_designer":
+        raise RerunError("--confirm-rules는 function_designer 단계 옵션입니다 (기능 명세 규칙을 확정한다).")
+    return load_confirm_rules(Path(args.confirm_rules))
+
+
+def _apply_confirms(seeded: dict, confirms: list[dict]) -> str:
+    """확인한 '(확인 필요)' 규칙을 시작 상태의 기능 명세에 반영한다 (LLM 없음). 안내 줄을 돌려준다."""
+    from app.agents.roles.function_designer import confirm_rules
+
+    functions = [FunctionSpec.model_validate(f) for f in seeded.get("functions") or []]
+    functions, common, missing = confirm_rules(functions, seeded.get("function_common") or {}, confirms)
+    seeded["functions"] = [f.model_dump(mode="json") for f in functions]
+    seeded["function_common"] = common
+    return confirm_note(len(confirms), missing)
+
+
 def _rerun_scope(args, record: dict, values: dict, design: dict, answers: bool = False):
     """rerun 단계별 범위를 정한다: (시작 모델, 다시 설계할 대상, 데이터 설계 요약, 안내 줄). 진행할 수 없으면 RerunError.
 
-    answers: 확인 질문 답이 있으면 범위 옵션이 없어도 된다 (답이 바꾼 것만 다시 설계)."""
+    answers: 확인 질문 답·추천안대로 확인한 규칙이 있으면 범위 옵션이 없어도 된다 (그것이 바꾼 것만 다시 설계.
+    확인한 규칙은 표시만 바꿔 다시 설계할 것이 없다)."""
     feedback = args.feedback.strip()
     project = project_name(args.project)
     if args.stage == "requirements_analyst":

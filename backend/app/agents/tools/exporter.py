@@ -1,4 +1,5 @@
-"""산출물 파일 출력: 요구사항 정의서·기능 명세서·ERD·DDL·추적표·검토 보고서·DB 검증 보고서 (Markdown/SQL/JSON/CSV)."""
+"""산출물 파일 출력: 요구사항 정의서·기능 명세서·ERD·DDL·추적표·검토 보고서·DB 검증 보고서 (Markdown/SQL/JSON/CSV),
+API 설계를 한 최종본('ERD 최종 확정')은 개발 스펙 문서 9개도 (tools/dev_spec.py)."""
 from __future__ import annotations
 
 import csv
@@ -13,7 +14,10 @@ from app.schemas.document import DocumentBlock, RequirementSource
 from app.schemas.function import FunctionSpec
 from app.schemas.requirement import QUESTION_STAGES, Question, Requirement
 from app.schemas.review import Issue, TraceLink
+from app.agents.roles.api_designer import tech_stack
+from app.agents.roles.function_designer import assumption_share
 from app.agents.tools.ddl import render_script
+from app.agents.tools.dev_spec import FILES as DEV_SPEC_FILES, SPEC_FORMAT, write_dev_spec
 from app.agents.tools.erd import render_mermaid
 from app.agents.tools.model_edits import ReworkSummary
 from app.agents.flow.rerun import STAGES
@@ -116,6 +120,13 @@ def export_design(state: dict, version: str) -> list[str]:
         ]
         if conv:
             files.append(_write("standard_names.csv", names_csv(conv)))
+        if (state.get("api_design") or {}).get("functions"):
+            # 개발 스펙: 개발 AI가 읽을 고정 형식 문서 (API 설계를 한 최종본만, 이름은 schema.sql과 같게)
+            stack = tech_stack(state.get("api_design"), questions)
+            files += write_dev_spec(state, _write, meta["project"], version, model, ddl_model(physical, profile), conv,
+                                    profile, stack)
+            meta["dev_spec"] = {"format": SPEC_FORMAT, "files": list(DEV_SPEC_FILES), "stack": stack["backend"],
+                                "stack_basis": stack["basis"]}
     if not requirements_only:
         files += [
             _write("traceability.md", _trace_md(head, reqs, funcs, model, questions, stage_only, changes)),
@@ -129,7 +140,8 @@ def export_design(state: dict, version: str) -> list[str]:
             "meta": {**meta, "until": until, "files": {"data_model": "data_model.json" if model else None,
                                                        "trace_links": None if requirements_only else "traceability.csv"}},
             "requirements": state.get("requirements"), "questions": state.get("questions"),
-            "common": state.get("function_common") or {}, "functions": state.get("functions"), "issues": state.get("issues"),
+            "common": state.get("function_common") or {}, "functions": state.get("functions"),
+            "api_design": state.get("api_design") or {}, "issues": state.get("issues"),
             "completion": state.get("completion"), "decisions": state.get("decisions"),
         }, ensure_ascii=False, separators=(",", ":"))),
     ]
@@ -275,7 +287,7 @@ def _functions_md(head, funcs: list[FunctionSpec], reqs: list[Requirement], comm
 
 # ------------------------------------------------------------------ ERD · 테이블 정의서
 def _confirm_md(funcs: list[FunctionSpec], status: dict[str, str], questions: list[Question], confirm: dict) -> list[str]:
-    """기능 명세서의 고객 확인 절: 고객에게 묻는 소수의 질문, 묻지 않고 추천안으로 정한 수, 확정되지 않은 요구사항에 기댄 기능."""
+    """기능 명세서의 고객 확인 절: '(가정)' 비율과 한도, 고객에게 묻는 질문, 묻지 않고 추천안으로 정한 수, 확정되지 않은 요구사항에 기댄 기능."""
     asked = [q for q in questions if q.stage == "function_designer"]
     pending = [(f, _unconfirmed(f, status)) for f in funcs]
     pending = [(f, ids) for f, ids in pending if ids]
@@ -283,8 +295,13 @@ def _confirm_md(funcs: list[FunctionSpec], status: dict[str, str], questions: li
         return []
     out = ["## 고객 확인", ""]
     if confirm.get("candidates"):
-        out.append(f"- 확인 대상 후보 {confirm['candidates']}개 중 질문 {len(confirm.get('questions') or [])}개만 고객에게 묻는다. "
-                   f"묻지 않은 '(확인 필요)' {confirm.get('assumed', 0)}개는 추천안으로 정해 '(가정)'으로 표시했다"
+        n, total = assumption_share(funcs)
+        share = f"'(가정)' 규칙은 업무 규칙 {total}개 중 {n}개({round(100 * n / max(1, total))}%)" + (
+            f", 한도 {round(100 * confirm['limit'])}%" if "limit" in confirm else "")
+        out.append(f"- {share}. 확인 대상 후보 {confirm['candidates']}개 중 질문 {len(confirm.get('questions') or [])}개를 "
+                   f"고객에게 묻고, 묻지 않은 '(확인 필요)' {confirm.get('assumed', 0)}개는 추천안으로 정해 '(가정)'으로 표시했다"
+                   + (f" (한도를 넘어 {confirm['kept']}개는 추천안을 '(확인 필요)'로 남김: 화면의 '확인 필요 규칙'에서 확인하거나 의견으로 정한다)"
+                      if confirm.get("kept") else "")
                    + (f" (정하지 못한 {confirm['unresolved']}개는 '(확인 필요)'로 남음)" if confirm.get("unresolved") else "")
                    + ".")
     out += ["- 질문은 답이 없으면 추천안으로 설계해 두었다. 업무 규칙의 '(확인 필요 FQ-…)'가 그 질문으로 정해지는 규칙이며, "
@@ -311,10 +328,14 @@ def _basis_cell(item: dict) -> str:
 
 
 def _common_md(common: dict, funcs: list[FunctionSpec] | None = None) -> list[str]:
-    """기능 명세서의 공통 결정 절 (여러 기능 영역에 같게 적용하는 업무 객체 이름·분류·상태 값·공통 규칙·공통 기능)."""
-    if not any(common.get(k) for k in ("terms", "code_sets", "policies", "shared_functions")):
+    """기능 명세서의 공통 결정 절 (여러 기능 영역에 같게 적용하는 사용자 역할·업무 객체 이름·분류·상태 값·공통 규칙·공통 기능)."""
+    if not any(common.get(k) for k in ("roles", "terms", "code_sets", "policies", "shared_functions")):
         return []
     out = ["## 공통 결정", "", "여러 기능 영역에 같게 적용한다. 기능 업무 규칙의 '(공통 P번호)'는 아래 공통 규칙을 붙인 것이다.", ""]
+    if common.get("roles"):
+        out += ["**사용자 역할** (기능의 사람 행위자는 이 이름. 같은 뜻의 표현은 시스템이 이 이름으로 맞춘다)", "",
+                table(["역할", "하는 일", "같은 뜻의 표현"],
+                      [[r["name"], r.get("scope", ""), ", ".join(r.get("aliases") or [])] for r in common["roles"]]), ""]
     if common.get("terms"):
         out += ["**업무 객체 표준 이름**", "", table(["이름", "같은 뜻의 표현"],
                                                   [[t["name"], ", ".join(t.get("synonyms") or [])] for t in common["terms"]]), ""]

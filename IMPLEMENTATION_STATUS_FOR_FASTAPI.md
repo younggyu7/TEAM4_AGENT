@@ -233,3 +233,28 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 - 남은 것: 화면 수정 초안·확인 체크·확정 표시는 여전히 브라우저(localStorage). 업로드 원본은 `data/uploads` 파일.
 - docker 위치 이동: `backend/compose.yaml`·`backend/docker/` → 루트 `compose.yaml`·`docker/` 이어서 `backend/Dockerfile`·`.dockerignore`·`.env`·`.env.example`도 루트로 옮겼다. 설정은 루트 `.env` 하나 (`POSTGRES_*`는 compose, 나머지는 `app/core/config.py`가 `load_dotenv(PROJECT_ROOT/.env)`로 읽음, `DATABASE_URL`·`VALIDATION_DB_URL`은 `POSTGRES_*`와 같은 값). `DATA_DIR`·`OUTPUT_DIR`·`LLM_EXCHANGE_DIR`의 상대 경로는 `backend/` 기준으로 바꿔 어느 폴더에서 띄워도 같다. 이미지는 루트를 빌드 컨텍스트로 `backend/`만 넣고, compose api는 `env_file: .env`에 DB 주소·`OUTPUT_DIR=/data/output`을 덮어쓴다. `.gitignore`에 `.env.*`(예시 제외)·`*.sqlite`·`*.db`·`pgdata/`를 더했다. 볼륨 이름을 `team4_agent_pgdata`로 고정하고 예전 `backend_pgdata` 데이터를 복사했다 (프로젝트 5·버전 13·파일 122·체크포인트 13 그대로, 예전 볼륨은 백업으로 남김).
 
+
+## 13. client_requirement 추가 기능 반영: 가정 한도·질문 상한·사용자 역할·추천안 확인·API 설계·개발 스펙 (2026-10-30)
+
+`client_requirement`의 `90f65402` 이후 커밋 5개(`984fc261` api_designer·dev_spec, `22b11910` 가정 한도, `7cd2d4b9` 질문 상한, `04b3482e` 경로 정리·사용자 역할·추천안 맞음, `134c97b4` OUTPUTS.md)를 옮겼다.
+사용자 결정: **각 단계의 Agent가 다음 단계를 부르지 않는 지금 흐름(업로드 → 기능 명세에서 멈춤, ERD 만들기 → ERD에서 멈춤)과 호출량은 그대로**, API 설계는 'ERD 최종 확정' 때만.
+
+| 기능 | 원본 | 여기 |
+| --- | --- | --- |
+| '(가정)' 한도 `FUNC_ASSUMPTION_LIMIT`(0.1) · 질문 상한 `FUNC_MAX_QUESTIONS`(12) | 기능 명세 확인 질문 고르기 | 같음 (`FUNC_QUESTION_RATIO`는 없앰). LLM 호출 수 같음 |
+| 사용자 역할 공통 결정 | 공통 결정에 `roles`, 행위자를 역할 이름으로 | 같음 (공통 결정 요청 1회의 출력이 조금 늘어남) |
+| '추천안 맞음' → `(결정)` | `rerun function_designer --confirm-rules` | 같은 옵션('AI로 답 반영') + **내보내기**는 확정한 design.json의 `confirm_rules`를 `load_submitted_design`이 코드로 반영. LLM 없음 |
+| 표시만 바뀐 기능 | ERD 단계에서 엔티티 다시 설계 안 함 | 같음 (`flow/rerun.changed_functions`) |
+| API 설계 Agent | 조정 Agent가 데이터 설계 뒤마다 고름 (ERD 만들 때마다 호출) | **조정 Agent에 넣지 않음.** `cli review`(ERD 최종 확정)에서만 `_design_api`: 가장 최근 최종본의 API 설계를 이어받아 지문이 바뀐 기능만, 검사 오류는 `API_FIX_ATTEMPTS`(1)번 그 기능만 |
+| 기술 스택 질문 `TQ-001` | 묻거나(ask) 보류, ERD 화면에서 답 → `rerun data_modeler --answers` | 최종 확정은 멈추지 않으므로 추천안으로 가정(DEFERRED)만. 화면에서 답하는 기능은 없음 (`data_modeler --answers`도 옮기지 않음) |
+| 개발 스펙 9개 | 데이터 설계 버전마다 | API 설계를 한 **최종본에만** (`exporter`가 `api_design.functions`가 있을 때, 저장소 포트로 쓰기) |
+| 완료 조건 '개발 스펙(API)' | 8개째 조건 | 넣지 않음 (ERD 버전은 지금처럼 7개) |
+| 형식 정의 `SPEC_FORMAT.md` | 저장소 루트, Vite 서버 `/api/spec-format` | `backend/SPEC_FORMAT.md` (docker 이미지에 포함), `GET /api/v1/spec-format` |
+| 화면 | 개발 스펙 탭·Markdown 보기·zip·확인 필요 규칙·추천안 맞음, ERD 화면 DQ·TQ 답하기 | ERD 화면 질문 답하기만 빼고 같음 (`TEAM4_AGENT_FRONT`) |
+| `OUTPUTS.md` | 원본 흐름(전체 실행 v1 …) | 우리 흐름(초안 v1 → ERD v1.1 → 최종본 v1.1.1, DB 저장)에 맞게 다시 씀 |
+
+- 프롬프트: API 설계 지침 2개는 `agents/prompts/api_designer/{api,architecture}.md`. 기능 명세 지침(system.md)에 사용자 역할 한 줄. 옮긴 프롬프트 5개(기능 명세 system·공통 결정·확인 질문, API·아키텍처)가 원본 최종 문자열과 같음을 확인했다.
+- 최종본 사용량: `review_report.md`의 LLM 사용량은 최종 확정 단계 전체(API 설계 + 의미 검토), `semantic_review.json`은 의미 검토가 쓴 양만, `design.json`의 `api_design.usage`는 API 설계가 쓴 양.
+- 검증: DB 없이 `pytest` 192 passed · 9 skipped, `TEST_DATABASE_URL`·`TEST_PG_URL` 포함 199 passed · 2 skipped, `alembic check` 차이 없음, 프론트 `tsc --noEmit`·`vite build` 통과.
+  새 테스트: `tests/test_dev_spec.py` 8개(최종본에만 생성·ERD 버전엔 없음, SPEC_FORMAT 절 제목 일치, 다시 확정하면 API 설계 호출 0회·같은 문서, 기술 스택 가정, 지문, 경로 나눔, 없는 컬럼 1회 수정, `API_DESIGN=false`), `test_function_designer` 가정 한도·질문 상한·추천안 확인·사용자 역할, `test_hitl_flow` 업로드·ERD 단계 API 설계 호출 0회, `test_api` confirm_rules 전달·`/spec-format`.
+- 미검증: 실제 LLM으로 최종 확정(API 설계 프롬프트 응답 품질·토큰), 브라우저에서 개발 스펙 탭·'추천안 맞음' 조작.

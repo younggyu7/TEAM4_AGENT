@@ -15,8 +15,11 @@
   프롬프트 캐시로 재사용한다. 결과는 state.function_common에 두고 부분 재설계·의견 반영·데이터 설계에서도 쓴다 (FUNC_COMMON_DECISIONS로 끔).
 - 공통 기능: 공통 결정에서 여러 영역의 요구사항이 같은 기능을 요구하는 것(같은 데이터 내보내기, 같은 사용자의 대시보드 등)을 정하고,
   요구사항이 가장 많은 영역 하나에서만 만든다. 다른 영역은 그 요구사항으로 기능을 만들지 않는다 (영역마다 같은 기능이 생기지 않게).
-- 확인 질문: 설계 뒤 요청 1회로 확인 대상 후보('(확인 필요)'·'(가정)' 규칙, 공통 결정의 가정, 확정 안 된 요구사항) 중
-  답에 따라 설계가 크게 달라지는 것만 FUNC_QUESTION_RATIO(기본 10%) 이내로 질문하고, 나머지 '(확인 필요)'는 추천안으로 정해 '(가정)'으로 둔다.
+- 확인 질문: 설계 뒤 요청 1회로 확인 대상 후보('(확인 필요)'·'(가정)' 규칙, 공통 결정의 가정, 확정 안 된 요구사항)에서 질문을 고른다.
+  목표는 '(가정)' 규칙을 전체 업무 규칙의 FUNC_ASSUMPTION_LIMIT(기본 10%) 이하로 두는 것이다 (질문 수 한도가 아니다).
+  묻지 않으면 '(가정)'이 될 후보가 한도를 넘으면 영향이 큰 것부터 질문으로 묶어 정한다 (질문은 FUNC_MAX_QUESTIONS개까지).
+  묻지 않은 '(확인 필요)'는 한도 안에서만 추천안 '(가정)'으로 바꾸고, 한도를 넘는 것은 추천안을 '(확인 필요)'로 남긴다
+  (기능 규칙의 '(가정)'도 한도를 넘으면 '(확인 필요)'로). 남긴 것은 화면의 '확인 필요 규칙'에서 사람이 확인한다.
   질문한 규칙도 추천안으로 먼저 설계해 '(확인 필요 FQ-001)'로 표시한다. 추천과 같은 답은 표시만 '(결정 FQ-001)'로 바꾸고 (LLM 없음),
   다른 답만 관련 기능을 의견 반영과 같은 방식으로 고친다 (record_answers → function_answers).
 - 요구사항 검토 표시(Requirement.review): 고객 확인을 기다리는 요구사항(분류 판단 필요·원문 외 추가·충돌, 질문 RC-…/CF-…)은
@@ -122,7 +125,14 @@ class SharedFunctionOut(BaseModel):
     requirement_ids: list[str] = Field(description="이 기능 하나로 충족하는 요구사항 ID (둘 이상의 영역)")
 
 
+class RoleOut(BaseModel):
+    name: str = Field(description="사용자 역할 이름 (actors에 쓸 이름)")
+    scope: str = Field(description="이 역할이 하는 일 한 줄")
+    aliases: list[str] = Field(default_factory=list, description="같은 사람을 가리키는 다른 표현 (없으면 생략)")
+
+
 class CommonDecisionsOut(BaseModel):
+    roles: list[RoleOut] = Field(default_factory=list, description="사람 행위자의 역할 목록 (권한을 나눠야 하는 단위)")
     terms: list[TermOut] = Field(description="둘 이상의 영역에 나오는 영속 업무 객체의 표준 이름만")
     code_sets: list[CodeSetOut] = Field(description="둘 이상의 기능이 함께 쓰는 분류·상태 값 목록만")
     policies: list[PolicyOut] = Field(description="둘 이상의 기능 영역에 같게 적용되는 규칙만")
@@ -132,6 +142,8 @@ class CommonDecisionsOut(BaseModel):
 
 COMMON_REQUEST = """## 이번 요청: 공통 결정
 기능 명세는 쓰지 않는다. 여러 기능 영역이 같게 써야 하는 결정만 정하며, 이 결정은 모든 영역의 기능 설계에 그대로 전달된다.
+- roles: 요구사항의 사람 행위자를 권한을 나눠야 하는 역할로 묶는다. 같은 사람을 가리키는 표현(결재자·승인자 등)은 하나로 하고 aliases에 둔다.
+  결재자·작성자처럼 문서마다 데이터로 정해지는 사람은 따로 두지 않고 그 사람이 속한 역할(예: 임직원)로 둔다. 시스템·외부 시스템은 넣지 않는다.
 - terms: 둘 이상의 영역에 나오는 영속 업무 객체의 표준 이름과 동의어. 한 영역에서만 쓰는 객체는 넣지 않는다.
 - code_sets: 둘 이상의 기능이 함께 쓰는 분류·상태 값. 원문에 값 전체가 있으면 basis 원문, 일부만 있거나 원문끼리 다르면 확인 필요,
   원문에 없으면 설계에 꼭 필요할 때만 가정으로 둔다.
@@ -166,8 +178,10 @@ class ConfirmOut(BaseModel):
 
 CONFIRM_REQUEST = """## 이번 요청: 고객 확인 질문 고르기
 기능 명세는 쓰지 않는다. {limit}
-- questions: 답에 따라 기능의 존재·범위, 저장할 데이터 구조, 권한, 금액·법적 의무가 달라지는데 원문·결정·공통 결정으로 정할 수 없는 것만 고른다.
-  같은 결정에 걸린 후보는 다른 기능의 것도 질문 하나로 묶어 item_ids에 모두 넣는다. 화면 표시 항목·집계 단위·문구·운영 설정값(기간·횟수 등)은 묻지 않는다.
+- questions: 먼저 답에 따라 기능의 존재·범위, 저장할 데이터 구조, 권한, 금액·법적 의무가 달라지는데 원문·결정·공통 결정으로 정할 수 없는 것을 고른다.
+  가정 한도를 맞춰야 하면 그다음으로 영향이 큰 '(가정)'·'(확인 필요)' 후보도 질문에 넣는다.
+  같은 결정에 걸린 후보는 다른 기능의 것도 질문 하나로 묶어 item_ids에 모두 넣는다 (질문 수를 줄인다).
+  화면 표시 항목·집계 단위·문구·운영 설정값(기간·횟수 등)은 하나씩 묻지 않고, 한도를 맞추려면 '추천값을 그대로 쓸지' 묻는 질문 하나로 묶는다.
   options는 2~4개, recommended는 원문·결정·공통 결정과 다른 기능의 기존 규칙에 어긋나지 않고 기능을 늘리지 않는 안이다.
   '이미 한 질문'과 같은 내용은 묻지 않는다.
 - resolutions: 모든 C 후보마다 추천안으로 정한 업무 규칙을 한 문장으로 쓴다 (질문에 넣은 후보는 그 질문의 추천 선택지대로).
@@ -279,7 +293,7 @@ def run(state: AgentState) -> dict:
                    for f in new] if done else new
     group_order = {g: i for i, g in enumerate(groups)}
     result.sort(key=lambda f: (group_order.get(f.group, 999), f.function_id))
-    result = _review_marks(result, by_req)
+    result = _review_marks(normalize_actors(result, common), by_req)
 
     # 확인 질문 고르기: 다시 설계한 기능의 확인 대상 후보 중 소수만 묻고 나머지는 추천안으로 정한다
     new_ids, changed_ids, _ = _diff(functions, result)
@@ -549,9 +563,12 @@ def _answer_text(item: dict) -> str:
 
 def common_block(common: dict, header: str = "") -> str:
     """공통 결정을 프롬프트 블록으로 만든다 (없으면 빈 문자열). 데이터 모델 Agent도 분류값·업무 객체 이름을 맞추는 데 쓴다."""
-    if not common or not any(common.get(k) for k in ("terms", "code_sets", "policies")):
+    if not common or not any(common.get(k) for k in ("roles", "terms", "code_sets", "policies")):
         return ""
     lines = [header or "## 공통 결정 (모든 기능 영역에 같게 적용. 공통 규칙은 적용되는 번호만 common_rules에 — 문장과 근거 표시는 시스템이 붙인다)"]
+    if common.get("roles"):
+        lines.append("사용자 역할 (사람 행위자는 이 이름만. 자동 실행은 '시스템(…)', 외부 연계는 '외부 시스템(…)'): " + ", ".join(
+            r["name"] + (f"({'·'.join(r['aliases'])})" if r.get("aliases") else "") for r in common["roles"]))
     if common.get("terms"):
         lines.append("업무 객체 표준 이름: " + ", ".join(
             t["name"] + (f"({'·'.join(t['synonyms'])})" if t.get("synonyms") else "") for t in common["terms"]))
@@ -564,6 +581,31 @@ def common_block(common: dict, header: str = "") -> str:
         lines += [f"- [P{i}] {p['rule']} (근거: {_basis_text(p)}){_answer_text(p)}"
                   for i, p in enumerate(common["policies"], start=1)]
     return "\n".join(lines)
+
+
+# 자동 실행·외부 연계 주체 ('시스템', '시스템(ERP 연계)', '외부 시스템(ERP)') — 사용자 역할이 아니다 ('시스템 관리자'는 사람)
+SYSTEM_ACTOR = re.compile(r"^(외부\s*)?시스템\s*(\(.*\))?$")
+
+
+def role_names(common: dict) -> dict[str, str]:
+    """행위자 표현(공백 무시) → 공통 결정의 사용자 역할 이름. 역할이 없으면 빈 dict."""
+    out = {}
+    for r in (common or {}).get("roles") or []:
+        for name in (r["name"], *(r.get("aliases") or [])):
+            out.setdefault(re.sub(r"\s+", "", name), r["name"])
+    return out
+
+
+def normalize_actors(functions: list[FunctionSpec], common: dict) -> list[FunctionSpec]:
+    """기능의 행위자를 공통 결정의 사용자 역할 이름으로 맞춘다 (다른 표현 → 역할 이름, 겹치면 하나). 역할이 없으면 그대로."""
+    names = role_names(common)
+    if not names:
+        return functions
+    out = []
+    for f in functions:
+        actors = list(dict.fromkeys(names.get(re.sub(r"\s+", "", a), a) for a in f.actors))
+        out.append(f.model_copy(update={"actors": actors}) if actors != f.actors else f)
+    return out
 
 
 def common_rule_texts(common: dict) -> dict[str, str]:
@@ -661,8 +703,8 @@ def _common_decisions(llm, groups: "OrderedDict[str, list[Requirement]]", nfrs: 
     # 공통 기능은 둘 이상의 그룹에 걸친 것만 남긴다 (만드는 영역도 함께 기록해 명세서에 보여 준다)
     common["shared_functions"] = [{k: sf[k] for k in ("name", "scope", "requirement_ids", "owner")}
                                   for sf in shared_functions(common, groups)]
-    log.info("[기능명세] 공통 결정: 업무 객체 %d, 분류·상태 %d, 공통 규칙 %d (가정 %d, 확인 필요 %d), 공통 기능 %d",
-             len(out.terms), len(out.code_sets), len(out.policies),
+    log.info("[기능명세] 공통 결정: 사용자 역할 %d, 업무 객체 %d, 분류·상태 %d, 공통 규칙 %d (가정 %d, 확인 필요 %d), 공통 기능 %d",
+             len(out.roles), len(out.terms), len(out.code_sets), len(out.policies),
              sum(x.basis == "가정" for x in (*out.code_sets, *out.policies)),
              sum(x.basis == "확인 필요" for x in (*out.code_sets, *out.policies)), len(common["shared_functions"]))
     return common
@@ -756,6 +798,37 @@ def _mark_decided(rule: str, qids: set[str]) -> str:
     return f"({head}){rule[m.end():]}"
 
 
+def confirm_rules(functions: list[FunctionSpec], common: dict, items: list[dict]) -> tuple[list[FunctionSpec], dict, list[str]]:
+    """사람이 '추천안 맞음'으로 확인한 '(확인 필요)' 규칙을 확정한다 (LLM 없음, 문장은 그대로 표시만 바꾼다).
+
+    items: [{"function_id", "rule"}] (화면에서 확인한 규칙 문장 그대로). 공통 규칙('(공통 P2, 확인 필요) …')이면 공통 결정의
+    근거를 '결정'으로 바꿔 그 규칙을 쓰는 모든 기능에 반영하고, 기능 규칙이면 '(결정) 문장'으로 바꾼다.
+    (기능, 공통 결정, 찾지 못한 항목 설명)"""
+    common = deepcopy(common)
+    rules = {f.function_id: list(f.business_rules) for f in functions}
+    missing = []
+    for item in items:
+        fid, rule = str(item.get("function_id", "")), str(item.get("rule", ""))
+        if rule not in rules.get(fid, []):
+            missing.append(f"{fid}: {rule[:40]}")
+            continue
+        m = COMMON_TAG.match(rule)
+        policies = common.get("policies") or []
+        if m and int(m.group(1)[1:]) <= len(policies):
+            policies[int(m.group(1)[1:]) - 1]["basis"] = "결정"
+        else:
+            index = rules[fid].index(rule)
+            head = re.match(r"^\(([^)]*)\)\s*", rule)
+            text = rule[head.end():] if head and "확인 필요" in head.group(1) else rule
+            rules[fid][index] = f"(결정) {_plain(text)}"
+    texts = common_rule_texts(common)
+    out = []
+    for f in functions:
+        new = [_expand(x, texts) for x in rules[f.function_id]]
+        out.append(f.model_copy(update={"business_rules": new}) if new != f.business_rules else f)
+    return out, common, missing
+
+
 def mark_decided(functions: list[FunctionSpec], qids: set[str]) -> list[FunctionSpec]:
     """답을 받은 질문(추천과 같은 답)의 규칙 표시를 '(결정 …)'으로 바꾼 기능 목록 (사용자 답변 기록 노드에서 부른다)."""
     return [f.model_copy(update={"business_rules": [_mark_decided(x, qids) for x in f.business_rules]}) for f in functions]
@@ -821,13 +894,17 @@ def _expand(rule: str, texts: dict[str, str]) -> str:
 def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dict, common_new: bool,
              requirements: list[Requirement], questions: list[Question], shared: str, whole: bool,
              asking: bool = True, start: int = 0) -> tuple[list[FunctionSpec], list[Question], dict, dict]:
-    """확인 질문 고르기: 이번에 설계한 기능의 확인 대상 후보 중 꼭 물을 것만 질문하고, 나머지 '(확인 필요)'는 추천안으로 정한다.
+    """확인 질문 고르기: '(가정)' 규칙이 전체 업무 규칙의 FUNC_ASSUMPTION_LIMIT 이하가 되도록 질문을 고르고 나머지를 정한다.
 
     후보: C(기능 규칙의 '(확인 필요)'), A(기능 규칙의 '(가정)'), K(이번에 정한 공통 결정의 가정·확인 필요),
-    R(확정되지 않은 요구사항 중 아직 질문이 없는 것). 질문 수는 후보의 FUNC_QUESTION_RATIO 이내다.
+    R(확정되지 않은 요구사항 중 아직 질문이 없는 것). 후보의 가중치는 묻지 않으면 '(가정)'이 되는 규칙 수다
+    (C·A 1, 공통 규칙 K는 그 규칙이 붙은 곳 수, 분류값 K·R은 0).
+    - 묻지 않으면 '(가정)'이 될 규칙 수가 한도를 넘으면, 넘는 만큼(need)을 영향이 큰 것부터 질문으로 덮게 한다
+      (질문은 FUNC_MAX_QUESTIONS개까지, 같은 결정은 묶음). 한도 안이면 꼭 물을 것 하나만.
     - 질문한 후보: 추천안으로 설계해 '(확인 필요 FQ-001)'로 표시한다 (공통 결정은 근거를 '확인 필요 FQ-001'로).
-    - 묻지 않은 C: 추천안 규칙으로 바꾸고 '(가정)'으로 표시한다. 공통 결정의 확인 필요는 가정으로 바꾼다.
-    asking=False(답을 반영하는 수정)면 질문은 만들지 않고 새로 생긴 C만 정한다. 요청이 실패하면 그대로 둔다.
+    - 묻지 않은 C·공통 결정의 확인 필요: 한도 안에서만 추천안 '(가정)'으로 바꾸고, 넘으면 추천안을 '(확인 필요) …'로 둔다 (요약의 kept).
+      그래도 한도를 넘으면 묻지 않은 A('(가정)' 규칙)를 '(확인 필요)'로 바꾼다 ('(가정)'은 한도 안에서만 둔다).
+    asking=False(답을 반영하는 수정)면 질문은 만들지 않고 새로 생긴 C만 한도 안에서 정한다. 요청이 실패하면 그대로 둔다.
     (기능, 새 질문, 공통 결정, 요약)
     """
     common = deepcopy(common)
@@ -865,38 +942,60 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
         for section in ("code_sets", "policies"):
             for index, item in enumerate(common.get(section) or []):
                 if item.get("basis") in ("가정", "확인 필요"):
+                    # 공통 규칙은 붙은 규칙 수만큼 '(가정)'이 되므로 그 수가 가중치다 (분류값은 업무 규칙에 붙지 않아 0)
+                    weight = _common_uses(functions, index) if section == "policies" else 0
                     text = (f"공통 분류·상태 '{item['name']}': {' / '.join(item['values'])}" if section == "code_sets"
                             else f"공통 규칙 P{index + 1}: {item['rule']}")
-                    key = add("K", section=section, index=index, req_ids=item.get("requirement_ids") or [])
-                    found.append(f"- [{key}] {text} (근거: {item['basis']})")
+                    key = add("K", section=section, index=index, req_ids=item.get("requirement_ids") or [], weight=weight,
+                              basis=item["basis"])
+                    found.append(f"- [{key}] {text} (근거: {item['basis']}" + (f", 규칙 {weight}곳)" if weight else ")"))
         lines += ["### 공통 결정", *found] if found else []
     asked_reqs = {rid for q in questions for rid in (*q.requirement_ids, *q.confirms)}
-    found = [f"- [{add('R', req_ids=[r.requirement_id])}] 요구사항 {r.requirement_id} {r.title} "
+    found = [f"- [{add('R', req_ids=[r.requirement_id], weight=0)}] 요구사항 {r.requirement_id} {r.title} "
              f"({STATUS_LABEL[r.status]}): {r.description} → 기능 {', '.join(linked[r.requirement_id])}"
              for r in requirements
              if r.status in STATUS_LABEL and r.requirement_id in linked and r.requirement_id not in asked_reqs]
     lines += ["### 확정되지 않은 요구사항", *found] if found else []
 
-    ratio = get_settings().func_question_ratio
-    budget = int(len(items) * ratio + 0.5) if asking and ratio > 0 else 0
-    if asking and whole and ratio > 0 and items:
-        budget = max(1, budget)   # 전체 설계에서 후보가 있으면 가장 중요한 하나는 묻는다
+    # 가정 한도: 묻지 않으면 '(가정)'이 될 규칙 수(지금 가정 + 확인 필요 + 공통 확인 필요가 붙은 곳)가 한도를 넘는 만큼 질문으로 정한다
+    s = get_settings()
+    share = s.func_assumption_limit
+    total = sum(len(f.business_rules) for f in functions)
+    allowed = total if share >= 1 else int(total * share)
+    current = sum(1 for f in functions for r in f.business_rules if _is_assumed(r))
     c_ids = [k for k, i in items.items() if i["kind"] == "C"]
+    pending_common = sum(i["weight"] for i in items.values() if i["kind"] == "K" and i["basis"] == "확인 필요")
+    projected = current + len(c_ids) + pending_common
+    need = max(0, projected - allowed) if asking and share < 1 else 0
+    # 한도를 넘으면 넘는 만큼까지, 많아도 FUNC_MAX_QUESTIONS개만 묻는다 (고객에게 수십 개를 묻지 않게. 덮지 못한 것은
+    # '(확인 필요)'로 남아 사람이 확인한다). 한도 안이면 전체 설계에서 가장 중요한 하나만
+    budget = min(need, s.func_max_questions) if need else 1 if asking and whole and share < 1 and items else 0
     if not c_ids and not budget:
         return functions, [], common, {}
 
     req_ids = {rid for i in items.values() for rid in i["req_ids"]}
     done = [f"- [{q.question_id}] {q.question} → " + (f"답: {q.answer}" if q.status == "ANSWERED" else "답 없음")
             for q in questions]
-    limit = (f"고객에게 물을 질문은 최대 {budget}개다 (후보 {len(items)}개의 약 {round(ratio * 100)}%). "
-             "나머지는 묻지 않고 추천안으로 정한다." if budget else
-             "이번에는 질문을 만들지 않는다 (questions는 비운다). 모든 C 후보를 추천안으로 정한다.")
+    pct = round(share * 100)
+    if need:
+        limit = (f"가정 한도: 업무 규칙 {total}개의 {pct}% = {allowed}개까지 '(가정)'으로 둘 수 있다. 묻지 않으면 '(가정)'이 될 규칙이 "
+                 f"{projected}개(지금 가정 {current} + 확인 필요 {len(c_ids)}"
+                 + (f" + 공통 확인 필요가 붙은 곳 {pending_common}" if pending_common else "") + ")라서, "
+                 f"질문으로 덮어야 할 후보의 가중치 합은 {need}이다 (C·A 후보는 1, 공통 규칙 K는 줄 끝의 곳 수, 그 밖의 K·R은 0). "
+                 f"질문은 최대 {budget}개다. 답에 따라 설계가 크게 달라지는 것부터 고르고, 같은 결정에 걸린 후보는 다른 기능의 것도 "
+                 "한 질문으로 묶어 질문 하나가 되도록 많은 후보를 덮게 한다. 덮지 못한 후보는 추천안으로 정하고 담당자가 확인한다.")
+    elif budget:
+        limit = (f"'(가정)'이 한도 안이다 (묻지 않아도 업무 규칙 {total}개 중 {projected}개, 한도 {allowed}개 = {pct}%). "
+                 "답에 따라 설계가 크게 달라지는 질문만 최대 1개 고르고, 나머지는 추천안으로 정한다.")
+    else:
+        limit = "이번에는 질문을 만들지 않는다 (questions는 비운다). 모든 C 후보를 추천안으로 정한다."
     parts = ["## 확인 대상 후보 (C: 기능 규칙의 확인 필요, A: 기능 규칙의 가정, K: 공통 결정, R: 확정되지 않은 요구사항. "
              "ID 없는 줄은 같은 기능의 다른 규칙)", *lines, "", "## 관련 요구사항", *[_req_line(r) for r in requirements if r.requirement_id in req_ids], "",
              "## 이미 한 질문 (다시 묻지 않는다)", *(done or ["- 없음"]), "", CONFIRM_REQUEST.format(limit=limit),
              f"resolutions에 반드시 다음 C 후보 모두: {', '.join(c_ids)}" if c_ids else "C 후보가 없으므로 resolutions는 비운다."]
     summary = {"candidates": len(items), "kinds": dict(Counter(i["kind"] for i in items.values())), "budget": budget,
-               "questions": [], "assumed": 0, "unresolved": len(c_ids)}
+               "need": need, "limit": share, "total_rules": total, "allowed": allowed, "assumed_rules": current,
+               "questions": [], "assumed": 0, "unresolved": len(c_ids), "kept": 0}
     try:
         out = llm.structured(system=SYSTEM_PROMPT, user="\n".join(parts), schema=ConfirmOut, shared=shared,
                              effort=get_settings().func_effort, purpose="기능 명세 확인 질문")
@@ -926,33 +1025,80 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
     resolved = {x.item_id.strip(): _plain(x.rule) for x in out.resolutions if x.item_id.strip() in items and _plain(x.rule)}
 
     rules = {f.function_id: list(f.business_rules) for f in functions}
-    assumed = unresolved = 0
+    # 1) 질문한 후보: 추천안으로 설계하고 그 질문으로 정해지는 규칙으로 표시
     for key, item in items.items():
         qid = asked_by.get(key)
+        if not qid:
+            continue
         if item["kind"] in ("C", "A"):
             fid, index = item["function_id"], item["index"]
-            if qid:
-                rules[fid][index] = f"(확인 필요 {qid}) {resolved.get(key) or _plain(rules[fid][index])}"
-            elif item["kind"] == "C" and key in resolved:
-                rules[fid][index] = f"(가정) {resolved[key]}"
-                assumed += 1
-            elif item["kind"] == "C":
-                unresolved += 1
+            rules[fid][index] = f"(확인 필요 {qid}) {resolved.get(key) or _plain(rules[fid][index])}"
         elif item["kind"] == "K":
-            entry = common[item["section"]][item["index"]]
-            if qid:
-                entry.update(basis="확인 필요", question=qid)
-            elif entry["basis"] == "확인 필요":
-                entry["basis"] = "가정"
+            common[item["section"]][item["index"]].update(basis="확인 필요", question=qid)
+    # 2) 묻지 않은 확인 필요: 한도 안에서만 추천안 '(가정)'으로 정하고, 넘으면 추천안을 '(확인 필요)'로 둔다
+    #    (화면·명세서가 앞 표시로 찾고 사람이 추천안을 확인하게. 추천안이 없으면 원래 문장)
+    texts = common_rule_texts(common)
+    assumed_now = sum(1 for fid in rules for r in rules[fid] if _is_assumed(_expand(r, texts)))
+    assumed = unresolved = kept = 0
+    for key, item in items.items():
+        if asked_by.get(key) or item["kind"] != "C":
+            continue
+        fid, index = item["function_id"], item["index"]
+        if key in resolved and assumed_now < allowed:
+            rules[fid][index] = f"(가정) {resolved[key]}"
+            assumed_now += 1
+            assumed += 1
+        else:
+            rules[fid][index] = f"(확인 필요) {resolved.get(key) or _plain(rules[fid][index])}"
+            kept += key in resolved
+            unresolved += key not in resolved
+    for key, item in items.items():
+        entry = common[item["section"]][item["index"]] if item["kind"] == "K" else None
+        if asked_by.get(key) or entry is None or entry["basis"] != "확인 필요":
+            continue
+        if item["weight"] == 0 or assumed_now + item["weight"] <= allowed:
+            entry["basis"] = "가정"
+            assumed_now += item["weight"]
+        else:
+            kept += 1
+    # 3) 그래도 한도를 넘으면 묻지 않은 기능 규칙의 '(가정)'을 '(확인 필요)'로 바꾼다 ('(가정)'은 한도 안에서만 둔다)
+    for key, item in items.items():
+        if assumed_now <= allowed:
+            break
+        if item["kind"] == "A" and not asked_by.get(key):
+            fid, index = item["function_id"], item["index"]
+            rules[fid][index] = f"(확인 필요) {_plain(rules[fid][index])}"
+            assumed_now -= 1
+            kept += 1
     texts = common_rule_texts(common)
     result = []
     for f in functions:
         new_rules = [_expand(x, texts) for x in rules[f.function_id]]
         result.append(f.model_copy(update={"business_rules": new_rules}) if new_rules != f.business_rules else f)
-    summary.update(questions=[q.question_id for q in new_questions], assumed=assumed, unresolved=unresolved)
-    log.info("[기능명세] 확인 대상 후보 %d개 %s → 질문 %d개 (한도 %d), 추천안으로 정함 %d, 못 정함 %d",
-             len(items), summary["kinds"], len(new_questions), budget, assumed, unresolved)
+    final = sum(1 for f in result for r in f.business_rules if _is_assumed(r))
+    summary.update(questions=[q.question_id for q in new_questions], assumed=assumed, unresolved=unresolved, kept=kept,
+                   assumed_rules=final)
+    log.info("[기능명세] 확인 대상 후보 %d개 %s → 질문 %d개 (최대 %d), 추천안으로 정함 %d, 한도 때문에 확인 필요로 둠 %d, 못 정함 %d"
+             " · (가정) %d/%d개 (%.0f%%, 한도 %.0f%%)", len(items), summary["kinds"], len(new_questions), budget, assumed,
+             kept, unresolved, final, total, 100 * final / max(1, total), 100 * share)
     return result, new_questions, common, summary
+
+
+def _is_assumed(rule: str) -> bool:
+    """규칙 앞 표시에 '가정'이 있는지 ('(가정) …', '(공통 P4, 가정) …'). 질문으로 정하는 규칙('(확인 필요 FQ-…)')은 아니다."""
+    m = re.match(r"^\(([^)]*)\)", rule)
+    return bool(m) and "가정" in m.group(1)
+
+
+def assumption_share(functions: list[FunctionSpec]) -> tuple[int, int]:
+    """('(가정)' 표시 업무 규칙 수, 전체 업무 규칙 수). 기능 명세서와 보고서가 쓴다."""
+    rules = [r for f in functions for r in f.business_rules]
+    return sum(1 for r in rules if _is_assumed(r)), len(rules)
+
+
+def _common_uses(functions: list[FunctionSpec], index: int) -> int:
+    """공통 규칙 P<index+1>이 붙은 업무 규칙 수."""
+    return sum(1 for f in functions for r in f.business_rules if (m := COMMON_TAG.match(r)) and m.group(1) == f"P{index + 1}")
 
 
 def record_answers(state: AgentState, answered: list[Question], requirements: list[Requirement]) -> dict:

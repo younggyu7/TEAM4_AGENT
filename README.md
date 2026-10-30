@@ -62,7 +62,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 python -m app versions 고객요구사항4                                   # 설계 버전 목록
 python -m app rerun data_modeler 고객요구사항4 --from v1 --design confirmed.json   # 확정한 기능 명세로 ERD → v1.1
 python -m app rerun data_modeler 고객요구사항4 --from v2 --feedback "의견"   # 데이터 설계만 다시 → v2.1
-python -m app review 고객요구사항4 v1.1                                # ERD 최종 확정 → 최종본 v1.1.1 (추적·의미 검토)
+python -m app review 고객요구사항4 v1.1                                # ERD 최종 확정 → 최종본 v1.1.1 (추적 검토·API 설계·개발 스펙·의미 검토)
 python -m app resume <실행 ID> --defer                                  # 확인 질문에서 멈춘 실행 이어 가기
 ```
 
@@ -72,9 +72,12 @@ python -m app resume <실행 ID> --defer                                  # 확�
 
 1. **업로드**: 문서 분석 → 요구사항 추출·검토 → 기능 명세 초안에서 멈춘다 (`run --until function_designer`). 기능이 연결 안 된 요구사항(누락)은 `FUNC_FIX_ATTEMPTS`번 다시 설계한다.
 2. **기능 명세 확인·수정**: `(가정)`·`(확인 필요)` 표시와 확인 질문을 보고 고친다.
+   **'(가정)' 한도·'(확인 필요)' 규칙**: '(가정)' 규칙은 전체 업무 규칙의 `FUNC_ASSUMPTION_LIMIT`(10%) 이하로 둔다. 넘는 만큼 확인 질문으로 정하고(최대 `FUNC_MAX_QUESTIONS`개), 그래도 넘는 규칙은 추천안을 `(확인 필요) …`로 남긴다. 화면 '확인 필요 규칙'에서 '추천안 맞음'을 고르면 내보낼 때 LLM 없이 `(결정) …`이 되고, 표시만 바뀐 기능은 ERD 단계에서 테이블을 다시 설계하지 않는다.
 3. **'내보내기 → ERD 만들기'**: 화면이 고친 design.json을 보내고 `rerun data_modeler --design`이 그 기능 명세로 ERD·DDL을 만든다. 이 단계는 기능 명세를 다시 설계하지 않는다. 모델·DB 검증 오류는 `MODEL_FIX_ATTEMPTS`·`MAX_DB_ATTEMPTS`번 자동 수정한다.
 4. **ERD 수정·저장**: 고친 테이블만 넘기며, 수정만 있으면 LLM 없이 정리·검증한다.
-5. **'ERD 최종 확정'**: 최종본 v<ERD>.1을 만들고 추적 검토(코드)·의미 검토(ERD ↔ 기능 명세, LLM 1회)를 한다 (`review`). 결과·토큰 사용량은 최종본에 남고 최종 산출물 화면에 나온다.
+5. **'ERD 최종 확정'**: 최종본 v<ERD>.1을 만들고 추적 검토(코드) → API 설계(`API_DESIGN`, 기능 `API_BATCH_SIZE`개마다 1회 + 아키텍처 1회, 이전 최종본에서 바뀐 기능만) → 의미 검토(ERD ↔ 기능 명세, LLM 1회)를 한다 (`review`). 최종본에는 개발 스펙 문서 9개(`API.md`·`openapi.yaml` …, 형식은 [backend/SPEC_FORMAT.md](backend/SPEC_FORMAT.md))가 함께 생긴다. 질문에서 멈추지 않고 기술 스택 질문(`TQ-001`)은 추천안으로 가정한다. 결과·토큰 사용량은 최종본에 남고 최종 산출물 화면에 나온다.
+
+버전별로 생기는 파일, 파일마다의 내용, 규칙 표시·질문 ID 읽는 법은 [OUTPUTS.md](OUTPUTS.md).
 
 | 설정 (`.env`) | 뜻 |
 | --- | --- |
@@ -85,6 +88,10 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `SEMANTIC_REVIEW_MODE` | `final`(ERD 최종 확정 때만) · `auto`(산출물이 바뀔 때마다, 코드 기본값) · `off` |
 | `SEMANTIC_REVIEW_ATTEMPTS` | 의미 검토 실패 시 시도 횟수 |
 | `SEMANTIC_REVIEW_SOURCE` | `true`면 최종 확정 검토에서 기능 명세 ↔ 요구사항(원문)도 본다 |
+| `FUNC_ASSUMPTION_LIMIT` | 기능 명세 '(가정)' 규칙 한도 (전체 업무 규칙 대비, 기본 0.1). 1이면 묻지 않고 모두 '(가정)' |
+| `FUNC_MAX_QUESTIONS` | 기능 명세 확인 질문 상한 (기본 12). 덮지 못한 것은 '(확인 필요)'로 남아 화면에서 확인 |
+| `API_DESIGN` | 'ERD 최종 확정' 때 API 설계·개발 스펙을 만들지 (기본 true). 업로드·ERD 단계에는 영향 없음 |
+| `API_FIX_ATTEMPTS` · `API_BATCH_SIZE` · `API_EFFORT` | API 검사 오류를 그 기능만 다시 설계하는 횟수(기본 1) · 요청 1건의 기능 수(6) · 생각 수준 |
 
 설정 위치는 `backend/app/core/config.py`의 `Settings` (단계별 한도는 `Settings.fix_attempts`).
 
@@ -94,13 +101,14 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | --- | --- |
 | `GET /projects` | 프로젝트와 설계 버전 목록 (버전 번호는 문자열 `"4"`, `"4.1"`) |
 | `GET /design?project=&version=` | design.json (`data_model`·`trace_links`를 합쳐서) |
-| `GET·HEAD /file?project=&version=&name=` | 산출물 원문 (`schema.sql`, `erd.mmd`, `functions.md` …) |
+| `GET·HEAD /file?project=&version=&name=` | 산출물 원문 (`schema.sql`, `erd.mmd`, `functions.md`, 최종본의 개발 스펙 `API.md`·`openapi.yaml` …) |
+| `GET /spec-format` | 개발 스펙 문서의 형식 정의 (`backend/SPEC_FORMAT.md`) |
 | `POST /projects/title` | 버전 제목 저장 |
-| `POST /projects/versions` | 기능 명세 내보내기(`source: spec`) → ERD 새 버전, ERD 저장(`source: erd`) → 다음 ERD 버전, `answers`가 있으면 확인 질문 답을 반영한 기능 명세 새 버전 → `202 {job}` |
-| `POST /projects/review` | ERD 최종 확정 → 최종본 v<ERD>.1 (추적·의미 검토) → `202 {job}` |
+| `POST /projects/versions` | 기능 명세 내보내기(`source: spec`) → ERD 새 버전, ERD 저장(`source: erd`) → 다음 ERD 버전, `answers`가 있으면 확인 질문 답을 반영한 기능 명세 새 버전. `confirm_rules`('추천안 맞음'으로 확인한 규칙)는 LLM 없이 `(결정)` → `202 {job}` |
+| `POST /projects/review` | ERD 최종 확정 → 최종본 v<ERD>.1 (추적 검토·API 설계·개발 스펙·의미 검토) → `202 {job}` |
 | `POST /runs` (multipart `file`, `project?`, `title?`, `validate_db?`) | 문서 업로드 → 기능 명세 초안까지 실행(`--defer --until function_designer`) → `202 {job}` |
 | `GET /jobs?id=` | 작업 진행 상황 `{status: running·done·failed, message, log, new_version, warnings}` |
-| `GET /capabilities` | rerun이 기능 명세 수정본(`--design`·`--spec-md`)을 받는지 |
+| `GET /capabilities` | rerun이 기능 명세 수정본(`--design`·`--spec-md`)·추천안 확인 규칙(`--confirm-rules`)을 받는지 |
 | `GET /health` | 서버 상태 |
 
 오류 응답은 `{"detail": "..."}`. LLM 작업(몇 분)은 서버 안에서 돌리지 않고 `python -m app …` 하위 프로세스로 띄운다.

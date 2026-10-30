@@ -29,6 +29,7 @@ data_modeler (데이터 설계 = 데이터 모델 + 추적 검토 + 의미 검�
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -36,7 +37,7 @@ from app.schemas.data_model import DataModel
 from app.schemas.function import FunctionSpec
 from app.schemas.requirement import Question, Requirement
 from app.agents.flow.state import SEMANTIC_BASIS_INIT, basis, rev
-from app.agents.roles.function_designer import apply_answers_by_code
+from app.agents.roles.function_designer import apply_answers_by_code, confirm_rules
 from app.agents.roles.requirement_reviewer import record_answer as record_review_answer, settle
 from app.agents.tools.model_edits import ReworkSummary, apply_user_edits
 from app.agents.tools.model_validator import to_identifier
@@ -133,6 +134,8 @@ def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
 
     functions·common과, 화면에서 새로 답한 확인 질문을 쓴다. 답은 LLM 없이 코드로 반영한다 (apply_answers_by_code):
     기능 규칙 표시·문장, 공통 결정, 요구사항 결정·확정. 이슈 등 나머지는 기준 버전 것을 그대로 둔다.
+    confirm_rules(화면 '추천안 맞음'으로 확인한 '(확인 필요)' 규칙 [{"function_id", "rule"}])도 LLM 없이 '(결정)'으로 바꾼다
+    (규칙 앞 표시만 바뀌어 데이터 설계에서 그 기능의 엔티티를 다시 설계하지 않는다).
     {"functions", "common"(없으면 None), "requirements", "questions", "note": 안내 줄}. 형식·ID가 틀리면 RerunError.
     """
     if stage != "data_modeler":
@@ -162,6 +165,10 @@ def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
     if answered:
         functions, common = apply_answers_by_code(functions, common or {}, answered)
         _record_answers(answered, requirements)
+    confirms = _confirm_items(data.get("confirm_rules"))
+    missing: list[str] = []
+    if confirms:
+        functions, common, missing = confirm_rules(functions, common or {}, confirms)
     dumped = [f.model_dump(mode="json") for f in functions]
     changed, added, removed = changed_functions(base.get("functions") or [], dumped)
     differ = sum(q.answer.strip() != q.recommended.strip() for q in answered)
@@ -170,7 +177,32 @@ def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
             "questions": [q.model_dump(mode="json") for q in questions],
             "note": f"기능 명세: 화면에서 확정한 명세 사용 (기능 {len(dumped)}개 · 기준 대비 바뀜 {len(changed)} · "
                     f"새 {len(added)} · 지움 {len(removed)})"
-                    + (f" · 확인 질문 답 {len(answered)}건 코드로 반영 (추천과 다른 답 {differ}건)" if answered else "")}
+                    + (f" · 확인 질문 답 {len(answered)}건 코드로 반영 (추천과 다른 답 {differ}건)" if answered else "")
+                    + (" · " + confirm_note(len(confirms), missing) if confirms else "")}
+
+
+def _confirm_items(raw) -> list[dict]:
+    """'추천안 맞음'으로 확인한 규칙 목록 [{"function_id", "rule"}]을 검사한다 (형식이 틀리면 RerunError)."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or not all(isinstance(x, dict) and x.get("function_id") and x.get("rule") for x in raw):
+        raise RerunError('확인한 규칙은 [{"function_id": "FN-…", "rule": "규칙 문장"}] 형식이어야 합니다.')
+    return raw
+
+
+def load_confirm_rules(path: Path) -> list[dict]:
+    """--confirm-rules 파일(화면 '추천안 맞음'으로 확인한 규칙)을 읽는다."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise RerunError(f"확인한 규칙 파일을 읽을 수 없습니다: {path} ({e})") from e
+    return _confirm_items(data)
+
+
+def confirm_note(count: int, missing: list[str]) -> str:
+    """추천안 확인 반영 안내 줄."""
+    return (f"추천안대로 확인한 규칙 {count - len(missing)}건을 '(결정)'으로 반영 (LLM 없음)"
+            + (f" · 기준 버전에 없는 규칙 {len(missing)}건은 건너뜀: {'; '.join(missing[:3])}" if missing else ""))
 
 
 def _submitted_answers(questions: list[Question], submitted) -> list[Question]:
@@ -252,11 +284,17 @@ def changed_requirements(before: list[dict], after: list[dict]) -> list[str]:
     return sorted(i for i in set(old) | set(new) if old.get(i) != new.get(i))
 
 
+def _content(f: dict) -> dict:
+    """비교용 기능 내용: 업무 규칙 앞 표시('(확인 필요 FQ-001)' → '(결정 FQ-001)', '(확인 필요)' → '(결정)')는 뺀다.
+    표시만 바뀐 기능은 데이터 설계에 영향이 없어 엔티티를 다시 설계하지 않는다 (API 설계 지문과 같은 기준)."""
+    return {**f, "business_rules": [re.sub(r"^\([^)]*\)\s*", "", r) for r in f.get("business_rules") or []]}
+
+
 def changed_functions(before: list[dict], after: list[dict]) -> tuple[list[str], list[str], list[str]]:
-    """두 버전의 기능 명세 차이: (내용이 바뀐 기능, 새 기능, 지운 기능) ID."""
+    """두 버전의 기능 명세 차이: (내용이 바뀐 기능, 새 기능, 지운 기능) ID. 규칙 앞 표시만 바뀐 것은 바뀐 것으로 보지 않는다."""
     old = {f["function_id"]: f for f in before}
     new = {f["function_id"]: f for f in after}
-    return (sorted(i for i in new if i in old and new[i] != old[i]), sorted(set(new) - set(old)),
+    return (sorted(i for i in new if i in old and _content(new[i]) != _content(old[i])), sorted(set(new) - set(old)),
             sorted(set(old) - set(new)))
 
 

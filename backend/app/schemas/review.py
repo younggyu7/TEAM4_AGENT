@@ -10,7 +10,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 AgentName = Literal[
-    "document_analyst", "requirements_analyst", "function_designer", "data_modeler", "trace_reviewer", "none",
+    "document_analyst", "requirements_analyst", "function_designer", "data_modeler", "api_designer", "trace_reviewer",
+    "none",
 ]
 
 
