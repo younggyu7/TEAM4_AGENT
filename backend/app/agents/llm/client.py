@@ -330,6 +330,17 @@ def resolve_provider() -> str:
     raise RuntimeError("LLM 키가 없습니다. .env에 ANTHROPIC_API_KEY 또는 OPENAI_API_KEY를 설정하세요.")
 
 
+def model_label() -> str:
+    """지금 설정으로 쓰는 LLM 모델 이름 (산출물 보고서의 'LLM 사용량'에 남긴다). 공급자를 정할 수 없으면 빈 문자열.
+    rerun은 기준 버전을 만든 실행의 모델 설정으로 바꾼 뒤 산출물을 쓰므로, 그 버전을 실제로 만든 모델이다."""
+    try:
+        provider = resolve_provider()
+    except RuntimeError:
+        return ""
+    s = get_settings()
+    return {"anthropic": s.anthropic_model, "openai": s.openai_model}.get(provider, provider)
+
+
 def _create_from_settings() -> LLMClient:
     """설정값으로 공급자별 클라이언트를 만든다."""
     s = get_settings()

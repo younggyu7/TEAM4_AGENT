@@ -49,6 +49,9 @@ STACK_NOTES = (
     "웹 화면과 같은 언어(TypeScript)로 맞출 때",
 )
 STACK_LAYERS = ("언어", "프레임워크")   # 이 층을 원문이 정했으면 묻지 않는다
+# 기능 명세 초안에서 원문이 언어·프레임워크를 정했는지 보는 단어 (LLM 없이 기술 스택 질문을 낼지 정한다)
+STACK_WORDS = re.compile(r"java|spring|전자\s*정부|egov|python|django|fastapi|flask|node\.?js|nest\.?js|typescript"
+                         r"|\.net|c#|php|laravel|ruby on rails|kotlin", re.I)
 
 API_PROMPT = load_prompt("api_designer/api")
 
@@ -430,6 +433,24 @@ def check(stored: dict[str, dict], functions: list[FunctionSpec], model: DataMod
 
 
 # ------------------------------------------------------------------ 기술 스택 질문
+def stack_question(requirements: list[Requirement], questions: list[Question], ask: bool) -> Question | None:
+    """기능 명세 초안의 기술 스택 확인 질문 (LLM 없음). 화면 기능 명세 '확인 필요'에 필수로 나온다.
+
+    요구사항 제목·설명에 개발 언어·프레임워크 이름이 없으면 선택지 3개 + 추천(1번)으로 묻는다 (이미 있으면 다시 묻지 않는다).
+    답은 'ERD 최종 확정'의 개발 스펙 문서에만 쓰이고 기능 명세·ERD·API를 다시 설계하지 않는다.
+    원문에 이름이 있으면 묻지 않고, 최종 확정의 아키텍처 요약이 원문 스택을 찾는다."""
+    if any(q.question_id == STACK_QUESTION for q in questions):
+        return None
+    if any(STACK_WORDS.search(f"{r.title} {r.description}") for r in requirements):
+        return None
+    notes = "\n".join(f"{i}. {o} — {n}" for i, (o, n) in enumerate(zip(STACK_OPTIONS, STACK_NOTES), start=1))
+    context = ("원문에서 개발 언어·프레임워크를 찾지 못했습니다. 최종 확정 때 만드는 개발 스펙(AGENTS·ARCHITECTURE·TASKS)에 "
+               "쓸 기술 스택을 정해 주세요. 답은 문서에만 쓰이고 기능 명세·ERD를 다시 설계하지 않습니다.\n" + notes)
+    return Question(question_id=STACK_QUESTION, kind="MISSING", question="개발에 쓸 기술 스택을 무엇으로 할까요?",
+                    context=context, options=list(STACK_OPTIONS), requirement_ids=[], blocking=True, stage=BY,
+                    recommended=STACK_OPTIONS[0], status="PENDING" if ask else "DEFERRED")
+
+
 def _stack_question(arch: ArchitectureOut, questions: list[Question], ask: bool) -> Question | None:
     """원문이 개발 언어·프레임워크를 정하지 않았으면 기술 스택 확인 질문을 만든다 (이미 있으면 다시 묻지 않는다)."""
     if any(q.question_id == STACK_QUESTION for q in questions):
@@ -445,6 +466,24 @@ def _stack_question(arch: ArchitectureOut, questions: list[Question], ask: bool)
                     context=context, options=list(STACK_OPTIONS),
                     requirement_ids=sorted({rid for m in arch.stack_in_source for rid in m.requirement_ids}),
                     blocking=True, stage=BY, recommended=pick, status="PENDING" if ask else "DEFERRED")
+
+
+def stack_choices() -> list[dict]:
+    """화면에서 고를 기술 스택 선택지 (추천 순서, 이유). 직접 입력도 받는다."""
+    return [{"stack": o, "note": n} for o, n in zip(STACK_OPTIONS, STACK_NOTES)]
+
+
+def answer_stack(questions: list[Question], answer: str) -> list[Question]:
+    """사람이 정한 기술 스택을 TQ-001의 답으로 남긴다 (질문이 없던 버전이면 만들어서). 새 목록을 돌려준다."""
+    out = [q.model_copy() for q in questions]
+    q = next((q for q in out if q.question_id == STACK_QUESTION), None)
+    if q is None:
+        q = Question(question_id=STACK_QUESTION, kind="MISSING", question="개발에 쓸 기술 스택을 무엇으로 할까요?",
+                     context="최종 산출물 화면에서 사람이 정한 기술 스택", options=list(STACK_OPTIONS), requirement_ids=[],
+                     blocking=True, stage=BY, recommended=STACK_OPTIONS[0])
+        out.append(q)
+    q.status, q.answer = "ANSWERED", answer
+    return out
 
 
 def tech_stack(design: dict | None, questions: list[Question]) -> dict:

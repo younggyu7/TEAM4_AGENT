@@ -14,7 +14,7 @@ from app.schemas.document import DocumentBlock, RequirementSource
 from app.schemas.function import FunctionSpec
 from app.schemas.requirement import QUESTION_STAGES, Question, Requirement
 from app.schemas.review import Issue, TraceLink
-from app.agents.roles.api_designer import tech_stack
+from app.agents.roles.api_designer import answer_stack, tech_stack
 from app.agents.roles.function_designer import assumption_share
 from app.agents.tools.ddl import render_script
 from app.agents.tools.dev_spec import FILES as DEV_SPEC_FILES, SPEC_FORMAT, write_dev_spec
@@ -23,8 +23,9 @@ from app.agents.tools.model_edits import ReworkSummary
 from app.agents.flow.rerun import STAGES
 from app.agents.tools.convention import ConventionReport, apply_profile, ddl_model, names_csv, profile_of
 from app.agents.tools.trace_diff import compare_versions, load_previous, version_changes
+from app.agents.llm.client import model_label
 from app.agents.storage import get_store
-from app.agents.tools.versions import project_of
+from app.agents.tools.versions import project_of, update_version
 
 SEVERITY_ORDER = {"ERROR": 0, "WARNING": 1, "INFO": 2}
 
@@ -587,6 +588,7 @@ def _review_md(head, state: dict, issues: list[Issue], questions: list[Question]
             f"- 호출 {usage.get('calls', 0)}회 · 입력 토큰 {usage.get('input_tokens', 0):,} · 출력 토큰 {usage.get('output_tokens', 0):,}"
             + (f" · 캐시 읽기 {usage.get('cache_read_tokens', 0):,} / 쓰기 {usage.get('cache_write_tokens', 0):,} 토큰"
                if usage.get("cache_read_tokens") or usage.get("cache_write_tokens") else ""),
+            *([f"- 모델: {model}"] if (model := model_label()) else []),
             ""]
     return "\n".join(out) + "\n"
 
@@ -629,6 +631,40 @@ def _semantic_md(state: dict, issues: list[Issue]) -> list[str]:
         notes.append(f"- 대상 ID를 산출물에서 찾을 수 없는 지적 {meta['dropped']}건은 근거를 확인할 수 없어 제외했다.")
     body = table(["ID", "종류", "대상", "내용", "근거", "제안", "확인 담당"], rows) if rows else "- 지적 없음"
     return head + [body, "", *notes, *([""] if notes else [])]
+
+
+def confirm_tech_stack(project: str, version: str, stack: str) -> dict:
+    """최종본의 기술 스택을 사람이 정한 값으로 확정하고 개발 스펙 9개를 다시 쓴다 (LLM 없음, 화면 '개발 스펙 파일'에서 선택).
+
+    같은 최종본 안에서 개발 스펙 문서와 design.json(TQ-001 답·meta.dev_spec)만 바꾼다. 설계 산출물(기능 명세·ERD·DDL·API 설계)은
+    그대로다. 정한 값은 버전 기록에도 tech_stack으로 남긴다 (개발 AI에 넘길 때 서버에 명시된 값).
+    원문이 스택을 정한 버전, 개발 스펙이 없는 버전이면 ValueError."""
+    store = get_store()
+    text = store.read(project, version, "design.json")
+    design = json.loads(text) if text else {}
+    api = design.get("api_design") or {}
+    if not api.get("functions"):
+        raise ValueError(f"v{version}에는 개발 스펙이 없습니다 ('ERD 최종 확정'으로 만든 최종본에서 정하세요).")
+    meta = design.get("meta") or {}
+    model = DataModel.model_validate_json(store.read(project, version, "data_model.json") or "{}")
+    questions = answer_stack([Question.model_validate(q) for q in design.get("questions") or []], stack)
+    result = tech_stack(api, questions)
+    if result["basis"] == "원문":
+        raise ValueError(f"원문이 기술 스택을 정했습니다 ({result['backend']}). 원문과 다른 스택은 정할 수 없습니다.")
+    options = {"standard": (meta.get("standard") or {}).get("profile")} if meta.get("standard") else {}
+    profile = profile_of(options)
+    physical, conv = apply_profile(model, profile) if profile and profile.renames else (model, None)
+    state = {"requirements": design.get("requirements"), "functions": design.get("functions"),
+             "questions": [q.model_dump(mode="json") for q in questions], "function_common": design.get("common") or {},
+             "api_design": api, "options": options, "document": meta.get("document") or {}}
+    files = write_dev_spec(state, lambda name, body: store.write(project, version, name, body), project, version, model,
+                           ddl_model(physical, profile), conv, profile, result)
+    meta["dev_spec"] = {**(meta.get("dev_spec") or {}), "format": SPEC_FORMAT, "files": list(DEV_SPEC_FILES),
+                        "stack": result["backend"], "stack_basis": result["basis"]}
+    design.update(meta=meta, questions=state["questions"])
+    store.write(project, version, "design.json", json.dumps(design, ensure_ascii=False, separators=(",", ":")))
+    update_version(project, version, tech_stack={"stack": result["backend"], "basis": result["basis"]})
+    return {**meta["dev_spec"], "written": len(files)}
 
 
 def export_semantic_review(state: dict, project: str, version: str, source: bool) -> list[str]:

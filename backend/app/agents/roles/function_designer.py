@@ -304,6 +304,11 @@ def run(state: AgentState) -> dict:
     result, new_questions, common, confirm = _confirm(
         llm, result, designed, common, common_new, requirements, questions, shared, whole,
         asking=not answered, start=number)
+    if s.api_design:   # 개발 스펙의 기술 스택: 원문에 없으면 이 초안에서 묻는다 (LLM 없음, 화면 '확인 필요'의 필수 질문)
+        from app.agents.roles.api_designer import stack_question
+        stack = stack_question(requirements, questions + new_questions,
+                               (state.get("options") or {}).get("ask_mode", "ask") == "ask")
+        new_questions += [stack] if stack else []
     added, changed, removed = _diff(functions, result)
     log.info("[기능명세] 그룹 %d/%d개 %s → 기능 %d개 (새 %d · 바뀜 %d · 지움 %d), 실패 %d, 확인 질문 %d개",
              len(targets), len(groups), "의견 반영" if patch else "생성", len(result), len(added), len(changed),

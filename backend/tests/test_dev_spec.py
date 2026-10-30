@@ -92,14 +92,38 @@ class _NoStackLLM(FakeLLM):
         return ArchitectureOut(summary="웹 서버와 DB.", recommended_stack=2, recommend_reason="데이터 분석 기능이 많다")
 
 
-def test_stack_question_is_assumed_with_the_recommendation_without_stopping(sample_doc):
-    out = _final(sample_doc, _NoStackLLM(broken_fk=False))
-    design = json.loads((out / "design.json").read_text(encoding="utf-8"))
-    q = next(q for q in design["questions"] if q["question_id"] == STACK_QUESTION)
-    assert (q["status"], q["stage"], q["recommended"]) == ("DEFERRED", "api_designer", STACK_OPTIONS[1]), \
-        "최종 확정은 질문에서 멈추지 않는다 (추천안으로 가정)"
+def test_stack_question_is_asked_in_the_function_draft_and_assumed_without_answer(sample_doc):
+    """원문에 언어·프레임워크가 없으면 기능 명세 초안(LLM 없음)에서 필수 질문 TQ-001을 낸다. 답이 없으면 추천안으로 가정."""
+    fake = _NoStackLLM(broken_fk=False)
+    out = _final(sample_doc, _NoStackLLM(broken_fk=False), base_fake=fake)
+    draft = json.loads((_folder("1") / "design.json").read_text(encoding="utf-8"))
+    q = next(q for q in draft["questions"] if q["question_id"] == STACK_QUESTION)
+    assert (q["status"], q["stage"], q["recommended"], q["blocking"], q["options"]) == \
+        ("DEFERRED", "api_designer", STACK_OPTIONS[0], True, list(STACK_OPTIONS)), "기능 명세 단계에서 낸 필수 질문"
+    assert fake.calls["ArchitectureOut"] == 0, "질문은 LLM 없이 (아키텍처 요약은 최종 확정 때만)"
+    assert sum(q["question_id"] == STACK_QUESTION
+               for q in json.loads((out / "design.json").read_text(encoding="utf-8"))["questions"]) == 1, "다시 묻지 않음"
     architecture = (out / "ARCHITECTURE.md").read_text(encoding="utf-8")
-    assert f"{STACK_OPTIONS[1]} (가정 — 추천안, 확인 필요 {STACK_QUESTION})" in architecture
+    assert f"{STACK_OPTIONS[0]} (가정 — 추천안, 확인 필요 {STACK_QUESTION})" in architecture
+
+
+def test_stack_answer_from_the_function_screen_reaches_the_final_spec(sample_doc, tmp_path):
+    """기능 명세 화면에서 답 → 내보내기(--design) → ERD → 최종 확정: 개발 스펙에 '확정'으로, 다시 설계 없음."""
+    _use(_NoStackLLM(broken_fk=False))
+    assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer", "--until", "function_designer"]) == 0
+    design = json.loads((_folder("1") / "design.json").read_text(encoding="utf-8"))
+    for q in design["questions"]:
+        if q["question_id"] == STACK_QUESTION:
+            q.update(status="ANSWERED", answer=STACK_OPTIONS[1])
+    path = tmp_path / "confirmed.json"
+    path.write_text(json.dumps(design, ensure_ascii=False), encoding="utf-8")
+    fake = _use(_NoStackLLM(broken_fk=False))
+    assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1", "--design", str(path)]) == 0
+    assert fake.calls["FunctionDesignOut"] == 0, "기술 스택 답으로 기능 명세를 다시 설계하지 않음"
+    _use(_NoStackLLM(broken_fk=False))
+    assert cli.main(["review", "sample", "v1.1"]) == 0
+    agents = (_folder("1.1.1") / "AGENTS.md").read_text(encoding="utf-8")
+    assert f"{STACK_OPTIONS[1]} (확정 {STACK_QUESTION})" in agents
 
 
 def _fn(fid, name="기능"):
@@ -184,3 +208,45 @@ def test_api_design_off_keeps_the_final_confirmation_as_before(sample_doc):
     assert cli.main(["review", "sample", "v1"]) == 0
     assert fake.calls["ApiDesignOut"] == fake.calls["ArchitectureOut"] == 0 and fake.calls["ModelReviewOut"] == 1
     assert not (_folder("1.1") / "API.md").exists()
+
+
+def test_stack_chosen_on_the_final_page_rewrites_the_spec_without_llm(sample_doc):
+    """최종 산출물 화면에서 기술 스택을 고르면: 같은 최종본의 개발 스펙 9개를 코드로 다시 쓰고 '확정', 설계 산출물은 그대로."""
+    from fastapi.testclient import TestClient
+
+    from app.agents.tools.versions import find_version
+    from app.main import app
+
+    out = _final(sample_doc, _NoStackLLM(broken_fk=False), base_fake=_NoStackLLM(broken_fk=False))
+    before = {name: (out / name).read_text(encoding="utf-8") for name in ("schema.sql", "API.md", "openapi.yaml")}
+    client = TestClient(app)
+    assert [c["stack"] for c in client.get("/api/v1/tech-stacks").json()["choices"]] == list(STACK_OPTIONS)
+    fake = _use(FakeLLM(broken_fk=False))
+    r = client.post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "stack": STACK_OPTIONS[2]})
+    assert r.status_code == 200 and r.json()["dev_spec"]["stack_basis"] == "확정"
+    assert sum(fake.calls.values()) == 0, "LLM 없음"
+    assert f"{STACK_OPTIONS[2]} (확정 {STACK_QUESTION})" in (out / "AGENTS.md").read_text(encoding="utf-8")
+    architecture = (out / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    assert f"{STACK_OPTIONS[2]} (확정 {STACK_QUESTION})" in architecture and "가정 — 추천안" not in architecture
+    assert {name: (out / name).read_text(encoding="utf-8") for name in before} == before, "설계 산출물·API는 그대로"
+    design = client.get("/api/v1/design?project=sample&version=1.1").json()
+    assert design["meta"]["dev_spec"]["stack"] == STACK_OPTIONS[2]
+    q = next(q for q in design["questions"] if q["question_id"] == STACK_QUESTION)
+    assert (q["status"], q["answer"]) == ("ANSWERED", STACK_OPTIONS[2])
+    assert find_version("sample", "1.1")["tech_stack"] == {"stack": STACK_OPTIONS[2], "basis": "확정"}, "서버 버전 기록에 명시"
+
+    custom = client.post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "stack": "Go 1.23 · Gin"})
+    assert custom.status_code == 200 and "Go 1.23 · Gin (확정" in (out / "AGENTS.md").read_text(encoding="utf-8"), "직접 입력"
+    assert client.post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1", "stack": "x"}).status_code == 400, \
+        "개발 스펙이 없는 버전"
+    assert client.post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "stack": " "}).status_code == 400
+
+
+def test_stack_cannot_override_the_source(sample_doc):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    _final(sample_doc, FakeLLM(broken_fk=False))   # 가짜 아키텍처 요약은 원문이 Python을 정한 것으로 둔다
+    r = TestClient(app).post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "stack": "Java"})
+    assert r.status_code == 400 and "원문이 기술 스택을 정했습니다" in r.json()["detail"]

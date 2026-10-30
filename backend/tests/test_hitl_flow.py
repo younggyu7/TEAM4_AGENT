@@ -119,6 +119,7 @@ def test_semantic_final_mode_reviews_only_when_confirmed(sample_doc):
     assert data["parts"] == ["model"] and data["failed"] == [] and data["usage"]["calls"] == 1
     assert (_folder("1.1") / "semantic_review.md").read_text(encoding="utf-8").startswith("# 의미 검토 (최종 확정)")
     report = (_folder("1.1") / "review_report.md").read_text(encoding="utf-8")
+    assert f"- 모델: {get_settings().anthropic_model}" in report, "보고서에 그 버전을 만든 모델 (화면 토큰 카드 제목 옆)"
     assert "호출 3회" in report, "최종본의 LLM 사용량은 최종 확정 단계에서 쓴 양 (API 설계 2 + 의미 검토 1, 화면 토큰 카드가 읽는 줄)"
     assert (fake.calls["ApiDesignOut"], fake.calls["ArchitectureOut"]) == (1, 1), "API 설계는 최종 확정 때만"
     for name in ("API.md", "openapi.yaml", "ARCHITECTURE.md", "TASKS.md"):

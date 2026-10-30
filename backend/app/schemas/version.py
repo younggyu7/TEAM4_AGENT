@@ -27,6 +27,13 @@ class TitleUpdate(BaseModel):
     title: str = ""
 
 
+class TechStackUpdate(BaseModel):
+    """최종본의 기술 스택 확정 (화면 '개발 스펙 파일'에서 선택·직접 입력). LLM 없이 개발 스펙 9개를 다시 쓴다."""
+    project: str
+    version: str
+    stack: str
+
+
 class ReviewCreate(BaseModel):
     """ERD 최종 확정: 그 버전의 데이터 모델을 기능 명세와 대조하는 의미 검토를 한 번 한다."""
     project: str
