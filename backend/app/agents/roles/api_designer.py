@@ -486,10 +486,12 @@ def answer_stack(questions: list[Question], answer: str) -> list[Question]:
     return out
 
 
-def tech_stack(design: dict | None, questions: list[Question]) -> dict:
-    """개발 스펙에 쓸 기술 스택: 원문이 정했으면 원문, 아니면 질문의 답(확정), 답 전이면 추천안(가정).
+def tech_stack(design: dict | None, questions: list[Question], chosen: bool = False) -> dict:
+    """개발 스펙에 쓸 기술 스택: 원문이 정했으면 원문, 팀장이 최종 산출물 화면에서 골랐으면(chosen) 확정,
+    아니면 가정 (기능 명세에서 답한 값이 있으면 그 값, 없으면 추천안). 기능 명세의 답은 '먼저 넣어 둔 값'일 뿐 확정이 아니다.
 
-    {"backend": 백엔드 스택, "basis": 원문|확정|가정|없음, "question": 질문 ID, "source": [(층, 원문 표현, 근거 ID)]}
+    {"backend": 백엔드 스택, "basis": 원문|확정|가정|없음, "question": 질문 ID, "from_answer": 기능 명세 답인지,
+     "source": [(층, 원문 표현, 근거 ID)]}
     """
     arch = (design or {}).get("architecture")
     if not arch:
@@ -501,9 +503,10 @@ def tech_stack(design: dict | None, questions: list[Question]) -> dict:
                 "question": "", "source": source}
     q = next((q for q in questions if q.question_id == STACK_QUESTION), None)
     if q and q.status == "ANSWERED" and q.answer:
-        return {"backend": q.answer, "basis": "확정", "question": q.question_id, "source": source}
+        return {"backend": q.answer, "basis": "확정" if chosen else "가정", "question": q.question_id,
+                "from_answer": not chosen, "source": source}
     pick = q.recommended if q else STACK_OPTIONS[min(max(a.recommended_stack, 1), len(STACK_OPTIONS)) - 1]
-    return {"backend": pick, "basis": "가정", "question": q.question_id if q else "", "source": source}
+    return {"backend": pick, "basis": "가정", "question": q.question_id if q else "", "from_answer": False, "source": source}
 
 
 # ------------------------------------------------------------------ 입력 렌더링

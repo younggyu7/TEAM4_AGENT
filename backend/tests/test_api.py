@@ -259,11 +259,17 @@ def test_roles_limit_who_confirms_each_stage(project, monkeypatch):
     r = planner.post("/api/v1/projects/versions", json=spec)
     assert r.status_code == 403 and "기획 파트장" in r.json()["detail"]
     assert planner.post("/api/v1/projects/versions", json={**spec, "source": "answers"}).status_code == 202, "수정은 파트원도"
+    r = head.post("/api/v1/projects/versions", json=spec)
+    assert r.status_code == 403 and "승인 요청" in r.json()["detail"], "파트장의 확정은 파트원의 승인 요청이 있어야"
+    assert planner.post("/api/v1/drafts/request", json={"project": "team/demo", "version": "1"}).status_code == 200
     assert head.post("/api/v1/projects/versions", json=spec).status_code == 202
     assert head.post("/api/v1/projects/versions", json={**spec, "source": "erd"}).status_code == 403
     assert data.post("/api/v1/projects/versions", json={**spec, "source": "erd"}).status_code == 202
     assert data.post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 403
-    assert signed_in_client("data_head").post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 202
+    data_head = signed_in_client("data_head")
+    assert data_head.post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 202, \
+        "같은 버전(v1)에 요청이 이미 있다"
+    assert signed_in_client().post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 202
     files = {"file": ("a.txt", b"hello", "text/plain")}
     assert data.post("/api/v1/runs", files=files).status_code == 403, "업로드는 기획 파트·팀장"
     assert data.get("/api/v1/projects").status_code == 200, "보기는 누구나"
@@ -274,7 +280,8 @@ def test_shared_draft_and_lead_decision(project):
     from app.agents.tools.versions import find_version, save_version
 
     a, b = signed_in_client("planner"), signed_in_client("planner_head")
-    assert a.get("/api/v1/drafts?project=team/demo&version=1").json() == {"state": None, "rev": 0}
+    empty = a.get("/api/v1/drafts?project=team/demo&version=1").json()
+    assert (empty["state"], empty["rev"], empty["log"], empty["request"]) == (None, 0, [], None)
     saved = a.post("/api/v1/drafts", json={"project": "team/demo", "version": "1", "state": {"functions": {"F": 1}}, "rev": 0})
     assert saved.status_code == 200 and saved.json()["rev"] == 1
     got = b.get("/api/v1/drafts?project=team/demo&version=1").json()
@@ -293,6 +300,7 @@ def test_shared_draft_and_lead_decision(project):
     assert lead.post("/api/v1/projects/approval", json={**body, "comment": ""}).status_code == 400
     assert lead.post("/api/v1/projects/approval", json=body).status_code == 200
     assert lead.post("/api/v1/projects/approval", json={**body, "decision": "approve"}).status_code == 200
+    assert lead.post("/api/v1/projects/approval", json={**body, "decision": "approve"}).status_code == 400, "두 번 승인하지 않는다"
     record = find_version("team/demo", "1.1")
     assert record["approval"]["decision"] == "approve" and [x["decision"] for x in record["approvals"]] == ["changes", "approve"]
     assert lead.post("/api/v1/projects/approval", json={**body, "version": "1"}).status_code == 400, "최종본에만"
@@ -311,3 +319,61 @@ def test_admin_creates_accounts_and_resets_passwords():
     assert admin.post("/api/v1/users/password", json={"id": uid, "password": "newpassword1"}).status_code == 200
     assert user.get("/api/v1/auth/me").status_code == 401, "초기화하면 기존 로그인은 끊긴다"
     assert user.post("/api/v1/auth/login", json={"email": "d1@co.kr", "password": "newpassword1"}).status_code == 200
+
+
+def test_upload_project_name_matches_the_cli_folder_name(monkeypatch, tmp_path):
+    """'요구사항 test'처럼 공백이 있는 이름: 작업이 CLI가 저장하는 이름(요구사항_test)으로 새 버전을 찾는다"""
+    seen = {}
+    monkeypatch.setattr(jobs, "start_run", lambda **kw: seen.update(kw) or jobs.Job(id="j", project=kw["project"], base="",
+                                                                                     source="run", status="running", message=""))
+    r = signed_in_client().post("/api/v1/runs", files={"file": ("a.txt", b"hello", "text/plain")}, data={"project": "요구사항 test"})
+    assert r.status_code == 202 and seen["project"] == "요구사항_test"
+
+
+def test_change_log_shows_who_changed_what_and_member_edits_cancel_the_request(project):
+    """변경 내역: 누가·무엇을 고쳤는지 서버가 남긴다. 파트원이 요청한 뒤 다시 고치면 요청이 취소된다 (파트장이 고치면 그대로)."""
+    planner, head = signed_in_client("planner"), signed_in_client("planner_head")
+    fn = {"function_id": "FN-1", "name": "회원가입", "business_rules": ["a"], "description": "d"}
+    state = {"functions": {"FN-1": fn}, "answers": {"FQ-001": "3단계"}}
+    r = planner.post("/api/v1/drafts", json={"project": "team/demo", "version": "1", "state": state, "rev": 0}).json()
+    entry = r["log"][-1]
+    assert entry["by"]["name"] == "planner"
+    assert {(c["target"], c["what"]) for c in entry["changes"]} >= {("FN-1", "수정"), ("FQ-001", "답: 3단계")}
+    state2 = {**state, "functions": {"FN-1": {**fn, "business_rules": ["a", "b"]}}}
+    r = planner.post("/api/v1/drafts", json={"project": "team/demo", "version": "1", "state": state2, "rev": 1}).json()
+    assert len(r["log"]) == 1 and any(c["what"] == "업무 규칙 수정" for c in r["log"][-1]["changes"]), "이어 고치면 한 묶음"
+    assert planner.post("/api/v1/drafts/request", json={"project": "team/demo", "version": "1", "note": "검토 부탁"}).json()["request"]["note"] == "검토 부탁"
+    r = head.post("/api/v1/drafts", json={"project": "team/demo", "version": "1", "state": {**state2, "checked": {"x": True}}, "rev": 2}).json()
+    assert r["request"] is not None, "파트장이 고치는 것은 요청을 취소하지 않는다"
+    r = planner.post("/api/v1/drafts", json={"project": "team/demo", "version": "1", "state": state, "rev": 3}).json()
+    assert r["request"] is None and r["log"][-1]["event"] == "request_cancelled"
+
+
+def test_change_log_text_names_fields_and_columns():
+    from app.services.drafts import diff
+
+    base = {"functions": {"FN-1": {"function_id": "FN-1", "name": "가입", "business_rules": ["a"], "description": "d"}},
+            "entities": {"t": {"entity_id": "t", "label": "표", "attributes": [{"name": "id"}, {"name": "x", "nullable": True}]}}}
+    new = {"functions": {"FN-1": {**base["functions"]["FN-1"], "business_rules": ["a", "b"], "name": "회원 가입"}},
+           "entities": {"t": {**base["entities"]["t"], "attributes": [{"name": "id"}, {"name": "x", "nullable": False}, {"name": "memo"}]}},
+           "dispositions": {"ISS-1": {"choice": "not_issue", "note": "앱에서 처리"}}}
+    got = {c["target"]: c["what"] for c in diff({}, new, base)}
+    assert got == {"FN-1": "이름 수정 · 업무 규칙 수정", "t": "컬럼 추가 memo · 컬럼 수정 x", "ISS-1": "지적 처리: 문제 아님 (앱에서 처리)"}
+    assert diff(new, {}, base)[0]["what"] == "원본으로 되돌림"
+
+
+def test_change_request_can_send_both_stages_with_items(project):
+    """수정 지시: 기능 명세·ERD 둘 다, 고른 기능·테이블마다 메모. 항목만 골라도 그 단계로 돌려보낸다."""
+    from app.agents.tools.versions import find_version, save_version
+
+    save_version("team/demo", {"design_version": "1.1", "stage": "final", "base": "1", "parent": "1"})
+    lead = signed_in_client()
+    body = {"project": "team/demo", "version": "1.1", "decision": "changes", "comment": "",
+            "items": [{"stage": "spec", "target_id": "FN-3", "label": "결재", "note": "결재선 3단계"},
+                      {"stage": "erd", "target_id": "budget", "note": "집행일 컬럼 추가"}]}
+    assert lead.post("/api/v1/projects/approval", json=body).status_code == 200
+    got = find_version("team/demo", "1.1")["approval"]
+    assert got["targets"] == ["spec", "erd"] and [i["target_id"] for i in got["items"]] == ["FN-3", "budget"]
+    assert lead.post("/api/v1/projects/approval", json={**body, "items": []}).status_code == 400, "단계도 내용도 없음"
+    one = lead.post("/api/v1/projects/approval", json={**body, "items": [], "targets": ["erd"], "comment": "전체 검토"})
+    assert one.status_code == 200 and one.json()["approval"]["target"] == "erd"

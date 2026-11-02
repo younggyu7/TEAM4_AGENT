@@ -108,7 +108,8 @@ def test_stack_question_is_asked_in_the_function_draft_and_assumed_without_answe
 
 
 def test_stack_answer_from_the_function_screen_reaches_the_final_spec(sample_doc, tmp_path):
-    """기능 명세 화면에서 답 → 내보내기(--design) → ERD → 최종 확정: 개발 스펙에 '확정'으로, 다시 설계 없음."""
+    """기능 명세 화면에서 답 → 내보내기(--design) → ERD → 최종 확정: 개발 스펙에 그 값이 들어가지만 '확정'은 아니다
+    (팀장이 최종 산출물 화면에서 골라야 확정). 기술 스택 답으로 다시 설계하지 않음."""
     _use(_NoStackLLM(broken_fk=False))
     assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer", "--until", "function_designer"]) == 0
     design = json.loads((_folder("1") / "design.json").read_text(encoding="utf-8"))
@@ -123,7 +124,9 @@ def test_stack_answer_from_the_function_screen_reaches_the_final_spec(sample_doc
     _use(_NoStackLLM(broken_fk=False))
     assert cli.main(["review", "sample", "v1.1"]) == 0
     agents = (_folder("1.1.1") / "AGENTS.md").read_text(encoding="utf-8")
-    assert f"{STACK_OPTIONS[1]} (확정 {STACK_QUESTION})" in agents
+    assert f"{STACK_OPTIONS[1]} (가정 — 기능 명세에서 고른 값, 팀장 확정 전 {STACK_QUESTION})" in agents
+    meta = json.loads((_folder("1.1.1") / "design.json").read_text(encoding="utf-8"))["meta"]["dev_spec"]
+    assert (meta["stack"], meta["stack_basis"], meta["stack_from_answer"]) == (STACK_OPTIONS[1], "가정", True)
 
 
 def _fn(fid, name="기능"):

@@ -127,7 +127,7 @@ def export_design(state: dict, version: str) -> list[str]:
             files += write_dev_spec(state, _write, meta["project"], version, model, ddl_model(physical, profile), conv,
                                     profile, stack)
             meta["dev_spec"] = {"format": SPEC_FORMAT, "files": list(DEV_SPEC_FILES), "stack": stack["backend"],
-                                "stack_basis": stack["basis"]}
+                                "stack_basis": stack["basis"], "stack_from_answer": stack.get("from_answer", False)}
     if not requirements_only:
         files += [
             _write("traceability.md", _trace_md(head, reqs, funcs, model, questions, stage_only, changes)),
@@ -652,7 +652,7 @@ def confirm_tech_stack(project: str, version: str, stack: str) -> dict:
     meta = design.get("meta") or {}
     model = DataModel.model_validate_json(store.read(project, version, "data_model.json") or "{}")
     questions = answer_stack([Question.model_validate(q) for q in design.get("questions") or []], stack)
-    result = tech_stack(api, questions)
+    result = tech_stack(api, questions, chosen=True)   # 팀장이 최종 산출물 화면에서 고른 값 → 확정
     if result["basis"] == "원문":
         raise ValueError(f"원문이 기술 스택을 정했습니다 ({result['backend']}). 원문과 다른 스택은 정할 수 없습니다.")
     options = {"standard": (meta.get("standard") or {}).get("profile")} if meta.get("standard") else {}
@@ -664,7 +664,7 @@ def confirm_tech_stack(project: str, version: str, stack: str) -> dict:
     files = write_dev_spec(state, lambda name, body: store.write(project, version, name, body), project, version, model,
                            ddl_model(physical, profile), conv, profile, result)
     meta["dev_spec"] = {**(meta.get("dev_spec") or {}), "format": SPEC_FORMAT, "files": list(DEV_SPEC_FILES),
-                        "stack": result["backend"], "stack_basis": result["basis"]}
+                        "stack": result["backend"], "stack_basis": result["basis"], "stack_from_answer": False}
     design.update(meta=meta, questions=state["questions"])
     store.write(project, version, "design.json", json.dumps(design, ensure_ascii=False, separators=(",", ":")))
     update_version(project, version, tech_stack={"stack": result["backend"], "basis": result["basis"]})

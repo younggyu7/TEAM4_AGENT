@@ -437,6 +437,9 @@ def prepare_data_model(values: dict, project: str, version: str, edited_path: Pa
         raise RerunError(f"데이터 모델에 없는 엔티티: {', '.join(unknown)} (data_model.json의 entity_id)")
     if full and targets:
         raise RerunError("--full과 --entities는 함께 쓸 수 없습니다.")
+    if edited_path and not (full or targets or feedback.strip() or summary.has_edits()):
+        raise RerunError("고친 테이블이 기준 버전과 똑같아 새 버전을 만들 것이 없습니다 (고쳤다가 되돌린 경우). "
+                         "테이블을 실제로 바꾸거나 의견을 적어 다시 저장하세요.")
     if not (full or targets or feedback.strip() or summary.has_edits()):
         raise RerunError("다시 설계할 범위가 없습니다. --entities(지정 엔티티만), --feedback(의견과 관련된 엔티티만), "
                          "--full(전체), 또는 고친 data_model.json(--data-model) 중 하나를 주세요.")

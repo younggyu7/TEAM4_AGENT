@@ -34,7 +34,9 @@ def project_name(value: str) -> str:
     name = value.strip()
     if not name or "/" in name or "\\" in name or name.startswith(".") or len(name) > 100:
         raise BadRequest("project 값이 올바르지 않습니다.")
-    return name
+    # CLI(run --project)가 저장하는 이름과 똑같이 맞춘다 (공백·Windows 금지 문자 → _). 다르면 작업이 새 버전을 찾지 못한다
+    from app.agents.tools.versions import project_name as folder_name
+    return folder_name(name)
 
 
 def upload_name(filename: str | None) -> str:
