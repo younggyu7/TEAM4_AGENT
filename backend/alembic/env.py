@@ -2,6 +2,13 @@
 
 LangGraph 체크포인트 테이블(checkpoints·checkpoint_blobs·checkpoint_writes·checkpoint_migrations)은
 PostgresSaver.setup()이 관리하므로 비교·생성 대상에서 뺀다.
+
+backend/ 폴더에서 실행한다:
+  alembic upgrade head                       # 최신 테이블로 올리기
+  alembic revision --autogenerate -m "설명"  # app/models를 바꾼 뒤 마이그레이션 만들기
+
+alembic.ini에는 한글을 쓰지 않는다. alembic이 OS 기본 인코딩으로 읽어서 한국어 Windows(cp949)에서
+UTF-8 한글을 읽다가 실패한다.
 """
 from __future__ import annotations
 
