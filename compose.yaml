@@ -24,6 +24,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   api:
     build: .          # Dockerfile (backend/ 코드만 이미지에 넣는다)
