@@ -1,4 +1,4 @@
-"""의미 검토 Agent: LLM이 산출물의 '내용'을 검토해 담당자가 확인할 지적을 남긴다 (자동 수정하지 않음).
+"""의미 검토 Agent: LLM이 산출물의 '내용'을 검토해 담당자가 확인할 지적을 남긴다 (이 Agent는 고치지 않는다).
 
 추적 검토 Agent(trace_reviewer)가 연결이 '있는지'만 본다면, 이 Agent는 내용이 '맞는지'를 본다.
 검토는 두 부분으로 나눠 병렬로 요청하고, 바뀐 산출물에 해당하는 부분만 다시 검토한다.
@@ -8,6 +8,9 @@
     데이터 모델    : 기능에 필요한 데이터·상태값 누락, 업무 규칙상 필요한 제약 누락 (예: 둘 중 하나만 채우는 FK)
 
 - 지적은 SEM_* 이슈(WARNING, 수정 담당 none)로 남는다. 검토 보고서의 '의미 검토' 절에 근거·제안과 함께 나온다.
+- SEMANTIC_REVIEW_MODE=erd(기본)면 ERD를 만들 때 데이터 모델만 검토한다. 데이터 지적은 조정 Agent가 데이터 모델 Agent에
+  한 번 넘겨 관련 테이블만 고치게 하고(coordinator.SEM_FIX), 고친 테이블과 그 테이블을 쓰는 기능만 다시 검토해
+  (state.semantic_recheck, 모델 전체를 다시 보내지 않아 토큰 절약) 남은 지적은 ERD 화면에서 사람이 처리한다.
 - 목록에 없는 ID를 대상으로 쓴 지적은 근거를 확인할 수 없으므로 버린다.
 - 남기지 않는 지적: 원문에 없는 세부를 더 정하라는 지적(UNCLEAR)·애플리케이션 처리(APP_LOGIC), 근거 인용(quote)이 입력에 없는 것,
   모델이 스스로 이미 처리됐다고 답한 것(already_covered), 기능 ID 없이 요구사항만 가리키는
@@ -28,7 +31,7 @@ from app.schemas.function import FunctionSpec
 from app.schemas.requirement import Requirement
 from app.agents.tools.search import normalize, quote_in_text
 from app.agents.flow.state import (AgentState, basis, finding, get_data_model, issues_of, load, merge_usage, reconcile_issues, rev,
-                                   semantic_stale_parts)
+                                   semantic_parts)
 
 log = logging.getLogger(__name__)
 BY = "semantic_reviewer"
@@ -75,20 +78,23 @@ class ModelReviewOut(BaseModel):
 
 def run(state: AgentState) -> dict:
     """의미 검토 Agent 노드: 바뀐 산출물 부분만 LLM으로 검토하고 SEM_* 이슈를 갱신한다."""
-    parts = semantic_stale_parts(state)
+    parts = semantic_parts(state)
     requirements = load(state, "requirements", Requirement)
     functions = load(state, "functions", FunctionSpec)
     model = get_data_model(state)
     llm = get_llm()
+    issues = issues_of(state)
+    # 지적을 고친 직후: 고친 테이블 범위만 다시 검토하고, 그 범위 밖 지적은 그대로 둔다
+    recheck = state.get("semantic_recheck") or {}
+    scope = _recheck_scope(recheck, functions, model, issues) if "model" in parts and model and recheck else None
 
-    jobs = [_job(part, requirements, functions, model) for part in parts]
+    jobs = [_job(part, requirements, functions, model, scope if part == "model" else None) for part in parts]
     results = run_parallel(lambda job: llm.structured(system=job[1], user=job[2], schema=job[3],
                                                       purpose=f"의미 검토 {PART_LABELS[job[0]]}"), jobs)
     known = {
         "functions": {r.requirement_id for r in requirements} | {f.function_id for f in functions},
         "model": {f.function_id for f in functions} | {e.entity_id for e in (model.entities if model else [])},
     }
-    issues = issues_of(state)
     r, b = rev(state), basis(state)
     reviewed = dict(b["semantic"])
     function_ids = {f.function_id for f in functions}
@@ -109,12 +115,15 @@ def run(state: AgentState) -> dict:
             message = f"{f.message.strip()}\n근거: {f.evidence.strip()}\n제안: {f.suggestion.strip()}"
             findings.append(finding(f"{PART_PREFIX[part]}{f.category}", "WARNING", message,
                                     target_id=", ".join(ids), raised_by=BY))
+        rechecked = set(recheck.get("issues") or []) if part == "model" and scope else None
         issues = reconcile_issues(issues, _merge_same_target(findings), lambda k, p=PART_PREFIX[part]: k.startswith(p),
-                                  get_settings().fix_attempts)
+                                  get_settings().fix_attempts,
+                                  keep=(lambda i: i.issue_id not in rechecked) if rechecked is not None else None)
         reviewed[part] = _basis_value(part, r)
         done.append(part)
         counts[part] = len(findings)
-    log.info("[의미 검토] %s → 지적 %s%s%s%s", ", ".join(PART_LABELS[p] for p in parts),
+    log.info("[의미 검토] %s%s → 지적 %s%s%s%s", ", ".join(PART_LABELS[p] for p in parts),
+             f" (고친 테이블 {len(scope[1])}개만)" if scope else "",
              ", ".join(f"{PART_LABELS[p]} {n}건" for p, n in counts.items()) or "0건",
              f", 대상 ID 확인 불가로 제외 {dropped}건" if dropped else "",
              f", 남기지 않은 지적 {handled}건 (세부 미정·앱 처리·인용 없음·이미 처리)" if handled else "",
@@ -122,28 +131,14 @@ def run(state: AgentState) -> dict:
     update = {
         "issues": [i.model_dump() for i in issues],
         "basis": {**b, "semantic": reviewed},
-        "semantic_review": {"parts": done, "failed": failed, "dropped": dropped, "handled": handled},
+        "semantic_review": {"parts": done, "failed": failed, "dropped": dropped, "handled": handled,
+                            "scoped": len(scope[1]) if scope else 0},
+        "semantic_recheck": None,
         "llm_usage": merge_usage(state, llm.pop_usage()),
     }
     if failed:
         update["failures"] = {**(state.get("failures") or {}), BY: (state.get("failures") or {}).get(BY, 0) + 1}
     return update
-
-
-def review_saved(state: dict, source: bool = False) -> dict:
-    """확정한 버전의 의미 검토 (ERD 최종 확정 → 최종본, review 명령): 기본은 데이터 모델 ↔ 기능 명세만 보고,
-    source면 기능 명세 ↔ 요구사항도 본다. 실패한 부분은 SEMANTIC_REVIEW_ATTEMPTS까지 다시 요청한다.
-    state는 requirements·functions·data_model·issues가 든 상태. LLM 한도·키 오류(LLMFatalError)는 그대로 올린다.
-    검토를 마친 상태(issues·semantic_review·llm_usage 포함)를 돌려준다."""
-    state = {**state, "rev": {"requirements": 1, "functions": 1, "model": 1}, "failures": {},
-             # 검토하지 않을 부분은 이미 본 것으로 둔다 (semantic_stale_parts가 고르지 않게)
-             "basis": {**(state.get("basis") or {}),
-                       "semantic": {"functions": [-1, -1] if source else [1, 1], "model": [-1, -1]}}}
-    for _ in range(get_settings().fix_attempts(BY)):
-        state.update(run(state))
-        if not semantic_stale_parts(state):
-            break
-    return state
 
 
 MARKED = ("(가정)", "(확인 필요")
@@ -185,16 +180,38 @@ def _merge_same_target(findings: list) -> list:
 
 
 # ------------------------------------------------------------------ 입력 렌더링
-def _job(part: str, requirements: list[Requirement], functions: list[FunctionSpec], model: DataModel | None):
-    """(부분, system 프롬프트, user 프롬프트, 응답 스키마)."""
+def _recheck_scope(recheck: dict, functions: list[FunctionSpec], model: DataModel, issues) -> tuple[set[str], set[str]]:
+    """다시 검토할 (기능 ID, 엔티티 ID): 다시 설계한 엔티티·고친 지적의 대상 엔티티와, 지적 대상 기능·그 엔티티를 쓰는 기능.
+    사용자처럼 거의 모든 기능이 쓰는 공통 테이블은 쓰는 기능을 다 넣지 않는다 (지적 대상 기능만으로 충분하고 입력만 커진다)."""
+    ids = set(recheck.get("issues") or [])
+    targets = {t.strip() for i in issues if i.issue_id in ids for t in i.target_id.split(",")}
+    entity_ids = {e.entity_id for e in model.entities}
+    entities = (set(recheck.get("entities") or []) | targets) & entity_ids
+    shared = max(5, len(functions) // 4)
+    fns = {fid for e in model.entities if e.entity_id in entities and len(e.function_ids) <= shared for fid in e.function_ids}
+    fns |= targets & {f.function_id for f in functions}
+    return fns, entities
+
+
+def _job(part: str, requirements: list[Requirement], functions: list[FunctionSpec], model: DataModel | None,
+         scope: tuple[set[str], set[str]] | None = None):
+    """(부분, system 프롬프트, user 프롬프트, 응답 스키마). scope가 있으면 데이터 모델은 그 기능·엔티티만 넣는다."""
     if part == "functions":
         designed = {rid for f in functions for rid in f.requirement_ids}
         reqs = [r for r in requirements if r.requirement_id in designed]
         user = "\n".join(["## 요구사항 (기능 명세의 근거)", *[_req_line(r) for r in reqs], "",
                           "## 기능 명세", *[_function_block(f) for f in functions]])
         return part, FUNCTIONS_PROMPT, user, FunctionReviewOut
+    entities = model.entities if model else []
+    if scope:
+        fns, names = scope
+        others = [e.entity_id for e in entities if e.entity_id not in names]
+        functions = [f for f in functions if f.function_id in fns]
+        entities = [e for e in entities if e.entity_id in names]
     user = "\n".join(["## 기능 명세 (데이터 요구)", *[_function_data_line(f) for f in functions], "",
-                      "## 데이터 모델", *[_entity_line(e) for e in (model.entities if model else [])]])
+                      "## 데이터 모델", *[_entity_line(e) for e in entities]])
+    if scope and others:   # 범위 밖 테이블도 있다는 것만 알려 '없는 테이블' 지적을 막는다
+        user += "\n\n## 이번 검토 대상이 아닌 다른 테이블 (이름만, 지적하지 않는다)\n" + ", ".join(others)
     return part, MODEL_PROMPT, user, ModelReviewOut
 
 

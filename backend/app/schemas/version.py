@@ -34,10 +34,15 @@ class TechStackUpdate(BaseModel):
     stack: str
 
 
+# ERD 화면에서 정한 의미 검토 지적 처리: {이슈 ID: {"choice": applied|not_issue|later, "note": 메모}}
+Dispositions = dict[str, dict[str, str]]
+
+
 class ReviewCreate(BaseModel):
-    """ERD 최종 확정: 그 버전의 데이터 모델을 기능 명세와 대조하는 의미 검토를 한 번 한다."""
+    """ERD 최종 확정: 사람이 정한 검토 지적 처리를 남기고 DDL 검증·추적 검토·API 설계로 최종본을 만든다."""
     project: str
     version: str
+    dispositions: Dispositions | None = None
 
 
 class VersionCreate(BaseModel):
@@ -46,13 +51,15 @@ class VersionCreate(BaseModel):
     confirm_rules는 내보내기면 확정한 명세와 함께, 'AI로 답 반영'이면 그 실행에 넘겨 코드로 '(결정)'으로 바꾼다."""
     project: str
     base: str
-    source: Literal["spec", "erd"] = "erd"
+    source: Literal["spec", "answers", "erd"] = "erd"   # answers: 기능 명세 새 버전 (답이 없어도 수정·의견으로)
     data_model: Any = None          # 사용자가 고친 data_model.json (ERD 저장)
     design: Any = None              # 기능 명세 수정본이 들어간 design.json (기능 명세 내보내기)
     functions_md: str | None = None  # Agent에 넘길 기능 명세 Markdown
     spec_summary: str | None = None  # 백엔드가 수정본을 못 받을 때 의견으로 넘길 변경 요약
+    functions: list[dict] | None = None  # 기능 명세 새 버전(answers): 사람이 고친 기능 → 고친 그대로 고정
     answers: dict[str, str] | None = None  # 기능 명세 화면에서 새로 답한 확인 질문 (질문 ID → 답)
     # 기능 명세 화면에서 '추천안 맞음'으로 확인한 '(확인 필요)' 규칙 [{"function_id", "rule"}] → LLM 없이 '(결정)'
     confirm_rules: list[dict[str, str]] | None = None
+    dispositions: Dispositions | None = None   # ERD 저장: 검토 지적 처리를 새 ERD 버전에 남긴다
     feedback: str | None = None
     title: str | None = None

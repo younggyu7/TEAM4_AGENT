@@ -19,7 +19,7 @@ from app.agents.roles.coordinator import (STAGE_LABELS, designs_data, designs_fu
 from app.agents.roles.function_designer import mark_decided, record_answers
 from app.agents.roles.requirement_reviewer import REQ_GAP, coverage_findings, record_answer as record_review_answer, settle
 from app.agents.flow.state import (SEMANTIC_BASIS_INIT, AgentState, actionable_issues, dump, finding, get_data_model, issues_of, load,
-                                   reconcile_issues, rev, review_stale, semantic_stale_parts, with_result)
+                                   reconcile_issues, rev, review_stale, semantic_parts, with_result)
 from app.agents.tools.convention import apply_profile, ddl_model, profile_of
 from app.agents.tools.db_validator import validate_ddl
 from app.agents.tools.document_parser import check_supported, file_fingerprint
@@ -163,7 +163,9 @@ def _step_result(state: AgentState, last: dict, issues: list, requirements: list
         model = get_data_model(state)
         if model is None:
             return "데이터 모델 없음"
+        redesigned = ((state.get("model_rework") or {}).get("redesigned") or []) if mode == "semantic" else []
         return (f"엔티티 {len(model.entities)}개 · 관계 {len(model.relations)}개"
+                + (f", 지적 반영으로 다시 설계 {len(redesigned)}개 ({', '.join(redesigned[:8])})" if redesigned else "")
                 + extra(("모델 오류", open_count("MODEL_", "ERROR"))))
     if action == "requirement_reviewer":
         return (state.get("requirement_review") or {}).get("last") or "분류 검토"
@@ -175,6 +177,8 @@ def _step_result(state: AgentState, last: dict, issues: list, requirements: list
         prefixes = {"functions": ("기능 명세", "SEM_FUNC_"), "model": ("데이터 모델", "SEM_MODEL_")}
         counts = [f"{prefixes[p][0]} {open_count(prefixes[p][1])}건" for p in meta.get("parts", []) if p in prefixes]
         text = f"지적 {', '.join(counts)}" if counts else "검토 못 함"
+        if meta.get("scoped"):
+            text += f" (고친 테이블 {meta['scoped']}개만 다시 검토)"
         if meta.get("dropped"):
             text += f" (대상 ID를 확인할 수 없는 지적 {meta['dropped']}건 제외)"
         return text
@@ -291,7 +295,7 @@ def check_completion(state: AgentState) -> dict:
         return [i for i in issues if i.kind.startswith(prefix) and i.status != "RESOLVED"
                 and (severity is None or i.severity == severity)]
 
-    semantic_pending = semantic_enabled(state) and bool(semantic_stale_parts(state))
+    semantic_pending = semantic_enabled(state) and bool(semantic_parts(state))
     stuck = stuck_stages(state)   # 할 일이 남았지만 반복 실패로 포기한 단계
     sys_func = [r for r in requirements if r.designed]
     # 유지운영 사업처럼 시스템 기능 요구사항이 하나도 없으면 기능·데이터 설계 조건은 '해당 없음'으로 통과
@@ -366,7 +370,7 @@ def _review_detail(state: AgentState, semantic_pending: bool) -> str:
         return "추적 검토가 최신 산출물 기준 (의미 검토 꺼짐)"
     if semantic_pending:
         labels = {"functions": "기능 명세", "model": "데이터 모델"}
-        return f"의미 검토 미완료 ({', '.join(labels[p] for p in semantic_stale_parts(state))}) — 미검증"
+        return f"의미 검토 미완료 ({', '.join(labels[p] for p in semantic_parts(state))}) — 미검증"
     remarks = sum(1 for i in issues_of(state) if i.kind.startswith("SEM_") and i.status != "RESOLVED")
     return f"추적·의미 검토가 최신 산출물 기준 (의미 검토 지적 {remarks}건, 담당자 확인)"
 
@@ -406,7 +410,7 @@ def deliver(state: AgentState) -> dict:
                                  "until": options.get("stop_after"), "standard": options.get("standard"),
                                  "feedback": (options.get("feedback") or {}).get(stage, ""),
                                  "rework": (state.get("function_rework") if stage == "function_designer" else
-                                            state.get("model_rework")) if base else None,
+                                            state.get("model_rework")) if base or options.get("parent_version") else None,
                                  "document": (state.get("document") or {}).get("file_name", "")})
     record["summary_until_step"] = state.get("step") or 0
     log.info("[제공] %s 설계 버전 v%s 산출물 %d개 → %s", project, version, len(files), record["output_dir"])

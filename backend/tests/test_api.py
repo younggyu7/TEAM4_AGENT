@@ -128,6 +128,13 @@ def test_rerun_args_follow_screen_request(monkeypatch, tmp_path):
     assert "--answers" in args and args[args.index("--feedback") + 1] == "FN-1 이름 변경"
     for f in seen["runner"].temp:
         f.unlink(missing_ok=True)
+    # 사람이 고친 기능은 파일로 넘겨 고정하고, 변경 요약은 의견으로 보내지 않는다
+    jobs.start_rerun(output_dir=tmp_path, project="p", base="2", source="answers", functions=[{"function_id": "FN-1"}],
+                     spec_summary="FN-1 이름 변경")
+    assert "--functions" in seen["args"] and "--feedback" not in seen["args"]
+    for f in seen["runner"].temp:
+        f.unlink(missing_ok=True)
+    jobs._jobs.clear()
     job = jobs.start_rerun(output_dir=tmp_path, project="p", base="2", source="spec")
     assert seen["args"][1] == "data_modeler" and (seen["args"][-1] == "--full" or jobs.capabilities()["design"])
     for f in seen["runner"].temp:
@@ -166,3 +173,33 @@ def test_spec_format_and_dev_spec_files_are_served(client, project):
     assert client.get(f"/api/v1/file?project={project}&version=1&name=openapi.yaml").status_code == 404, \
         "허용된 이름이지만 ERD 버전에는 없다"
     assert client.get(f"/api/v1/file?project={project}&version=1&name=secret.yaml").status_code in (400, 404)
+
+
+def test_dispositions_and_spec_redo_follow_the_screen_request(monkeypatch, tmp_path):
+    """ERD 화면에서 정한 검토 지적 처리: ERD 저장·최종 확정 모두 --dispositions 파일로. 확정한 기능 명세의 '다시 만들기'는
+    답 없이 의견만으로 rerun function_designer"""
+    import json
+
+    seen = {}
+    monkeypatch.setattr(jobs._Runner, "start", lambda self, args: seen.update(args=args, runner=self))
+    (tmp_path / "p" / "v2").mkdir(parents=True)
+    choices = {"ISS-0001": {"choice": "not_issue", "note": "두 경로라 정상"}}
+    jobs.start_rerun(output_dir=tmp_path, project="p", base="2.1", source="erd", data_model={"entities": []},
+                     dispositions=choices)
+    args = seen["args"]
+    assert args[1] == "data_modeler" and json.loads(Path(args[args.index("--dispositions") + 1]).read_text(encoding="utf-8")) == choices
+    for f in seen["runner"].temp:
+        f.unlink(missing_ok=True)
+    jobs.start_review(output_dir=tmp_path, project="p", version="2.1", dispositions=choices)
+    args = seen["args"]
+    assert args[:3] == ["review", "p", "v2.1"]
+    assert json.loads(Path(args[args.index("--dispositions") + 1]).read_text(encoding="utf-8")) == choices
+    for f in seen["runner"].temp:
+        f.unlink(missing_ok=True)
+    job = jobs.start_rerun(output_dir=tmp_path, project="p", base="2", source="answers", feedback="신청 취소 기능 추가")
+    args = seen["args"]
+    assert job.source == "answers" and args[1] == "function_designer" and "--answers" not in args
+    assert args[args.index("--feedback") + 1] == "신청 취소 기능 추가" and "새 기능 명세 버전" in job.message
+    for f in seen["runner"].temp:
+        f.unlink(missing_ok=True)
+    jobs._jobs.clear()

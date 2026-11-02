@@ -206,7 +206,7 @@ def test_api_design_off_keeps_the_final_confirmation_as_before(sample_doc):
     _use(fake)
     override_settings(api_design=False)
     assert cli.main(["review", "sample", "v1"]) == 0
-    assert fake.calls["ApiDesignOut"] == fake.calls["ArchitectureOut"] == 0 and fake.calls["ModelReviewOut"] == 1
+    assert fake.calls["ApiDesignOut"] == fake.calls["ArchitectureOut"] == 0 and fake.calls["ModelReviewOut"] == 0
     assert not (_folder("1.1") / "API.md").exists()
 
 

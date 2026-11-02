@@ -113,11 +113,11 @@ def test_rerun_requirements_needs_feedback_and_diff_compares_any_two_versions(sa
     _use(FakeLLM(broken_fk=False))
     assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--feedback", "배정할 때 사유를 남긴다"]) == 0
     capsys.readouterr()
-    assert cli.main(["diff", "sample", "v1", "v1.1"]) == 0
+    assert cli.main(["diff", "sample", "v1", "v2"]) == 0
     printed = capsys.readouterr().out
-    assert "v1 → v1.1: 요구사항 새 0 · 바뀜 0 · 지움 0 · 기능 새 0 · 바뀜 1 · 지움 0" in printed
-    text = (out / "sample" / "diff-v1-v1.1.md").read_text(encoding="utf-8")
-    assert text.startswith("# 버전 비교: v1 → v1.1") and "다시 설계: service_request" in text
+    assert "v1 → v2: 요구사항 새 0 · 바뀜 0 · 지움 0 · 기능 새 0 · 바뀜 1 · 지움 0" in printed
+    text = (out / "sample" / "diff-v1-v2.md").read_text(encoding="utf-8")
+    assert text.startswith("# 버전 비교: v1 → v2") and "다시 설계: service_request" in text
 
 
 def test_by_stage_asks_at_each_stage_and_continues_with_reruns(sample_doc, monkeypatch, capsys):
@@ -128,8 +128,8 @@ def test_by_stage_asks_at_each_stage_and_continues_with_reruns(sample_doc, monke
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer", "--by-stage"]) == 0
     made = [(v["design_version"], v.get("confirmed", False)) for v in load_versions("sample")]
-    assert made == [("1", True), ("1.1", False), ("1.2", True), ("1.2.1", True)], \
-        "요구사항 v1 확정 → 기능 명세 v1.1 → 의견으로 v1.2 확정 → 데이터 설계 v1.2.1 확정"
+    assert made == [("1", True), ("1.1", False), ("2", True), ("2.1", True)], \
+        "요구사항 v1 확정 → 기능 명세 v1.1 → 의견으로 새 기능 명세 v2 확정 → 데이터 설계 v2.1 확정"
     assert "모든 단계를 확정했습니다" in capsys.readouterr().out
 
 

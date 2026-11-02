@@ -15,7 +15,9 @@ from app.services.jobs.common import Job, _Runner, _new_job, _path_arg, _temp_fi
 
 def start_rerun(*, output_dir: Path, project: str, base: str, source: str, data_model=None, design=None,
                 spec_md: str | None = None, spec_summary: str | None = None, answers: dict | None = None,
-                confirm_rules: list[dict] | None = None, feedback: str | None = None, on_done: Callable[[str], None] | None = None) -> Job:
+                confirm_rules: list[dict] | None = None, dispositions: dict | None = None, functions: list | None = None,
+                feedback: str | None = None,
+                on_done: Callable[[str], None] | None = None) -> Job:
     """기준 버전에서 한 단계만 다시 만들어 새 버전(v4.1 …)을 만든다."""
     project_dir = (output_dir / project).resolve()
     # rerun은 '--output-dir 아래의 프로젝트 이름'으로 찾으므로 한 단계 위 폴더와 이름으로 나눈다
@@ -24,8 +26,9 @@ def start_rerun(*, output_dir: Path, project: str, base: str, source: str, data_
         source = "answers"
     confirms = (confirm_rules or []) if source in ("spec", "answers") else []
     job = _new_job(project=project, base=base, source=source,
-                   message=f"기능 명세 v{base}에 확인 질문 답 {len(answers or {})}건"
-                           + (f"·추천안 확인 {len(confirms)}건" if confirms else "") + "을 반영하는 중" if source == "answers"
+                   message=(f"기능 명세 v{base}에 확인 질문 답 {len(answers or {})}건"
+                            + (f"·추천안 확인 {len(confirms)}건" if confirms else "") + "을 반영하는 중" if answers
+                            else f"기능 명세 v{base}에서 새 기능 명세 버전을 만드는 중") if source == "answers"
                    else f"기능 명세 v{base}로 ERD를 만드는 중" if source == "spec" else f"ERD v{base}에서 새 버전을 만드는 중")
     temp: list[Path] = []
     pre: list[str] = []   # 시작 전에 정해지는 안내 (완료 화면 경고에 합친다)
@@ -35,12 +38,18 @@ def start_rerun(*, output_dir: Path, project: str, base: str, source: str, data_
     summary = (spec_summary or "").strip()
     spec_args: list[str] = []
     if source == "answers":
-        # 기능 명세 수정은 rerun function_designer가 파일로 받지 않으므로 변경 요약을 의견으로 함께 넘긴다
-        spec_args += ["--answers", str(_temp_file(job, "answers.json", json.dumps(answers, ensure_ascii=False), temp))]
+        # 사람이 고친 기능은 파일로 넘겨 고친 그대로 고정한다 (예전 화면은 변경 요약을 의견으로 넘긴다)
+        # 확정한 기능 명세에서 '기능 명세 다시 만들기'는 답 없이 수정·의견만으로 새 버전을 만든다
+        if functions:
+            spec_args += ["--functions",
+                          str(_temp_file(job, "functions.json", json.dumps(functions, ensure_ascii=False), temp))]
+            pre.append(f"사람이 고친 기능 {len(functions)}개는 고친 그대로 둡니다 (LLM이 다시 설계하지 않음).")
+        if answers:
+            spec_args += ["--answers", str(_temp_file(job, "answers.json", json.dumps(answers, ensure_ascii=False), temp))]
         if confirms:
             spec_args += ["--confirm-rules",
                           str(_temp_file(job, "confirm_rules.json", json.dumps(confirms, ensure_ascii=False), temp))]
-        if summary:
+        if summary and not functions:
             feedback = "\n\n".join(x for x in (summary, feedback) if x)
             pre.append("기능 명세 수정 내용은 Agent 의견으로 넘겼습니다 (그 수정과 관련된 기능만 다시 설계).")
     elif source == "spec":
@@ -58,6 +67,9 @@ def start_rerun(*, output_dir: Path, project: str, base: str, source: str, data_
         if not spec_args and not feedback and not model_file:
             spec_args.append("--full")
 
+    # ERD 저장: 화면에서 정한 의미 검토 지적 처리를 새 ERD 버전에 남긴다 (LLM 없음)
+    if source == "erd" and dispositions:
+        spec_args += ["--dispositions", str(_temp_file(job, "dispositions.json", json.dumps(dispositions, ensure_ascii=False), temp))]
     args = ["rerun", "function_designer" if source == "answers" else "data_modeler", name, "--from", f"v{base}",
             "--output-dir", _path_arg(rerun_root),
             *(["--data-model", str(model_file)] if model_file else []),

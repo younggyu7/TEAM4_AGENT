@@ -30,7 +30,7 @@ def test_function_stage_version_trace_is_before_data_design_and_shows_impact(sam
     assert "## 4. 이전 버전" not in _trace(out, "1"), "첫 버전은 비교할 이전 버전이 없음"
     llm_module.set_llm(FakeLLM(broken_fk=False))
     assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--feedback", "배정할 때 사유를 남긴다"]) == 0
-    trace = _trace(out, "1.1")
+    trace = _trace(out, "2")
     assert "⚠ 데이터 누락" not in trace and "✅ 기능 연결 (데이터 설계 전)" in trace, "데이터 설계 전 버전은 누락이 아님"
     assert "기능 명세 단계 버전이라 엔티티는 이 버전을 확정한 뒤 데이터 설계" in trace
     assert "## 4. 이전 버전(v1) 대비 변경" in trace and "- 기능: 새 0 · 바뀜 1 · 지움 0" in trace
@@ -40,9 +40,9 @@ def test_function_stage_version_trace_is_before_data_design_and_shows_impact(sam
 
     # 이 기능 명세 버전에서 데이터 설계: 엔티티 변화는 가장 가까운 데이터 모델(v1)과 비교한다
     llm_module.set_llm(FakeLLM(broken_fk=False))
-    assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1.1"]) == 0
-    trace = _trace(out, "1.1.1")
-    assert "## 4. 이전 버전(v1.1) 대비 변경" in trace and "- 엔티티 (v1 데이터 모델 대비):" in trace
+    assert cli.main(["rerun", "data_modeler", "sample", "--from", "v2"]) == 0
+    trace = _trace(out, "2.1")
+    assert "## 4. 이전 버전(v2) 대비 변경" in trace and "- 엔티티 (v1 데이터 모델 대비):" in trace
     assert "데이터 설계 영향" not in trace
 
 

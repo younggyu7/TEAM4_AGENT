@@ -27,7 +27,8 @@ def create_version(body: VersionCreate):
     job = jobs.start_rerun(
         output_dir=output_store.output_root(), project=body.project, base=base, source=body.source,
         data_model=body.data_model, design=body.design, spec_md=body.functions_md, spec_summary=body.spec_summary,
-        answers=body.answers, confirm_rules=body.confirm_rules, feedback=body.feedback,
+        answers=body.answers, confirm_rules=body.confirm_rules, dispositions=body.dispositions,
+        functions=body.functions, feedback=body.feedback,
         on_done=(lambda v: output_store.save_title(project, v, title)) if title else None,
     )
     return {"job": job.to_dict()}

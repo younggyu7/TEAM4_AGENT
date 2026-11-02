@@ -23,6 +23,7 @@ def create_review(body: ReviewCreate):
     if design is None:
         raise NotFound(f"버전 v{version}이 없습니다.")
     if not (design.get("data_model") or {}).get("entities"):
-        raise BadRequest(f"v{version}에는 ERD(데이터 모델)가 없어 의미 검토를 할 수 없습니다.")
+        raise BadRequest(f"v{version}에는 ERD(데이터 모델)가 없어 최종 확정할 수 없습니다.")
     _no_running_job(body.project)
-    return {"job": jobs.start_review(output_dir=output_store.output_root(), project=body.project, version=version).to_dict()}
+    return {"job": jobs.start_review(output_dir=output_store.output_root(), project=body.project, version=version,
+                                     dispositions=body.dispositions).to_dict()}

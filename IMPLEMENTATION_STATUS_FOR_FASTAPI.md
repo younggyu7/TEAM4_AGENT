@@ -259,3 +259,23 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
   새 테스트: `tests/test_dev_spec.py` 8개(최종본에만 생성·ERD 버전엔 없음, SPEC_FORMAT 절 제목 일치, 다시 확정하면 API 설계 호출 0회·같은 문서, 기술 스택 가정, 지문, 경로 나눔, 없는 컬럼 1회 수정, `API_DESIGN=false`), `test_function_designer` 가정 한도·질문 상한·추천안 확인·사용자 역할, `test_hitl_flow` 업로드·ERD 단계 API 설계 호출 0회, `test_api` confirm_rules 전달·`/spec-format`.
 - 기술 스택 확정 (추가, 사용자 요청): 최종 산출물 '개발 스펙 파일'에서 선택지 3개·직접 입력으로 확정 → `POST /projects/tech-stack` → `exporter.confirm_tech_stack`이 같은 최종본의 개발 스펙 9개·design.json(TQ-001 답·meta.dev_spec)·버전 기록 `tech_stack`만 다시 쓴다 (LLM 없음, 설계 산출물·API 설계 그대로, 원문이 정한 스택은 400). 화면은 그 버전의 design·파일 캐시만 지우고 다시 읽는다(`refreshVersion`). 테스트 `test_dev_spec` 2개 추가.
 - 미검증: 실제 LLM으로 최종 확정(API 설계 프롬프트 응답 품질·토큰), 브라우저에서 개발 스펙 탭·'추천안 맞음' 조작. 기술 스택 고르기 화면도 브라우저 조작은 미검증.
+
+## 14. 의미 검토를 ERD 단계로 · 지적 처리 필수 · 최종 확정은 만들기만 (2026-11-02)
+
+사용자 결정: ERD를 만들 때 연결 누락과 데이터 누락을 다 잡고 고친 ERD를 내고, 사람이 남은 것만 판단해 최종 확정한다. 최종 산출물·산출물 보기는 보여 주기만 한다.
+API 설계는 최종 확정에 남긴다. 호출이 크게 늘지 않는 범위에서 데이터 지적 자동 보완을 넣는다.
+
+| 바뀐 것 | 전 | 후 |
+| --- | --- | --- |
+| 의미 검토 시점 | `SEMANTIC_REVIEW_MODE=final`: 'ERD 최종 확정' 때 1회 (`review_saved`) | `erd`(예전 `final`도 erd로 읽음): ERD를 만드는 실행에서 추적 검토 뒤 데이터 모델만 (`state.semantic_parts`). `review_saved`·`SEMANTIC_REVIEW_SOURCE`·`review --source` 없앰 |
+| 데이터 지적 | 보고만 | 조정 Agent가 열린 `SEM_MODEL_*` 지적(시도 0회)을 데이터 모델 Agent `semantic` 모드로 한 번 넘김 → 의견 반영 범위 1회 + 고를 테이블 속성 설계 → 고친 테이블 범위만 다시 검토(`state.semantic_recheck`, 고객요구사항13_test4 기준 입력 5.6만 → 1.5만 자). 횟수는 `SEM_FIX` 사유로 따로 셈(`MODEL_FIX_ATTEMPTS`). 다시 설계한 엔티티가 없으면 모델 수정 횟수를 올리지 않음 |
+| ERD 저장 (고친 모델만) | 의미 검토 지적을 버림 | 의미 검토를 다시 하지 않고 기준 버전의 지적을 이어받음, `--dispositions`로 처리를 남김 (`cli._keep_remarks`) |
+| 사람의 지적 처리 | 브라우저의 '확인함' 표시만 | `Issue.resolution` (반영함 / 문제 아님 → RESOLVED, 미해결로 둠 → UNRESOLVED, 메모). `flow/rerun.apply_dispositions`. 다시 발견되면 처리를 지움 |
+| 최종 확정 (`review`) | 추적 검토 → API 설계 → 의미 검토 | 지적 처리 기록 → 모델 오류가 남으면 멈춤(코드 2) → 생성 DDL을 검증 DB에 적용, 실패하면 멈춤 → 추적 검토 → API 설계. 각 단계를 판단 기록에 이어 붙임(`mode: final`), `db_validation.md`·`semantic_review.*`(지적과 처리) 씀 |
+| API | `ReviewCreate {project, version}` | `dispositions` 추가, `VersionCreate.dispositions`, `source: answers`(답 없이 의견·수정으로 기능 명세 새 버전) |
+| 화면 (`TEAM4_AGENT_FRONT`) | '확인 필요' 아래 '최종 확정' 막대·확정 취소, 최종 산출물 '최종 확정하기'·'다시 검토'·스택 고르기 | 확정 버튼은 오른쪽 위에만: 기능 명세 '내보내기 → ERD 만들기', ERD 'ERD 최종 확정하기'(필수 다 하면 초록색, 한 번 더 확인). 확정 취소 없음(다음 결과가 안 생기고 작업이 실패하면 다시 누를 수 있음). 확정 뒤 '기능 명세 다시 만들기 (새 버전)'. ERD '확인 필요'에 의미 검토 지적 처리(필수). '저장' → '임시저장'. 최종 산출물은 보기만(지적과 처리 카드, 스택 표시) |
+
+- 기능 명세 다시 만들기: 예전에는 사람이 고친 기능을 '어느 칸을 고쳤는지' 요약(1,800자 제한)으로만 의견에 넘겨 원본에서 다시 시작했다. 이제 고친 기능을 `--functions`로 넘겨 기준 명세에 바꿔 넣고 `state.function_locked`로 고정한다(의견 반영·확인 질문 고르기 뒤에도 되돌림). 고친 것만이면 LLM 0회(`test_function_designer`).
+- 다시 내보내기·버전 번호: 기능 명세 버튼을 내보내기 전후 같게 했다. 기능 명세를 다시 만들면(`rerun function_designer`, 기준에 기능 명세가 있음) 다음 최상위 번호(v2)를 받는다. 이미 ERD가 있는 기능 명세를 `rerun data_modeler --design`으로 다시 내보내면 CLI가 먼저 고친 명세로 기능 명세 v2를 만들고(`--design`을 기능 명세 단계에도 받음, 고친 기능 고정, LLM 없음) 그 버전에서 ERD v2.1을 만든다. ERD는 `latest_model`로 앞 기능 명세의 최신 ERD를 이어받아 바뀐 기능의 엔티티만 다시 설계(엔티티 카탈로그 0회). 같은 초에 이어 시작한 두 실행이 실행 ID·체크포인트를 같이 쓰던 문제를 `_unique_run_id`로 막았다(`test_hitl_flow`, 번호가 바뀐 기존 테스트 갱신).
+- 검증: DB 없이 `pytest` 198 passed · 9 skipped. 새·바뀐 테스트: `test_hitl_flow` ERD 단계 검토 → 보완 → 재검토 호출 수(2·1·0), ERD 저장 시 재검토 0회와 처리 이어받기, 최종 확정 의미 검토 0회·API 설계 2회·판단 기록 4단계·처리 기록, 모델 오류면 최종본 없음. `test_api` 처리·기능 명세 다시 만들기 인자. `test_dev_spec` 최종 확정 의미 검토 0회. 프론트 `tsc -b`·`vite build` 통과.
+- 미검증: PostgreSQL 포함 테스트, 실제 LLM으로 ERD 단계 의미 검토·보완 품질과 호출량, 브라우저에서 확정 버튼·지적 처리·최종 화면 조작.

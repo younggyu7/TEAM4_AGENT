@@ -26,12 +26,14 @@ class FakeLLM(LLMClient):
     def __init__(self, broken_fk: bool = True):
         super().__init__("fake-model")
         self.calls: Counter[str] = Counter()
+        self.users: dict[str, list[str]] = {}   # 응답 스키마별 user 프롬프트 (입력 범위 검사용)
         self.broken_fk = broken_fk
 
     def _call(self, system, user, schema, max_tokens, shared="", **_):
         if shared:
             user = f"{shared}\n\n{user}"
         self.calls[schema.__name__] += 1
+        self.users.setdefault(schema.__name__, []).append(user)
         handler = getattr(self, f"_{schema.__name__}")
         return handler(user), 100, 50
 

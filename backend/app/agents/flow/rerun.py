@@ -43,7 +43,7 @@ from app.agents.tools.model_edits import ReworkSummary, apply_user_edits
 from app.agents.tools.model_validator import to_identifier
 from app.agents.tools.trace_diff import REQ_FIELDS
 from app.agents.storage import get_store
-from app.agents.tools.versions import load_versions
+from app.agents.tools.versions import load_versions, version_key
 
 STAGES: dict[str, dict] = {
     "requirements_analyst": {
@@ -138,8 +138,8 @@ def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
     (규칙 앞 표시만 바뀌어 데이터 설계에서 그 기능의 엔티티를 다시 설계하지 않는다).
     {"functions", "common"(없으면 None), "requirements", "questions", "note": 안내 줄}. 형식·ID가 틀리면 RerunError.
     """
-    if stage != "data_modeler":
-        raise RerunError("--design은 data_modeler 단계 옵션입니다 (확정한 기능 명세로 데이터 설계).")
+    if stage not in ("data_modeler", "function_designer"):
+        raise RerunError("--design은 data_modeler·function_designer 단계 옵션입니다 (확정한 기능 명세).")
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
@@ -181,6 +181,26 @@ def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
                     + (" · " + confirm_note(len(confirms), missing) if confirms else "")}
 
 
+def load_edited_functions(path: Path, base: dict) -> list[dict]:
+    """화면에서 사람이 고친 기능(rerun function_designer --functions)을 읽는다. 기준 버전에 있는 기능 ID만 받는다.
+    형식이 틀리거나 모르는 ID가 있으면 RerunError."""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise RerunError(f"고친 기능 파일을 읽을 수 없습니다: {path} ({e})") from e
+    if not isinstance(raw, list):
+        raise RerunError("고친 기능 파일은 기능 명세 목록([...])이어야 합니다.")
+    try:
+        functions = [FunctionSpec.model_validate(f) for f in raw]
+    except ValueError as e:
+        raise RerunError(f"고친 기능 형식이 올바르지 않습니다: {str(e).splitlines()[0]}") from e
+    known = {f.get("function_id") for f in base.get("functions") or []}
+    unknown = sorted(f.function_id for f in functions if f.function_id not in known)
+    if unknown:
+        raise RerunError(f"기준 버전에 없는 기능 ID: {', '.join(unknown[:10])}")
+    return [f.model_dump(mode="json") for f in functions]
+
+
 def _confirm_items(raw) -> list[dict]:
     """'추천안 맞음'으로 확인한 규칙 목록 [{"function_id", "rule"}]을 검사한다 (형식이 틀리면 RerunError)."""
     if raw is None:
@@ -197,6 +217,46 @@ def load_confirm_rules(path: Path) -> list[dict]:
     except (OSError, ValueError) as e:
         raise RerunError(f"확인한 규칙 파일을 읽을 수 없습니다: {path} ({e})") from e
     return _confirm_items(data)
+
+
+# ERD 화면에서 사람이 고르는 검토 지적 처리 → (이슈 상태, 처리 표기)
+DISPOSITIONS = {"applied": ("RESOLVED", "반영함"), "not_issue": ("RESOLVED", "문제 아님"), "later": ("UNRESOLVED", "미해결로 둠")}
+
+
+def load_dispositions(path: Path) -> dict[str, dict]:
+    """--dispositions 파일({이슈 ID: {"choice": applied|not_issue|later, "note": 메모}})을 읽는다."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise RerunError(f"검토 지적 처리 파일을 읽을 수 없습니다: {path} ({e})") from e
+    if not isinstance(data, dict):
+        raise RerunError("검토 지적 처리 파일은 {이슈 ID: {choice, note}} 형식이어야 합니다.")
+    out = {}
+    for issue_id, item in data.items():
+        choice = (item or {}).get("choice") if isinstance(item, dict) else item
+        if choice not in DISPOSITIONS:
+            raise RerunError(f"{issue_id}의 처리는 {'·'.join(DISPOSITIONS)} 중 하나여야 합니다: {choice}")
+        out[str(issue_id)] = {"choice": choice, "note": str((item or {}).get("note") or "").strip() if isinstance(item, dict) else ""}
+    return out
+
+
+def apply_dispositions(issues: list[dict], dispositions: dict[str, dict]) -> tuple[list[dict], Counter]:
+    """사람이 정한 처리를 검토 지적에 남긴다 (LLM 없음). 처리별 건수를 함께 돌려준다 (없는 이슈 ID는 건너뜀)."""
+    counts: Counter = Counter()
+    out = []
+    for i in issues:
+        d = dispositions.get(i.get("issue_id", ""))
+        if d:
+            status, label = DISPOSITIONS[d["choice"]]
+            i = {**i, "status": status, "resolution": f"{label}: {d['note']}" if d["note"] else label}
+            counts[d["choice"]] += 1
+        out.append(i)
+    return out, counts
+
+
+def disposition_note(counts: Counter) -> str:
+    """처리 반영 안내 줄 (판단 기록·실행 안내)."""
+    return " · ".join(f"{DISPOSITIONS[k][1]} {counts[k]}건" for k in DISPOSITIONS if counts[k]) or "처리한 지적 없음"
 
 
 def confirm_note(count: int, missing: list[str]) -> str:
@@ -260,6 +320,25 @@ def ancestor(project: str, label: str, has) -> dict | None:
     return None
 
 
+def latest_model(project: str, label: str) -> dict | None:
+    """기능 명세 label(과 그 앞 버전)에서 이어받을 데이터 모델: 그 기능 명세로 만든 최신 ERD 버전, 없으면 모델이 있는 가장 가까운 버전."""
+    records = load_versions(project)
+    seen: set[str] = set()
+    while label and label not in seen:
+        seen.add(label)
+        erds = [v for v in records if v.get("stage") == "data_modeler" and str(v.get("base")) == label
+                and has_model(project, v["design_version"])]
+        if erds:
+            return max(erds, key=lambda v: version_key(v["design_version"]))
+        own = next((v for v in records if v["design_version"] == label), None)
+        if own is None:
+            return None
+        if has_model(project, label):
+            return own
+        label = str(own.get("base") or own.get("parent") or "")
+    return None
+
+
 def has_functions(project: str, version: str) -> bool:
     """그 버전에 기능 명세가 있는지 (요구사항 단계 버전에는 없다)."""
     text = get_store().read(project, version, "design.json")
@@ -298,7 +377,7 @@ def changed_functions(before: list[dict], after: list[dict]) -> tuple[list[str],
             sorted(set(old) - set(new)))
 
 
-def _inherit_model(project: str, base_label: str, base_functions: list[dict], functions: list[dict],
+def inherit_model(project: str, base_label: str, base_functions: list[dict], functions: list[dict],
                    targets: list[str], full: bool) -> tuple[dict, list[str] | None, ReworkSummary]:
     """기능 명세 단계 버전에서 데이터 설계를 시작할 때: 기준 버전의 모델을 이어받고 바뀐 기능에 연결된 엔티티만 다시 설계한다.
 
@@ -339,7 +418,7 @@ def prepare_data_model(values: dict, project: str, version: str, edited_path: Pa
     targets = list(dict.fromkeys(to_identifier(x) for x in entities.split(",") if x.strip()))
     if edited_path is None and stored is None:
         if inherited and has_model(project, inherited[0]):
-            return _inherit_model(project, inherited[0], inherited[1], functions or [], targets, full)
+            return inherit_model(project, inherited[0], inherited[1], functions or [], targets, full)
         if targets:
             raise RerunError(f"데이터 모델이 없습니다: {project} v{version}")
         return None, None, ReworkSummary(full=True)   # 이어받을 모델이 없으면 처음부터 전체 설계
@@ -367,7 +446,7 @@ def prepare_data_model(values: dict, project: str, version: str, edited_path: Pa
 
 def seed_state(values: dict, design: dict, stage: str, run_id: str, base: str, project: str,
                feedback: str = "", validate_db: bool | None = None, model: dict | None = None,
-               targets: list[str] | None = None, rework: ReworkSummary | None = None) -> dict:
+               targets: list[str] | None = None, rework: ReworkSummary | None = None, new_spec: bool = False) -> dict:
     """원래 실행의 마지막 상태 + 기준 버전의 산출물(design.json)로 새 실행의 시작 상태를 만든다.
 
     values: 기준 버전을 만든 실행의 체크포인트 상태 (문서 블록·추출 단위·변경 횟수 등)
@@ -394,7 +473,11 @@ def seed_state(values: dict, design: dict, stage: str, run_id: str, base: str, p
     functions_stage = stage == "function_designer"
     if requirements_stage:   # 요구사항 버전은 최상위 번호 (팀 규칙: 요구사항 v1 … v6 → 확정한 v6에서 기능 명세 v6.1)
         options.update(stop_after="requirements_analyst", base_version=None, parent_version=base)
-    if functions_stage:
+    if functions_stage and new_spec:
+        # 기능 명세를 다시 만들면(new_spec: 기준 버전에 기능 명세가 있음) 최상위 번호 (v1을 고친 기능 명세 → v2, 그 ERD → v2.1).
+        # 요구사항 단계 버전(기능 명세 없음)에서 처음 만드는 기능 명세는 그 아래 번호 (요구사항 v6 → 기능 명세 v6.1)
+        options.update(stop_after="function_designer", base_version=None, parent_version=base)
+    elif functions_stage:
         options["stop_after"] = "function_designer"
     keep = model is not None and not requirements_stage
     semantic = {**SEMANTIC_BASIS_INIT, **b["semantic"], "model": [-1, -1]}
@@ -412,7 +495,7 @@ def seed_state(values: dict, design: dict, stage: str, run_id: str, base: str, p
         "requirement_targets": targets if requirements_stage else None,
         "requirement_rework": {},
         "function_targets": targets if functions_stage else None,
-        "function_rework": {}, "function_answers": [],
+        "function_rework": {}, "function_answers": [], "function_locked": [],
         # 다시 만들 단계와 그 뒤 (기준 모델을 두면 그 모델은 기능 명세와 맞는 상태다)
         "data_model": None if functions_stage or requirements_stage else model,
         "model_redesign": False,

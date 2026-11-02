@@ -6,6 +6,7 @@
 - mode=redesign: 기능 명세 단계 다시 만들기(rerun function_designer). scope가 ["*"]면 전체, 요구사항 ID면 그 그룹만,
   비어 있고 사용자 의견이 있으면 작은 요청 하나(그룹·요구사항·기능 이름 + 의견)로 다시 설계할 요구사항을 고른다.
   의견이 있으면 그룹의 현재 기능을 함께 보내 의견과 관계없는 기능은 그대로 두게 한다.
+- 사람이 고친 기능(state.function_locked, rerun --functions)은 그룹을 다시 설계하거나 확인 질문을 골라도 고친 그대로 둔다.
 - 기능 ID 유지: 그룹을 다시 설계해도 이름이 같은 기능, 이름이 조금 바뀌었어도 근거 요구사항으로 짝지어지는 기능은
   이전 ID를 쓴다 (_match_by_requirements). 바뀐 기능만 dirty_functions가 되고,
   데이터 설계를 다시 할 때 그 기능에 연결된 엔티티만 다시 설계할 수 있다 (rerun.prepare_data_model).
@@ -232,6 +233,10 @@ def run(state: AgentState) -> dict:
     answered = [q for q in questions if q.question_id in set(state.get("function_answers") or [])
                 and q.status == "ANSWERED"]
     feedback = _answer_feedback(answered) or _feedback(state)
+    # 사람이 화면에서 고친 기능은 고친 그대로 둔다 (다시 설계해도 끝에 되돌린다. 의견 반영이면 바꾸지 말라고도 알린다)
+    locked = {f.function_id: f for f in functions if f.function_id in set(state.get("function_locked") or [])}
+    if locked and feedback:
+        feedback += f"\n\n사람이 고친 기능이라 바꾸지 않는다 (응답에 넣지 않는다): {', '.join(sorted(locked))}"
     llm = get_llm()
 
     common = dict(state.get("function_common") or {})
@@ -304,6 +309,10 @@ def run(state: AgentState) -> dict:
     result, new_questions, common, confirm = _confirm(
         llm, result, designed, common, common_new, requirements, questions, shared, whole,
         asking=not answered, start=number)
+    if locked:
+        kept = {f.function_id for f in result}
+        result = [locked.get(f.function_id, f) for f in result] + [f for fid, f in locked.items() if fid not in kept]
+        result.sort(key=lambda f: (group_order.get(f.group, 999), f.function_id))
     if s.api_design:   # 개발 스펙의 기술 스택: 원문에 없으면 이 초안에서 묻는다 (LLM 없음, 화면 '확인 필요'의 필수 질문)
         from app.agents.roles.api_designer import stack_question
         stack = stack_question(requirements, questions + new_questions,
@@ -332,7 +341,7 @@ def run(state: AgentState) -> dict:
     }
     if mode == "redesign":
         update["function_rework"] = {"full": "*" in scope, "groups": [g for g in targets if g not in failed],
-                                     "added": added, "changed": changed, "removed": removed}
+                                     "added": added, "changed": changed, "removed": removed, "locked": sorted(locked)}
     if failed:
         update["failures"] = {**(state.get("failures") or {}), "function_designer":
                               (state.get("failures") or {}).get("function_designer", 0) + 1}

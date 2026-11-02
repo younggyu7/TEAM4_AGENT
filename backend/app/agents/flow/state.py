@@ -32,6 +32,7 @@ class AgentState(TypedDict, total=False):
     trace_links: list[dict]
     issues: list[dict]
     semantic_review: dict         # 마지막 의미 검토: 검토한 부분, 실패한 부분, 대상 ID 확인 불가로 버린 지적 수
+    semantic_recheck: dict | None # 의미 검토 지적을 고친 직후: 다시 검토할 지적 ID·다시 설계한 엔티티 (그 부분만 다시 검토)
     # 변경 추적 (부분 재설계용)
     rev: dict                     # 각 산출물의 수정 횟수 {"requirements", "functions", "model"}
     basis: dict                   # 각 산출물이 기반한 상위 산출물 rev {"functions", "model", "review", "semantic"}
@@ -41,6 +42,7 @@ class AgentState(TypedDict, total=False):
     requirement_rework: dict      # 요구사항 다시 만들기 요약 (의견으로 바뀐·뺀·새 요구사항)
     function_targets: list[str] | None  # 기능 명세만 다시 설계할 요구사항 (rerun function_designer, ["*"] 전체, 빈 목록이면 의견 관련)
     function_rework: dict         # 기능 명세 다시 만들기 요약 (다시 설계한 그룹, 새·바뀐·지운 기능)
+    function_locked: list[str]    # 사람이 화면에서 고친 기능 (기능 명세 다시 만들기에서 고친 그대로 둔다)
     function_common: dict         # 기능 명세 공통 결정 (업무 객체 이름·분류·상태 값·공통 규칙·공통 기능, CommonDecisionsOut)
     function_answers: list[str]   # 추천과 다른 답이 와서 기능 명세에 반영할 확인 질문 ID (바꿀 기능만 고친다)
     requirement_review: dict      # 요구사항 분류 검토: reviewed(검토한 요구사항 ID), changed(분류를 바꾼 ID), last(요약)
@@ -124,6 +126,17 @@ def semantic_stale_parts(state: AgentState) -> list[str]:
     return parts
 
 
+def semantic_erd(state: AgentState) -> bool:
+    """SEMANTIC_REVIEW_MODE=erd 실행인지 (예전 실행의 final도 erd로 본다)."""
+    return (state.get("options") or {}).get("semantic_review_mode") in ("erd", "final")
+
+
+def semantic_parts(state: AgentState) -> list[str]:
+    """이번에 의미 검토할 부분. erd면 데이터 모델만 (기능 명세는 사람이 확인·확정한 것이라 다시 보지 않는다)."""
+    parts = semantic_stale_parts(state)
+    return [p for p in parts if p == "model"] if semantic_erd(state) else parts
+
+
 def issues_of(state: AgentState) -> list[Issue]:
     """상태의 이슈 목록을 Issue 모델로 읽는다."""
     return load(state, "issues", Issue)
@@ -142,20 +155,24 @@ def reconcile_issues(
     findings: list[Issue],
     owns: Callable[[str], bool],
     max_attempts: int | Callable[[str], int],
+    keep: Callable[[Issue], bool] | None = None,
 ) -> list[Issue]:
     """검사 결과(findings)로 기존 이슈 목록을 갱신한다.
 
     - owns(kind)가 참인 종류만 이 검사의 소유로 보고 갱신한다.
+    - keep(issue)가 참인 이슈는 이번 검사 범위 밖이라 그대로 둔다 (일부만 다시 검토할 때).
     - max_attempts: 시도 한도. 함수(Settings.fix_attempts)를 주면 이슈의 수정 담당 Agent별 한도를 쓴다.
     - 다시 발견된 이슈: 시도 횟수가 한도에 도달했으면 UNRESOLVED, 아니면 OPEN 유지
     - 더 이상 발견되지 않은 이슈: RESOLVED
     """
-    owned_prev = {i.key: i for i in existing if owns(i.kind)}
-    result = [i for i in existing if not owns(i.kind)]
+    kept = [i for i in existing if owns(i.kind) and keep and keep(i)]
+    kept_keys = {i.key for i in kept}
+    owned_prev = {i.key: i for i in existing if owns(i.kind) and i.key not in kept_keys}
+    result = [i for i in existing if not owns(i.kind)] + kept
     next_no = max((int(i.issue_id.split("-")[1]) for i in existing), default=0) + 1
     seen: set[tuple[str, str]] = set()
     for f in findings:
-        if f.key in seen:
+        if f.key in seen or f.key in kept_keys:
             continue
         seen.add(f.key)
         prev = owned_prev.get(f.key)
@@ -164,7 +181,7 @@ def reconcile_issues(
             exhausted = prev.target_agent != "none" and prev.attempts >= limit
             result.append(prev.model_copy(update={
                 "message": f.message, "severity": f.severity, "target_agent": f.target_agent,
-                "status": "UNRESOLVED" if exhausted else "OPEN",
+                "status": "UNRESOLVED" if exhausted else "OPEN", "resolution": "",   # 다시 발견되면 사람 처리도 다시
             }))
         else:
             result.append(f.model_copy(update={"issue_id": f"ISS-{next_no:04d}", "status": "OPEN", "attempts": 0}))

@@ -30,13 +30,16 @@ from langgraph.types import Command
 from app.agents.roles.coordinator import STAGE_LABELS, stuck_stages
 from app.core.config import get_settings, override_settings
 from app.agents.flow.graph import build_graph, open_checkpointer
+from app.agents.flow.state import basis, rev
 from app.agents.llm.client import LLMFatalError, LLMPending, pending_requests, resolve_provider
 from app.agents.tools.doc_quality import build_sources, check_document
 from app.agents.tools.document_parser import (UnsupportedFormatError, check_supported, document_codes, file_fingerprint,
                                               parse_document, textless_pages)
-from app.agents.flow.rerun import (STAGES, RerunError, ancestor, base_for, changed_requirements, confirm_note,
-                                   has_functions, has_model, load_answers, load_confirm_rules, load_submitted_design,
-                                   prepare_data_model, prepare_functions, prepare_requirements, read_design, seed_state)
+from app.agents.flow.rerun import (STAGES, RerunError, ancestor, apply_dispositions, base_for, changed_functions,
+                                   changed_requirements, confirm_note, disposition_note, has_functions, has_model,
+                                   latest_model, load_answers, load_confirm_rules, load_dispositions,
+                                   load_edited_functions, load_submitted_design, prepare_data_model, prepare_functions,
+                                   prepare_requirements, read_design, seed_state)
 from app.schemas.function import FunctionSpec
 from app.schemas.requirement import QUESTION_STAGES
 from app.agents.tools.convention import ConventionError, list_profiles, load_profile
@@ -44,7 +47,7 @@ from app.agents.tools.exporter import changes_md
 from app.agents.tools.trace_diff import compare_versions, load_previous
 from app.agents.storage import get_store
 from app.agents.tools.versions import (claim_next_version, find_version, load_versions, project_name, save_version,
-                                      update_version, version_label)
+                                      update_version, version_key, version_label)
 
 log = logging.getLogger("req_agent")
 
@@ -116,6 +119,12 @@ def main(argv: list[str] | None = None) -> int:
     p_rerun.add_argument("--confirm-rules", dest="confirm_rules",
                          help="(function_designer) 사람이 추천안대로 확인한 '(확인 필요)' 규칙 JSON "
                               "[{\"function_id\": \"FN-…\", \"rule\": \"규칙 문장\"}]. LLM 없이 '(결정)'으로 바꾼다 (화면 '추천안 맞음')")
+    p_rerun.add_argument("--functions",
+                         help="(function_designer) 화면에서 사람이 고친 기능 JSON 목록. 기준 버전의 그 기능을 바꿔 넣고 고정해 "
+                              "LLM이 다시 설계하지 않는다 (화면 '기능 명세 다시 만들기'·'AI로 답 반영')")
+    p_rerun.add_argument("--dispositions",
+                         help="(data_modeler) ERD 화면에서 정한 검토 지적 처리 JSON {\"이슈 ID\": {\"choice\": \"applied|not_issue|later\", "
+                              "\"note\": \"메모\"}}. 새 ERD 버전의 지적에 처리를 남긴다 (LLM 없음, 화면 'ERD 저장')")
     p_rerun.add_argument("--design",
                          help="(data_modeler) 화면에서 고치고 확정한 기능 명세가 든 design.json. 기준 버전의 기능 명세 대신 "
                               "이 파일의 functions(와 common)로 데이터 설계를 한다 (화면 '내보내기 → ERD 만들기')")
@@ -128,12 +137,12 @@ def main(argv: list[str] | None = None) -> int:
                          help="설계 표준 프로필을 바꿈 (생략하면 기준 버전 실행의 프로필, default면 지금 규칙)")
     p_rerun.add_argument("--output-dir")
 
-    p_review = sub.add_parser("review", help="의미 검토만 실행해 그 버전 폴더에 semantic_review.md·json을 쓴다 "
-                                             "(ERD 최종 확정 때. 새 버전은 만들지 않음)")
+    p_review = sub.add_parser("review", help="ERD 최종 확정: 확정한 ERD 버전 아래 최종본(v1.1 → v1.1.1)을 만든다 "
+                                             "(DDL 검증·추적 검토는 코드, API 설계만 LLM. 의미 검토는 ERD를 만들 때 이미 함)")
     p_review.add_argument("project")
-    p_review.add_argument("version", help="검토할 ERD 버전 (예: v1.1)")
-    p_review.add_argument("--source", action=argparse.BooleanOptionalAction, default=None,
-                          help="기능 명세 ↔ 요구사항(원문)도 검토 (생략하면 SEMANTIC_REVIEW_SOURCE)")
+    p_review.add_argument("version", help="확정할 ERD 버전 (예: v1.1)")
+    p_review.add_argument("--dispositions",
+                          help="ERD 화면에서 정한 검토 지적 처리 JSON (rerun --dispositions와 같은 형식)")
     p_review.add_argument("--output-dir")
 
     p_import = sub.add_parser("import-output", help="로컬 output 폴더의 산출물·버전 기록·제목·실행 체크포인트를 서비스 DB로 가져온다 "
@@ -220,7 +229,7 @@ def _run(args) -> int:
         "only": [o for o in args.only.split(",") if o.strip()],
         "max_sources": args.max_sources or 0,
         "include_narrative": args.include_narrative,
-        # SEMANTIC_REVIEW_MODE=final이면 실행 중에는 하지 않고 ERD 최종 확정 때 review 명령으로 한다
+        # SEMANTIC_REVIEW_MODE=erd면 데이터 설계까지 하는 실행에서만 데이터 모델을 검토한다 (coordinator.semantic_enabled)
         "semantic_review": get_settings().semantic_auto and not args.no_semantic_review,
         "semantic_review_mode": "off" if args.no_semantic_review else get_settings().semantic_review_mode,
         "title": args.title.strip(),
@@ -258,6 +267,23 @@ def _version_of(project: str, run_id: str) -> str | None:
     """실행이 만든 마지막 버전 번호."""
     made = [v["design_version"] for v in load_versions(project) if v.get("run_id") == run_id]
     return made[-1] if made else None
+
+
+def _unique_run_id(run_id: str, project: str) -> str:
+    """같은 초에 이어서 시작한 실행(다시 내보내기의 기능 명세 → ERD)이 실행 ID·체크포인트를 같이 쓰지 않게 번호를 붙인다."""
+    used = {v.get("run_id") for v in load_versions(project)}
+    n, candidate = 1, run_id
+    while candidate in used:
+        n += 1
+        candidate = f"{run_id}-{n}"
+    return candidate
+
+
+def _exported(project: str, record: dict) -> bool:
+    """기능 명세 버전에서 이미 ERD를 만들었는지 (그 기능 명세를 기준으로 만든 데이터 설계 버전이 있는지)."""
+    label = str(record["design_version"])
+    return record.get("stage") not in ("data_modeler", "final") and any(
+        v.get("stage") == "data_modeler" and str(v.get("base")) == label for v in load_versions(project))
 
 
 def _stage_of(record: dict) -> str:
@@ -500,11 +526,24 @@ def _rerun(args, out: dict | None = None) -> int:
         print(f"버전을 찾을 수 없습니다: {project_name(args.project)} v{args.from_version.lstrip('vV')} "
               f"(python -m app versions {project_name(args.project)})")
         return 2
+    if args.stage == "data_modeler" and getattr(args, "design", None) and _exported(args.project, record):
+        # 이미 내보낸 기능 명세를 고쳐 다시 내보내기: 고친 명세를 새 기능 명세 버전(v2)으로 먼저 남기고(LLM 없음)
+        # 그 버전에서 ERD(v2.1)를 만든다. ERD는 앞 기능 명세의 최신 ERD를 이어받아 바뀐 기능의 테이블만 다시 설계한다
+        spec_out: dict = {}
+        code = _rerun(argparse.Namespace(**{**vars(args), "stage": "function_designer", "feedback": "",
+                                            "data_model": None, "entities": "", "full": False, "functions": None,
+                                            "answers": None, "confirm_rules": None, "dispositions": None}), spec_out)
+        if code != 0:
+            return code
+        record = max((v for v in load_versions(args.project) if v.get("run_id") == spec_out.get("run_id")),
+                     key=lambda v: version_key(v["design_version"]))
+        args = argparse.Namespace(**{**vars(args), "from_version": str(record["design_version"])})
     design = read_design(project_name(args.project), str(record["design_version"]))
     if design is None:
         print(f"기준 버전의 design.json이 없습니다: {record['output_dir']}")
         return 2
     submitted = None
+    base_functions = design.get("functions") or []   # 화면 수정본으로 바꾸기 전 기준 버전의 기능 명세
     if getattr(args, "design", None):
         try:
             submitted = load_submitted_design(Path(args.design), design, args.stage)
@@ -514,6 +553,21 @@ def _rerun(args, out: dict | None = None) -> int:
         # 기준 버전의 기능 명세 대신 화면에서 확정한 명세 (답은 코드로 반영한 요구사항·질문까지)
         design = {**design, "functions": submitted["functions"], "requirements": submitted["requirements"],
                   "questions": submitted["questions"]}
+    edited: list[str] = []
+    if submitted and args.stage == "function_designer":   # 화면에서 고친 기능은 고친 그대로 (LLM이 다시 설계하지 않음)
+        edited = changed_functions(base_functions, design["functions"])[0]
+    if getattr(args, "functions", None):
+        if args.stage != "function_designer":
+            print("--functions는 function_designer 단계 옵션입니다 (사람이 고친 기능).")
+            return 2
+        try:
+            changed = {f["function_id"]: f for f in load_edited_functions(Path(args.functions), design)}
+        except RerunError as e:
+            print(e)
+            return 2
+        # 고친 기능을 기준 기능 명세에 바꿔 넣는다 (질문 답·'추천안 맞음'은 이 위에 코드로 반영)
+        design = {**design, "functions": [changed.get(f["function_id"], f) for f in design.get("functions") or []]}
+        edited = sorted(changed)
     with open_checkpointer(root) as saver:
         graph = build_graph(saver)
         values = graph.get_state(_config(record["run_id"])).values
@@ -523,7 +577,9 @@ def _rerun(args, out: dict | None = None) -> int:
         try:
             answers = _rerun_answers(args, design)
             confirms = _rerun_confirms(args)
-            model, targets, rework, plan = _rerun_scope(args, record, values, design, bool(answers) or bool(confirms))
+            dispositions = _rerun_dispositions(args)
+            model, targets, rework, plan = _rerun_scope(args, record, values, design,
+                                                        bool(answers) or bool(confirms) or bool(edited) or bool(submitted))
         except RerunError as e:
             print(e)
             return 2
@@ -531,9 +587,15 @@ def _rerun(args, out: dict | None = None) -> int:
         if args.model:
             override_settings(**{"anthropic_model" if resolve_provider() == "anthropic" else "openai_model": args.model})
         base = base_for(record, args.stage)
-        run_id = f"{datetime.now():%Y%m%d-%H%M%S}-{(values.get('document') or {}).get('document_version', '')[:6]}"
+        run_id = _unique_run_id(f"{datetime.now():%Y%m%d-%H%M%S}-{(values.get('document') or {}).get('document_version', '')[:6]}",
+                                args.project)
         seeded = seed_state(values, design, args.stage, run_id, base, project_name(args.project),
-                            args.feedback, args.validate_db, model, targets, rework)
+                            args.feedback, args.validate_db, model, targets, rework,
+                            new_spec=args.stage == "function_designer" and bool(base_functions))
+        if edited:
+            seeded["function_locked"] = edited
+            plan.insert(0, f"사람이 고친 기능 {len(edited)}개는 고친 그대로 둠 (다시 설계하지 않음): {', '.join(edited[:8])}"
+                        + (" …" if len(edited) > 8 else ""))
         if submitted:
             if submitted["common"] is not None:
                 seeded["function_common"] = submitted["common"]
@@ -554,10 +616,13 @@ def _rerun(args, out: dict | None = None) -> int:
             plan.insert(0, _apply_answers(seeded, answers))
         if confirms:
             plan.insert(0, _apply_confirms(seeded, confirms))
+        if args.stage == "data_modeler":
+            plan += _keep_remarks(args, seeded, design, dispositions)
         graph.update_state(_config(run_id), seeded, as_node="record_decision")   # 다음 노드: 조정 Agent
     if out is not None:
         out["run_id"] = run_id
-    target = "다음 최상위 번호" if args.stage == "requirements_analyst" else f"v{version_label(base)}.N"
+    top = args.stage == "requirements_analyst" or (args.stage == "function_designer" and bool(base_functions))
+    target = "다음 최상위 번호" if top else f"v{version_label(base)}.N"
     print(f"{STAGES[args.stage]['label']} 다시 만들기: 기준 v{record['design_version']} → {target} "
           f"(실행 {run_id}){' · 의견: ' + args.feedback.strip() if args.feedback.strip() else ''}")
     if _stage_of(record) != args.stage and not record.get("confirmed"):
@@ -571,15 +636,19 @@ def _rerun(args, out: dict | None = None) -> int:
 def _review(args) -> int:
     """ERD 최종 확정: 확정한 ERD 버전 아래에 최종본(v1.1 → v1.1.1)을 만든다.
 
-    산출물(요구사항·기능 명세·ERD·DDL)은 확정한 ERD 버전 그대로 두고, 추적 검토(코드)와 의미 검토(LLM, 기본은 ERD ↔ 기능 명세 1회)를
-    해서 최종본의 검토 보고서·semantic_review.*에 남긴다. API_DESIGN이면 그 앞에 API 설계 Agent가 기능별 API·아키텍처 요약을 만들고
-    개발 스펙 문서 9개(API.md·openapi.yaml …)를 최종본에 쓴다 (이전 최종본의 API 설계를 이어받아 바뀐 기능만 LLM으로).
-    최종본의 'LLM 사용량'은 이 최종 확정 단계에서 쓴 양이다.
+    산출물(요구사항·기능 명세·ERD)은 확정한 ERD 버전 그대로 둔다. 의미 검토와 데이터 누락 보완은 ERD를 만들 때 이미 했으므로
+    여기서는 다시 검토하지 않고, 사람이 ERD 화면에서 정한 검토 지적 처리(--dispositions)를 남긴 뒤 코드로 확인만 한다.
+      1) 모델 오류(MODEL_·DB_ 오류)가 남았거나 생성 DDL이 검증 DB에 적용되지 않으면 최종본을 만들지 않는다
+      2) 추적 검토 (코드)
+      3) API_DESIGN이면 API 설계 Agent(LLM)가 기능별 API·아키텍처 요약을 만들고 개발 스펙 문서 9개를 쓴다
+         (이전 최종본의 API 설계를 이어받아 바뀐 기능만 LLM으로)
+    각 단계는 최종본의 판단 기록에 이어 붙고, 최종본의 'LLM 사용량'은 이 단계에서 쓴 양(API 설계)이다.
     최종본에서 다시 하면 같은 ERD 아래 다음 최종본(v1.1.2)을 만든다.
     """
+    from app.agents.flow.nodes import db_validate
     from app.agents.roles import trace_reviewer
-    from app.agents.roles.semantic_reviewer import review_saved
-    from app.agents.tools.exporter import export_design, export_semantic_review
+    from app.agents.tools.exporter import export_db_report, export_design, export_semantic_review
+    from app.schemas.data_model import DbValidationResult
 
     root = get_settings().output_dir
     project = project_name(args.project)
@@ -587,7 +656,8 @@ def _review(args) -> int:
         record = find_version(args.project, args.version)
         if record and record.get("stage") == "final":   # 최종본에서 다시 확정하면 그 ERD에서
             record = find_version(args.project, record["base"])
-    except ValueError as e:
+        dispositions = load_dispositions(Path(args.dispositions)) if args.dispositions else {}
+    except ValueError as e:   # RerunError 포함
         print(e)
         return 2
     if not record:
@@ -603,50 +673,73 @@ def _review(args) -> int:
     if not model and (text := store.read(project, base, model_name)) is not None:
         model = json.loads(text)
     if not model or not model.get("entities") or not design.get("functions"):
-        print(f"v{base}에는 기능 명세와 데이터 모델(ERD)이 함께 있어야 의미 검토를 할 수 있습니다.")
+        print(f"v{base}에는 기능 명세와 데이터 모델(ERD)이 함께 있어야 최종 확정할 수 있습니다.")
         return 2
-    source = get_settings().semantic_review_source if args.source is None else args.source
-    print(f"ERD 최종 확정: {project} v{base} → 최종본 (추적 검토 + 의미 검토: "
-          f"{'데이터 모델 ↔ 기능 명세, 기능 명세 ↔ 요구사항' if source else '데이터 모델 ↔ 기능 명세'})")
+    issues, counts = apply_dispositions(design.get("issues") or [], dispositions)
+    errors = [i for i in issues if i["kind"].startswith(("MODEL_", "DB_")) and i["severity"] == "ERROR"
+              and i["status"] != "RESOLVED"]
+    if errors:
+        print(f"모델 오류 {len(errors)}건이 남아 최종 확정할 수 없습니다. ERD를 고쳐 새 버전을 만든 뒤 확정하세요.")
+        for i in errors[:10]:
+            print(f"  - {i['issue_id']} {i['message']}")
+        return 2
+    print(f"ERD 최종 확정: {project} v{base} → 최종본 (DDL 검증 · 추적 검토{' · API 설계' if get_settings().api_design else ''})")
     # 문서 블록·추출 단위 등은 ERD를 만든 실행의 상태에서, 산출물은 확정한 ERD 버전 폴더에서 가져온다
     with open_checkpointer(root) as saver:
         values = dict(build_graph(saver).get_state(_config(record["run_id"])).values or {})
     state = {**values, "requirements": design.get("requirements") or [], "functions": design["functions"],
-             "questions": design.get("questions") or [], "issues": design.get("issues") or [], "data_model": model,
+             "questions": design.get("questions") or [], "issues": issues, "data_model": model,
              "function_common": design.get("common") or {}, "completion": design.get("completion") or {},
-             "decisions": design.get("decisions") or [], "llm_usage": {}, "parent_version": base,
-             "options": {**(values.get("options") or {}), "project": project, "stage": "final", "base_version": base,
-                         "semantic_review": True, "semantic_review_mode": "final"}}
+             "decisions": list(design.get("decisions") or []), "llm_usage": {}, "parent_version": base,
+             "semantic_review": {}, "options": {**(values.get("options") or {}), "project": project, "stage": "final",
+                                                "base_version": base}}
+    db = DbValidationResult.model_validate(db_validate({**state, "design_version": base})["db_validation"])
+    if not db.passed:
+        print(f"생성한 DDL이 검증 DB({db.engine})에 적용되지 않아 최종 확정할 수 없습니다. ERD를 고쳐 새 버전에서 다시 확정하세요.")
+        for e in db.errors[:10]:
+            print(f"  - {e}")
+        return 2
+    remarks = [i for i in issues if i["kind"].startswith("SEM_")]
+    left = sum(1 for i in remarks if i["status"] == "OPEN" and not i.get("resolution"))
+    _final_step(state, "check_completion", "ERD 최종 확정 → 사람이 정한 의미 검토 지적 처리",
+                f"지적 {len(remarks)}건: {disposition_note(counts)}" + (f" · 처리하지 않음 {left}건" if left else ""))
+    _final_step(state, "db_validate", "최종 DDL을 검증 DB에 적용",
+                f"{db.engine} 통과 · 테이블 {len(db.tables_created)}개")
     state.update(trace_reviewer.run(state))   # 코드 검사: 기능 명세 → ERD 연결 (토큰 없음)
+    trace_errors = sum(1 for i in state["issues"] if i["kind"].startswith("TRACE_") and i["severity"] == "ERROR"
+                       and i["status"] == "OPEN")
+    _final_step(state, "trace_reviewer", "최종 ERD로 추적 관계 다시 만들기",
+                f"추적 링크 {len(state.get('trace_links') or [])}개, 추적 누락 오류 {trace_errors}건")
     try:
         if get_settings().api_design:
             state = _design_api(state, project)
-        before = dict(state.get("llm_usage") or {})   # 의미 검토 보고서에는 의미 검토가 쓴 양만
-        state = review_saved(state, source)
+            _final_step(state, "api_designer", "최종 ERD로 API 설계 (개발 스펙)", (state.get("api_design") or {}).get("last", ""))
     except LLMFatalError as e:
         print(f"LLM 오류로 멈췄습니다: {e}")
         return 4
     version = claim_next_version(project, base)
     files = export_design({**state, "design_version": version}, version)
-    semantic_usage = {k: v - before.get(k, 0) if isinstance(v, int) else v for k, v in (state.get("llm_usage") or {}).items()}
-    files += export_semantic_review({**state, "llm_usage": semantic_usage}, project, version, source)
-    if (db_report := store.read(project, base, "db_validation.md")) is not None:   # DB 검증은 확정한 ERD 그대로
-        files.append(store.write(project, version, "db_validation.md", db_report))
-    failed = (state.get("semantic_review") or {}).get("failed") or []
+    files += export_semantic_review(state, project, version)
+    files.append(export_db_report(db.model_copy(update={"design_version": version}), project))
     usage = state.get("llm_usage") or {}
     save_version(project, {
         "design_version": version, "parent": base, "created_at": datetime.now().isoformat(timespec="seconds"),
-        "summary": [f"ERD v{base} 최종 확정: 추적 검토 · "
+        "summary": [f"ERD v{base} 최종 확정: DDL 검증 · 추적 검토 · "
                     + (f"{(state.get('api_design') or {}).get('last')} · " if state.get("api_design") else "")
-                    + f"의미 검토 (지적 {sum(i['kind'].startswith('SEM_') and i['status'] != 'RESOLVED' for i in state['issues'])}건)"],
+                    + f"의미 검토 지적 {len(remarks)}건 ({disposition_note(counts)})"],
         "run_id": record["run_id"], "stage": "final", "base": base,
         "document": record.get("document", ""),
-        **{k: record[k] for k in ("db_validation", "db_engine", "db_errors") if record.get(k)}})
+        "db_validation": "PASSED", "db_engine": db.engine})
     print(f"최종본 v{version} → {store.version_location(project, version)} (산출물 {len(files)}개)")
     print(f"LLM 호출 {usage.get('calls', 0)}회 · 토큰 in {usage.get('input_tokens', 0):,} / out {usage.get('output_tokens', 0):,}")
-    if failed:
-        print(f"검토 실패(미검증): {', '.join(failed)} — 최종본 보고서에 표시함")
     return 0
+
+
+def _final_step(state: dict, action: str, reason: str, result: str) -> None:
+    """최종 확정 단계를 판단 기록에 이어 붙인다 (조정 Agent 없이 review 명령이 순서대로 하는 단계)."""
+    decisions = state["decisions"]
+    step = max((d.get("step") or 0 for d in decisions), default=0) + 1
+    decisions.append({"step": step, "action": action, "scope": [], "mode": "final", "reason": reason, "result": result})
 
 
 def _design_api(state: dict, project: str) -> dict:
@@ -740,6 +833,32 @@ def _rerun_confirms(args) -> list[dict]:
     return load_confirm_rules(Path(args.confirm_rules))
 
 
+def _rerun_dispositions(args) -> dict[str, dict]:
+    """--dispositions 파일을 읽는다 (데이터 설계 단계만: ERD 화면에서 정한 검토 지적 처리)."""
+    if not getattr(args, "dispositions", None):
+        return {}
+    if args.stage != "data_modeler":
+        raise RerunError("--dispositions는 data_modeler 단계 옵션입니다 (ERD 화면의 검토 지적 처리).")
+    return load_dispositions(Path(args.dispositions))
+
+
+def _keep_remarks(args, seeded: dict, design: dict, dispositions: dict[str, dict]) -> list[str]:
+    """ERD 저장(고친 모델만, 의견·지정 엔티티 없음)은 의미 검토를 다시 하지 않으므로(LLM 없음) 기준 버전의 의미 검토 지적을
+    이어받고, 사람이 정한 처리를 남긴다. 의견으로 다시 만들면 모델이 바뀌어 다시 검토하므로 이어받지 않는다. 안내 줄을 돌려준다."""
+    notes = []
+    if args.data_model and not args.feedback.strip() and not args.entities:
+        kept = [i for i in design.get("issues") or [] if i["kind"].startswith("SEM_MODEL_")]
+        seeded["issues"] = [*seeded["issues"], *kept]
+        r, b = rev(seeded), basis(seeded)
+        seeded["basis"] = {**b, "semantic": {**b["semantic"], "model": [r["functions"], r["model"]]}}
+        if kept:
+            notes.append(f"의미 검토 지적 {len(kept)}건을 이어받음 (사람이 고친 ERD는 다시 검토하지 않음)")
+    if dispositions:
+        seeded["issues"], counts = apply_dispositions(seeded["issues"], dispositions)
+        notes.append(f"검토 지적 처리: {disposition_note(counts)} (LLM 없음)")
+    return notes
+
+
 def _apply_confirms(seeded: dict, confirms: list[dict]) -> str:
     """확인한 '(확인 필요)' 규칙을 시작 상태의 기능 명세에 반영한다 (LLM 없음). 안내 줄을 돌려준다."""
     from app.agents.roles.function_designer import confirm_rules
@@ -800,9 +919,10 @@ def _rerun_scope(args, record: dict, values: dict, design: dict, answers: bool =
         raise RerunError("기준 버전에 기능 명세가 없어 데이터 설계를 다시 만들 수 없습니다 "
                          "(요구사항 단계 버전이면 먼저 rerun function_designer).")
     inherited = None
-    if record.get("stage") == "function_designer" and record.get("base"):
-        # 기능 명세 단계 버전: 기준 버전 쪽으로 올라가며 데이터 모델이 있는 가장 가까운 버전의 모델을 이어받는다
-        base_rec = ancestor(project, str(record["base"]), lambda v: has_model(project, v))
+    source = record.get("base") or record.get("parent")
+    if record.get("stage") == "function_designer" and source:
+        # 기능 명세 단계 버전(v2 = v1을 고친 새 기능 명세): 앞 기능 명세의 최신 ERD(v1.2 …)를 이어받아 바뀐 기능의 테이블만
+        base_rec = latest_model(project, str(source))
         base_design = read_design(project, str(base_rec["design_version"])) if base_rec else None
         if base_design is not None:
             inherited = (str(base_rec["design_version"]), base_design.get("functions") or [])

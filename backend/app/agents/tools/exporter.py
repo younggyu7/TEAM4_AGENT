@@ -603,33 +603,37 @@ SEMANTIC_KINDS = {   # 종류 → (보고서 표기, 확인 담당)
 
 
 def _semantic_md(state: dict, issues: list[Issue]) -> list[str]:
-    """의미 검토 절: LLM 지적(내용·근거·제안)과 확인 담당. 자동으로 고치지 않는 보고용이다."""
+    """의미 검토 절: LLM 지적(내용·근거·제안)과 확인 담당, 사람이 정한 처리.
+    SEMANTIC_REVIEW_MODE=erd면 ERD를 만들 때 데이터 지적을 한 번 고치고, 남은 지적은 ERD 화면에서 사람이 처리를 정한다."""
     head = ["## 의미 검토 (AI 지적 · 담당자 확인 필요)", "",
-            "> 의미 검토 Agent(LLM)가 기능 명세와 데이터 모델의 내용을 요구사항·기능 명세에 대조해 검토한 결과다. "
-            "자동으로 고치지 않으며, 담당자가 확인해 반영 여부를 정한다.", ""]
+            "> 의미 검토 Agent(LLM)가 데이터 모델(과 기능 명세)의 내용을 기능 명세·요구사항에 대조해 검토한 결과다. "
+            "ERD를 만들 때 데이터 지적은 데이터 모델 Agent가 한 번 고치고, 남은 지적은 담당자가 ERD 화면에서 처리를 정한다.", ""]
     options = state.get("options") or {}
-    if options.get("semantic_review") is False:
-        if options.get("semantic_review_mode") == "final":
-            return head + ["- 이 실행에서는 하지 않음: 'ERD 최종 확정' 때 한 번 검토한다 (SEMANTIC_REVIEW_MODE=final → semantic_review.md)", ""]
-        return head + ["- 실행 안 함 (--no-semantic-review 또는 SEMANTIC_REVIEW_MODE=off)", ""]
     meta = state.get("semantic_review") or {}
-    if not meta:
+    shown = [i for i in issues if i.kind.startswith("SEM_") and (i.status != "RESOLVED" or i.resolution)]
+    if not meta and not shown:
+        if options.get("semantic_review_mode") == "off" or (options.get("semantic_review") is False
+                                                            and options.get("semantic_review_mode") not in ("erd", "final")):
+            return head + ["- 실행 안 함 (--no-semantic-review 또는 SEMANTIC_REVIEW_MODE=off)", ""]
+        if options.get("semantic_review_mode") in ("erd", "final"):
+            return head + ["- 이 실행에서는 하지 않음: ERD를 만들 때 데이터 모델을 검토한다 (사람이 고친 ERD는 다시 검토하지 않음)", ""]
         return head + ["- 실행 안 함", ""]
-    remarks = sorted([i for i in issues if i.kind.startswith("SEM_") and i.status != "RESOLVED"],
-                     key=lambda i: (list(SEMANTIC_KINDS).index(i.kind) if i.kind in SEMANTIC_KINDS else 99, i.issue_id))
+    remarks = sorted(shown, key=lambda i: (list(SEMANTIC_KINDS).index(i.kind) if i.kind in SEMANTIC_KINDS else 99, i.issue_id))
     rows = []
     for i in remarks:
         label, owner = SEMANTIC_KINDS.get(i.kind, (i.kind, ""))
+        handled = i.resolution or ("미해결" if i.status == "UNRESOLVED" else "처리 전")
         for n, chunk in enumerate(i.message.split("\n\n")):   # 같은 대상의 지적이 합쳐져 있으면 나눠서 보여준다
             what, evidence, suggestion = _split_remark(chunk)
-            rows.append([i.issue_id if n == 0 else "", label, i.target_id, what, evidence, suggestion, owner])
+            rows.append([i.issue_id if n == 0 else "", label, i.target_id, what, evidence, suggestion, owner,
+                         handled if n == 0 else ""])
     notes = []
     if meta.get("failed"):
         labels = {"functions": "기능 명세", "model": "데이터 모델"}
         notes.append(f"- ⚠ 검토 실패(미검증): {', '.join(labels.get(p, p) for p in meta['failed'])}")
     if meta.get("dropped"):
         notes.append(f"- 대상 ID를 산출물에서 찾을 수 없는 지적 {meta['dropped']}건은 근거를 확인할 수 없어 제외했다.")
-    body = table(["ID", "종류", "대상", "내용", "근거", "제안", "확인 담당"], rows) if rows else "- 지적 없음"
+    body = table(["ID", "종류", "대상", "내용", "근거", "제안", "확인 담당", "처리"], rows) if rows else "- 지적 없음"
     return head + [body, "", *notes, *([""] if notes else [])]
 
 
@@ -667,29 +671,26 @@ def confirm_tech_stack(project: str, version: str, stack: str) -> dict:
     return {**meta["dev_spec"], "written": len(files)}
 
 
-def export_semantic_review(state: dict, project: str, version: str, source: bool) -> list[str]:
-    """ERD 최종 확정 때의 의미 검토 결과(review 명령)를 최종본에 쓴다: semantic_review.md(보고서)·json(화면용).
-    산출물 내용은 바뀌지 않으므로 새 버전을 만들지 않고, 다시 확정하면 덮어쓴다."""
+def export_semantic_review(state: dict, project: str, version: str) -> list[str]:
+    """최종본에 의미 검토 지적과 사람이 정한 처리를 쓴다: semantic_review.md(보고서)·json(화면용).
+    검토는 ERD를 만들 때 했고 최종 확정에서는 다시 하지 않는다 (LLM 없음)."""
     issues = [Issue.model_validate(i) for i in state.get("issues") or []]
-    meta = state.get("semantic_review") or {}
-    usage = state.get("llm_usage") or {}
-    scope = "데이터 모델 ↔ 기능 명세, 기능 명세 ↔ 요구사항" if source else "데이터 모델 ↔ 기능 명세"
+    scope = "데이터 모델 ↔ 기능 명세 (ERD를 만들 때 검토, 처리는 ERD 화면에서 사람이 정함)"
     reviewed_at = datetime.now().isoformat(timespec="seconds")
-    head = [f"# 의미 검토 (최종 확정) — {project} v{version}", "",
-            f"- 검토 시각: {reviewed_at} · 범위: {scope}",
-            f"- LLM 호출 {usage.get('calls', 0)}회 · 입력 토큰 {usage.get('input_tokens', 0):,} · "
-            f"출력 토큰 {usage.get('output_tokens', 0):,}", ""]
+    head = [f"# 의미 검토 지적과 처리 — {project} v{version}", "", f"- 작성 시각: {reviewed_at} · 범위: {scope}", ""]
     remarks = []
     for i in issues:
-        if not i.kind.startswith("SEM_") or i.status == "RESOLVED":
+        if not i.kind.startswith("SEM_") or (i.status == "RESOLVED" and not i.resolution):
             continue
         label, owner = SEMANTIC_KINDS.get(i.kind, (i.kind, ""))
         for chunk in i.message.split("\n\n"):
             what, evidence, suggestion = _split_remark(chunk)
             remarks.append({"issue_id": i.issue_id, "kind": i.kind, "label": label, "target": i.target_id,
-                            "message": what, "evidence": evidence, "suggestion": suggestion, "owner": owner})
+                            "message": what, "evidence": evidence, "suggestion": suggestion, "owner": owner,
+                            "status": i.status, "resolution": i.resolution})
     data = {"project": project, "version": version, "reviewed_at": reviewed_at, "scope": scope,
-            "parts": meta.get("parts") or [], "failed": meta.get("failed") or [], "remarks": remarks, "usage": usage}
+            "parts": sorted({"model" if r["kind"].startswith("SEM_MODEL_") else "functions" for r in remarks}),
+            "failed": [], "remarks": remarks, "usage": {}}
     store = get_store()
     return [store.write(project, version, "semantic_review.md", "\n".join(head + _semantic_md(state, issues))),
             store.write(project, version, "semantic_review.json", json.dumps(data, ensure_ascii=False, indent=2) + "\n")]

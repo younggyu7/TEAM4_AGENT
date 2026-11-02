@@ -62,7 +62,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 python -m app versions 고객요구사항4                                   # 설계 버전 목록
 python -m app rerun data_modeler 고객요구사항4 --from v1 --design confirmed.json   # 확정한 기능 명세로 ERD → v1.1
 python -m app rerun data_modeler 고객요구사항4 --from v2 --feedback "의견"   # 데이터 설계만 다시 → v2.1
-python -m app review 고객요구사항4 v1.1                                # ERD 최종 확정 → 최종본 v1.1.1 (추적 검토·API 설계·개발 스펙·의미 검토)
+python -m app review 고객요구사항4 v1.1 --dispositions choices.json  # ERD 최종 확정 → 최종본 v1.1.1 (지적 처리·DDL 검증·추적 검토·API 설계·개발 스펙)
 python -m app resume <실행 ID> --defer                                  # 확인 질문에서 멈춘 실행 이어 가기
 ```
 
@@ -73,9 +73,10 @@ python -m app resume <실행 ID> --defer                                  # 확�
 1. **업로드**: 문서 분석 → 요구사항 추출·검토 → 기능 명세 초안에서 멈춘다 (`run --until function_designer`). 기능이 연결 안 된 요구사항(누락)은 `FUNC_FIX_ATTEMPTS`번 다시 설계한다.
 2. **기능 명세 확인·수정**: `(가정)`·`(확인 필요)` 표시와 확인 질문을 보고 고친다.
    **'(가정)' 한도·'(확인 필요)' 규칙**: '(가정)' 규칙은 전체 업무 규칙의 `FUNC_ASSUMPTION_LIMIT`(10%) 이하로 둔다. 넘는 만큼 확인 질문으로 정하고(최대 `FUNC_MAX_QUESTIONS`개), 그래도 넘는 규칙은 추천안을 `(확인 필요) …`로 남긴다. 화면 '확인 필요 규칙'에서 '추천안 맞음'을 고르면 내보낼 때 LLM 없이 `(결정) …`이 되고, 표시만 바뀐 기능은 ERD 단계에서 테이블을 다시 설계하지 않는다.
-3. **'내보내기 → ERD 만들기'**: 화면이 고친 design.json을 보내고 `rerun data_modeler --design`이 그 기능 명세로 ERD·DDL을 만든다. 이 단계는 기능 명세를 다시 설계하지 않는다. 모델·DB 검증 오류는 `MODEL_FIX_ATTEMPTS`·`MAX_DB_ATTEMPTS`번 자동 수정한다.
-4. **ERD 수정·저장**: 고친 테이블만 넘기며, 수정만 있으면 LLM 없이 정리·검증한다.
-5. **'ERD 최종 확정'**: 최종본 v<ERD>.1을 만들고 추적 검토(코드) → API 설계(`API_DESIGN`, 기능 `API_BATCH_SIZE`개마다 1회 + 아키텍처 1회, 이전 최종본에서 바뀐 기능만) → 의미 검토(ERD ↔ 기능 명세, LLM 1회)를 한다 (`review`). 최종본에는 개발 스펙 문서 9개(`API.md`·`openapi.yaml` …, 형식은 [backend/SPEC_FORMAT.md](backend/SPEC_FORMAT.md))가 함께 생긴다. 질문에서 멈추지 않는다. 기술 스택은 기능 명세 초안에서 코드가 낸 필수 질문 `TQ-001`의 답을 쓰고(원문에 언어·프레임워크가 없을 때만 묻는다), 답이 없으면 추천안으로 가정한다. 최종본이 나온 뒤에도 최종 산출물 화면 '개발 스펙 파일'에서 고르거나 직접 적어 확정하면(`POST /projects/tech-stack`) LLM 없이 같은 최종본의 개발 스펙 9개를 다시 쓰고 design.json(TQ-001 답·`meta.dev_spec`)과 버전 기록(`tech_stack`)에 남긴다. 원문이 정한 스택은 바꾸지 않는다. 결과·토큰 사용량은 최종본에 남고 최종 산출물 화면에 나온다.
+   확정 버튼은 화면 오른쪽 위에만 있고 필수 항목을 다 해결해야 초록색으로 켜진다. 확정하면 취소할 수 없고, 바꾸려면 새 버전을 만든다 ('기능 명세 다시 만들기 (새 버전)', 'ERD 저장하고 새 버전 만들기').
+3. **'내보내기 → ERD 만들기'**: 화면이 고친 design.json을 보내고 `rerun data_modeler --design`이 그 기능 명세로 ERD·DDL을 만든다. 이 단계는 기능 명세를 다시 설계하지 않는다. 모델·DB 검증 오류는 `MODEL_FIX_ATTEMPTS`·`MAX_DB_ATTEMPTS`번 자동 수정한다. 이어서 의미 검토(`SEMANTIC_REVIEW_MODE=erd`)가 ERD를 기능 명세와 대조해 빠진 데이터·제약을 찾고, 데이터 모델 Agent가 관련 테이블만 한 번 다시 설계한 뒤 고친 테이블 범위만 다시 검토한다.
+4. **ERD 확인·수정·저장**: 남은 의미 검토 지적마다 '반영함·문제 아님·미해결로 둠'을 고른다 (필수). 고친 테이블만 넘기며, 수정만 있으면 LLM 없이 정리·검증하고 의미 검토를 다시 하지 않는다 (지적과 처리는 새 버전에 이어진다, `--dispositions`).
+5. **'ERD 최종 확정하기'**: 고른 지적 처리를 남기고, 모델 오류가 남았거나 생성 DDL이 검증 DB에 적용되지 않으면 최종본을 만들지 않는다. 통과하면 최종본 v<ERD>.1을 만들고 추적 검토(코드) → API 설계(`API_DESIGN`, 기능 `API_BATCH_SIZE`개마다 1회 + 아키텍처 1회, 이전 최종본에서 바뀐 기능만)를 한다 (`review`). 의미 검토는 다시 하지 않는다. 최종 산출물 화면은 보기만 한다. 최종본에는 개발 스펙 문서 9개(`API.md`·`openapi.yaml` …, 형식은 [backend/SPEC_FORMAT.md](backend/SPEC_FORMAT.md))가 함께 생긴다. 질문에서 멈추지 않는다. 기술 스택은 기능 명세 초안에서 코드가 낸 필수 질문 `TQ-001`의 답을 쓰고(원문에 언어·프레임워크가 없을 때만 묻는다), 답이 없으면 추천안으로 가정한다. 최종 산출물 화면은 스택을 보여 주기만 한다. API(`POST /projects/tech-stack`)로 최종본의 스택을 확정하면 LLM 없이 같은 최종본의 개발 스펙 9개를 다시 쓰고 design.json(TQ-001 답·`meta.dev_spec`)과 버전 기록(`tech_stack`)에 남긴다. 원문이 정한 스택은 바꾸지 않는다. 결과·토큰 사용량은 최종본에 남고 최종 산출물 화면에 나온다.
 
 버전별로 생기는 파일, 파일마다의 내용, 규칙 표시·질문 ID 읽는 법은 [OUTPUTS.md](OUTPUTS.md).
 
@@ -85,9 +86,8 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `FUNC_FIX_ATTEMPTS` | 기능 명세: 누락 재설계·실패 재시도 횟수 |
 | `MODEL_FIX_ATTEMPTS` | 데이터 설계: 모델 오류 수정·연결 보완·실패 재시도 횟수 |
 | `MAX_DB_ATTEMPTS` | DB 검증 실패 후 다시 고치기 횟수 |
-| `SEMANTIC_REVIEW_MODE` | `final`(ERD 최종 확정 때만) · `auto`(산출물이 바뀔 때마다, 코드 기본값) · `off` |
+| `SEMANTIC_REVIEW_MODE` | `erd`(ERD를 만들 때 데이터 모델만 검토·보완, `.env.example` 값. 예전 값 `final`도 erd) · `auto`(산출물이 바뀔 때마다, 코드 기본값) · `off` |
 | `SEMANTIC_REVIEW_ATTEMPTS` | 의미 검토 실패 시 시도 횟수 |
-| `SEMANTIC_REVIEW_SOURCE` | `true`면 최종 확정 검토에서 기능 명세 ↔ 요구사항(원문)도 본다 |
 | `FUNC_ASSUMPTION_LIMIT` | 기능 명세 '(가정)' 규칙 한도 (전체 업무 규칙 대비, 기본 0.1). 1이면 묻지 않고 모두 '(가정)' |
 | `FUNC_MAX_QUESTIONS` | 기능 명세 확인 질문 상한 (기본 12). 덮지 못한 것은 '(확인 필요)'로 남아 화면에서 확인 |
 | `API_DESIGN` | 'ERD 최종 확정' 때 API 설계·개발 스펙을 만들지 (기본 true). 업로드·ERD 단계에는 영향 없음 |
@@ -105,8 +105,8 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET /spec-format` | 개발 스펙 문서의 형식 정의 (`backend/SPEC_FORMAT.md`) |
 | `POST /projects/title` | 버전 제목 저장 |
 | `GET /tech-stacks` · `POST /projects/tech-stack` | 개발 스펙의 기술 스택 선택지 · 최종본의 기술 스택 확정 → 개발 스펙 9개를 LLM 없이 다시 쓰기 (`{project, version, stack}`) |
-| `POST /projects/versions` | 기능 명세 내보내기(`source: spec`) → ERD 새 버전, ERD 저장(`source: erd`) → 다음 ERD 버전, `answers`가 있으면 확인 질문 답을 반영한 기능 명세 새 버전. `confirm_rules`('추천안 맞음'으로 확인한 규칙)는 LLM 없이 `(결정)` → `202 {job}` |
-| `POST /projects/review` | ERD 최종 확정 → 최종본 v<ERD>.1 (추적 검토·API 설계·개발 스펙·의미 검토) → `202 {job}` |
+| `POST /projects/versions` | 기능 명세 내보내기(`source: spec`) → ERD 새 버전, ERD 저장(`source: erd`, `dispositions`: 의미 검토 지적 처리) → 다음 ERD 버전, `source: answers`(또는 `spec` + `answers`) → 기능 명세 새 버전 (답이 없어도 수정·의견으로). `confirm_rules`('추천안 맞음'으로 확인한 규칙)는 LLM 없이 `(결정)` → `202 {job}` |
+| `POST /projects/review` | ERD 최종 확정 (`{project, version, dispositions?}`) → 지적 처리 기록·DDL 검증 → 최종본 v<ERD>.1 (추적 검토·API 설계·개발 스펙) → `202 {job}` |
 | `POST /runs` (multipart `file`, `project?`, `title?`, `validate_db?`) | 문서 업로드 → 기능 명세 초안까지 실행(`--defer --until function_designer`) → `202 {job}` |
 | `GET /jobs?id=` | 작업 진행 상황 `{status: running·done·failed, message, log, new_version, warnings}` |
 | `GET /capabilities` | rerun이 기능 명세 수정본(`--design`·`--spec-md`)·추천안 확인 규칙(`--confirm-rules`)을 받는지 |

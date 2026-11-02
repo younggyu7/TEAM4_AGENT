@@ -1,4 +1,4 @@
-"""기능 명세 Agent: 단계 다시 만들기(v1 → v1.1), 의견 반영(바꿀 기능만), 기능 ID 유지, 이어받은 데이터 모델 (API 불필요)."""
+"""기능 명세 Agent: 단계 다시 만들기(v1 → 새 최상위 번호 v2), 의견 반영(바꿀 기능만), 기능 ID 유지, 이어받은 데이터 모델 (API 불필요)."""
 import json
 import re
 
@@ -48,15 +48,15 @@ def test_function_rerun_redesigns_group_keeps_ids_and_stops_before_data(sample_d
     assert fake.calls["FunctionDesignOut"] == 1, "지정 요구사항의 그룹만 다시 설계"
     assert fake.calls["CatalogOut"] == 0 and fake.calls["AttributesOut"] == 0, "데이터 설계 전에 멈춤"
     assert (fake.calls["FunctionReviewOut"], fake.calls["ModelReviewOut"]) == (1, 0)
-    folder = out / "sample" / "v1.1"
+    folder = out / "sample" / "v2"
     assert (folder / "functions.md").exists() and not (folder / "data_model.json").exists()
     assert not (folder / "schema.sql").exists()
-    v11 = _design(out, "1.1")
-    assert [f["function_id"] for f in v11["functions"]] == [f["function_id"] for f in v1["functions"]], "이름이 같으면 ID 유지"
-    assert v11["completion"]["satisfied"], "데이터 설계 조건은 해당 없음으로 통과"
+    v2_ = _design(out, "2")
+    assert [f["function_id"] for f in v2_["functions"]] == [f["function_id"] for f in v1["functions"]], "이름이 같으면 ID 유지"
+    assert v2_["completion"]["satisfied"], "데이터 설계 조건은 해당 없음으로 통과"
     report = (folder / "review_report.md").read_text(encoding="utf-8")
     assert "다시 만든 단계: **기능 명세**" in report and "데이터 설계는 이 버전 확정 후" in report
-    record = next(v for v in load_versions("sample") if v["design_version"] == "1.1")
+    record = next(v for v in load_versions("sample") if v["design_version"] == "2")
     assert record["stage"] == "function_designer" and record["rework"]["groups"]
 
 
@@ -68,28 +68,28 @@ def test_feedback_patches_only_changed_function_and_data_design_reuses_model(sam
     assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--feedback", "배정할 때 사유를 남긴다"]) == 0
     assert (fake.calls["FunctionScopeOut"], fake.calls["FunctionPatchOut"], fake.calls["FunctionDesignOut"]) == (1, 1, 0), \
         "범위 요청 1회 + 관련 그룹에 바꿀 기능만 요청"
-    v11 = _design(out, "1.1")
+    v2_ = _design(out, "2")
     before = {f["function_id"]: f for f in v1["functions"]}
-    after = {f["function_id"]: f for f in v11["functions"]}
+    after = {f["function_id"]: f for f in v2_["functions"]}
     assert set(after) == set(before), "응답에 없는 기능은 그대로 남고 ID도 같음"
     changed = [i for i in after if after[i] != before[i]]
     # 고친 기능의 '(가정)' 규칙은 '(가정)' 한도(규칙이 적어 0개)를 넘어 추천안 그대로 '(확인 필요)'가 된다
     assert len(changed) == 1 and after[changed[0]]["business_rules"] == ["(확인 필요) 의견 반영"]
-    assert v11["meta"]["rework"]["changed"] == changed
+    assert v2_["meta"]["rework"]["changed"] == changed
 
     # 이 기능 명세 버전에서 데이터 설계: v1의 모델을 이어받아 바뀐 기능에 연결된 엔티티만 다시 설계
     fake = FakeLLM(broken_fk=False)
     llm_module.set_llm(fake)
-    assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1.1"]) == 0
+    assert cli.main(["rerun", "data_modeler", "sample", "--from", "v2"]) == 0
     printed = capsys.readouterr().out
     assert "v1의 데이터 모델을 이어받아 바뀐 기능 1개에 연결된 엔티티 1개 (service_request)" in printed
     assert fake.calls["CatalogOut"] == 0 and fake.calls["AttributesOut"] == 1
     model = {e["entity_id"]: e for e in json.loads(
-        (out / "sample" / "v1.1.1" / "data_model.json").read_text(encoding="utf-8"))["entities"]}
+        (out / "sample" / "v2.1" / "data_model.json").read_text(encoding="utf-8"))["entities"]}
     v1_model = {e["entity_id"]: e for e in json.loads(
         (out / "sample" / "v1" / "data_model.json").read_text(encoding="utf-8"))["entities"]}
     assert model["app_user"] == v1_model["app_user"], "바뀐 기능과 관계없는 엔티티는 그대로"
-    record = next(v for v in load_versions("sample") if v["design_version"] == "1.1.1")
+    record = next(v for v in load_versions("sample") if v["design_version"] == "2.1")
     assert record["rework"]["inherited_from"] == "1" and record["rework"]["changed_functions"] == changed
 
 
@@ -146,10 +146,10 @@ def test_failed_group_keeps_old_functions_and_is_retried(sample_doc):
     fake = _FailsFirstDesign(broken_fk=False)
     llm_module.set_llm(fake)
     assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--full"]) == 0
-    v11 = _design(out, "1.1")
-    assert [f["function_id"] for f in v11["functions"]] == [f["function_id"] for f in v1["functions"]]
+    v2_ = _design(out, "2")
+    assert [f["function_id"] for f in v2_["functions"]] == [f["function_id"] for f in v1["functions"]]
     assert fake.calls["FunctionDesignOut"] == 2, "실패한 그룹은 이전 기능을 두고 다음 단계에서 다시 설계"
-    decisions = [d["mode"] for d in v11["decisions"] if d["action"] == "function_designer"]
+    decisions = [d["mode"] for d in v2_["decisions"] if d["action"] == "function_designer"]
     assert decisions == ["redesign", "redesign"]
 
 
@@ -191,7 +191,7 @@ def test_common_decisions_are_made_once_and_shared_with_groups_and_data_model(sa
     assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--feedback", "배정할 때 사유를 남긴다"]) == 0
     assert fake.calls["CommonDecisionsOut"] == 0
     assert "요청 상태: 접수 / 배정 / 완료" in fake.prompts["FunctionPatchOut"][0]
-    assert _design(out, "1.1")["common"] == _design(out, "1")["common"]
+    assert _design(out, "2")["common"] == _design(out, "1")["common"]
 
 
 def test_common_decisions_can_be_turned_off(sample_doc):
@@ -580,9 +580,9 @@ def test_rerun_with_answers_applies_stage_one_answers_at_once(sample_doc, tmp_pa
     assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--answers", str(same)]) == 0
     assert "모두 추천안과 같아 확정 표시만" in capsys.readouterr().out
     assert fake.calls["FunctionDesignOut"] == 0 and fake.calls["FunctionPatchOut"] == 0
-    v11 = _design(out, "1.1")
-    assert next(q for q in v11["questions"] if q["question_id"] == "FQ-001")["status"] == "ANSWERED"
-    assert any("(결정 FQ-001)" in r for f in v11["functions"] for r in f["business_rules"])
+    v2_ = _design(out, "2")
+    assert next(q for q in v2_["questions"] if q["question_id"] == "FQ-001")["status"] == "ANSWERED"
+    assert any("(결정 FQ-001)" in r for f in v2_["functions"] for r in f["business_rules"])
 
     # 요구사항 질문 답(추천 없음) → 그 요구사항만 다시 설계, 데이터 설계 전에 멈춤
     answers = tmp_path / "answers.json"
@@ -592,10 +592,10 @@ def test_rerun_with_answers_applies_stage_one_answers_at_once(sample_doc, tmp_pa
     assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--answers", str(answers)]) == 0
     assert "다시 설계할 요구사항 1건" in capsys.readouterr().out
     assert fake.calls["FunctionDesignOut"] == 1 and fake.calls["CatalogOut"] == 0
-    v12 = _design(out, "1.2")
-    target = next(r for r in v12["requirements"] if any(d.startswith("[Q-001]") for d in r["decisions"]))
+    v3_ = _design(out, "3")
+    target = next(r for r in v3_["requirements"] if any(d.startswith("[Q-001]") for d in r["decisions"]))
     assert target["status"] == "CONFIRMED"
-    assert not (out / "sample" / "v1.2" / "data_model.json").exists()
+    assert not (out / "sample" / "v3" / "data_model.json").exists()
 
 
 def test_confirmed_rules_become_decided_without_llm(sample_doc, tmp_path):
@@ -613,10 +613,10 @@ def test_confirmed_rules_become_decided_without_llm(sample_doc, tmp_path):
     assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--confirm-rules", str(path)]) == 0
     assert (fake.calls["FunctionDesignOut"], fake.calls["FunctionPatchOut"], fake.calls["FunctionScopeOut"]) == (0, 0, 0), \
         "기능 명세를 다시 설계하지 않음"
-    v11 = _design(out, "1.1")
-    after = next(f for f in v11["functions"] if f["function_id"] == fn["function_id"])
+    v2_ = _design(out, "2")
+    after = next(f for f in v2_["functions"] if f["function_id"] == fn["function_id"])
     assert "(결정) " + rule.removeprefix("(확인 필요) ") in after["business_rules"] and rule not in after["business_rules"]
-    assert changed_functions(v1["functions"], v11["functions"])[0] == [], "규칙 앞 표시만 바뀐 기능은 바뀐 것으로 보지 않음"
+    assert changed_functions(v1["functions"], v2_["functions"])[0] == [], "규칙 앞 표시만 바뀐 기능은 바뀐 것으로 보지 않음"
     path.write_text("[]", encoding="utf-8")
     assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1", "--confirm-rules", str(path)]) == 2, \
         "기능 명세 단계 옵션"
@@ -637,3 +637,27 @@ def test_actors_follow_common_roles():
     assert normalize_actors([f], common)[0].actors == ["결재자", "시스템(알림)"], "다른 표현은 역할 이름 하나로, 시스템은 그대로"
     assert "사용자 역할 (사람 행위자는 이 이름만." in common_block(common) and "결재자(승인자·결재 승인자)" in common_block(common)
     assert normalize_actors([f], {})[0] is f, "역할이 없으면 그대로"
+
+
+def test_function_rerun_keeps_human_edited_functions(sample_doc):
+    """화면 '기능 명세 다시 만들기': 사람이 고친 기능(--functions)은 고친 그대로 두고, 의견이 없으면 LLM을 쓰지 않는다."""
+    out = _base(sample_doc)
+    edited = [{**f, "description": f["description"] + " (담당자 수정)"} for f in _design(out, "1")["functions"]]
+    path = out / "edited_functions.json"
+    path.write_text(json.dumps(edited, ensure_ascii=False), encoding="utf-8")
+    fake = FakeLLM(broken_fk=False)
+    llm_module.set_llm(fake)
+    assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--functions", str(path)]) == 0
+    assert not any(fake.calls[k] for k in ("FunctionDesignOut", "FunctionPatchOut", "FunctionScopeOut")), "고친 것만이면 LLM 없음"
+    assert _design(out, "2")["functions"] == edited
+
+    fake = FakeLLM(broken_fk=False)
+    llm_module.set_llm(fake)
+    assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--functions", str(path),
+                     "--feedback", "배정할 때 사유를 남긴다"]) == 0
+    assert fake.calls["FunctionPatchOut"] == 1, "의견은 LLM으로 반영"
+    assert "사람이 고친 기능이라 바꾸지 않는다" in fake.users["FunctionPatchOut"][0]
+    assert _design(out, "3")["functions"] == edited, "의견 반영이 고친 기능을 바꿔도 고친 그대로 되돌린다"
+
+    path.write_text(json.dumps([{**edited[0], "function_id": "FN-없음"}], ensure_ascii=False), encoding="utf-8")
+    assert cli.main(["rerun", "function_designer", "sample", "--from", "v1", "--functions", str(path)]) == 2

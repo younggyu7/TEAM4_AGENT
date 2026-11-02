@@ -173,7 +173,7 @@ class _Runner:
                 self.job.warnings = [*_llm_errors(self.job.log), *self.pre]
                 reason = EXIT_MESSAGE.get(code, f"실행이 실패했습니다 (종료 코드 {code}).")
                 if self.result and code == 2:
-                    reason = "최종 확정(의미 검토)을 끝내지 못했습니다. 아래 기록의 마지막 줄을 확인하세요."
+                    reason = "최종 확정을 끝내지 못했습니다 (모델 오류·DDL 검증 실패 등). 아래 기록의 마지막 줄을 확인하세요."
                 self._finish("failed", reason)
         except Exception as e:  # noqa: BLE001 - 작업 스레드의 오류는 화면에 보여 준다
             self._push(repr(e))
@@ -207,7 +207,7 @@ class _Runner:
             data = {}
         failed = data.get("failed") or []
         self.job.warnings = [*_llm_errors(self.job.log), *([f"의미 검토 실패(미검증): {', '.join(failed)}"] if failed else [])]
-        self._finish("done", f"최종본 v{newest}을 만들었습니다: 의미 검토 지적 {len(data.get('remarks') or [])}건")
+        self._finish("done", f"최종본 v{newest}을 만들었습니다: 의미 검토 지적 {len(data.get('remarks') or [])}건의 처리를 남김")
 
     def _finish(self, status: str, message: str) -> None:
         self.job.status, self.job.message = status, message

@@ -44,15 +44,16 @@ def _bool(name: str, default: bool) -> bool:
     return value in {"1", "true", "yes", "y"} if value else default
 
 
-SEMANTIC_REVIEW_MODES = ("auto", "final", "off")
+SEMANTIC_REVIEW_MODES = ("auto", "erd", "off")
 
 
 def _semantic_review_mode(default: str) -> str:
-    """SEMANTIC_REVIEW_MODE: auto(산출물이 바뀔 때마다) / final(ERD 최종 확정 때만, review 명령) / off.
-    SEMANTIC_REVIEW=false면 off (예전 설정 호환)."""
+    """SEMANTIC_REVIEW_MODE: auto(산출물이 바뀔 때마다) / erd(ERD를 만들 때 데이터 모델만 검토하고 누락을 고침) / off.
+    SEMANTIC_REVIEW=false면 off, 예전 값 final은 erd로 읽는다 (예전 설정 호환)."""
     if not _bool("SEMANTIC_REVIEW", True):
         return "off"
     value = os.getenv("SEMANTIC_REVIEW_MODE", "").strip().lower() or default
+    value = "erd" if value == "final" else value
     if value not in SEMANTIC_REVIEW_MODES:
         raise ValueError(f"SEMANTIC_REVIEW_MODE는 {'·'.join(SEMANTIC_REVIEW_MODES)} 중 하나입니다: {value}")
     return value
@@ -86,9 +87,8 @@ class Settings:
     validation_db_url: str = DEFAULT_VALIDATION_DB_URL   # 빈 문자열이면 SQLite로만 검증
     keep_validation_schema: bool = False
     semantic_review: bool = True                         # 의미 검토 Agent 실행 여부 (run --no-semantic-review로 끔)
-    semantic_review_mode: str = "auto"                   # auto: 산출물이 바뀔 때마다 / final: ERD 최종 확정 때만 (review) / off
+    semantic_review_mode: str = "auto"                   # auto: 산출물이 바뀔 때마다 / erd: ERD 만들 때 데이터 모델만 / off
     semantic_review_attempts: int = 0                    # 의미 검토 실패 시 시도 횟수 (0이면 max_fix_attempts)
-    semantic_review_source: bool = False                 # 최종 확정 검토에서 기능 명세 ↔ 요구사항(원문)도 볼지 (기본은 ERD ↔ 기능 명세만)
     requirement_review: bool = True                      # 요구사항 검토 Agent(원문 대조·충돌 검토) 실행 여부
     req_review_batch: int = 12                           # 원문 대조 요청 1건에 넣는 원문 단위 수 (보내는 내용이 작아 크게)
     req_review_coverage: float = 0.6                     # 원문 문장이 요구사항에 '담김'으로 보는 겹침 비율 (이보다 낮은 문장만 누락 검사로 보냄)
@@ -131,7 +131,6 @@ class Settings:
             semantic_review=_bool("SEMANTIC_REVIEW", True),
             semantic_review_mode=_semantic_review_mode(cls.semantic_review_mode),
             semantic_review_attempts=_int("SEMANTIC_REVIEW_ATTEMPTS", cls.semantic_review_attempts),
-            semantic_review_source=_bool("SEMANTIC_REVIEW_SOURCE", cls.semantic_review_source),
             requirement_review=_bool("REQUIREMENT_REVIEW", True),
             req_review_batch=_int("REQ_REVIEW_BATCH", cls.req_review_batch),
             req_review_coverage=float(os.getenv("REQ_REVIEW_COVERAGE", "").strip() or cls.req_review_coverage),
@@ -153,7 +152,7 @@ class Settings:
 
     @property
     def semantic_auto(self) -> bool:
-        """실행 중 산출물이 바뀔 때마다 의미 검토를 하는지 (final이면 ERD 최종 확정 때 review 명령으로만)."""
+        """실행 중 산출물이 바뀔 때마다 의미 검토를 하는지 (erd면 ERD를 만들 때 데이터 모델만)."""
         return self.semantic_review and self.semantic_review_mode == "auto"
 
 

@@ -26,6 +26,7 @@ class Issue(BaseModel):
     status: Literal["OPEN", "RESOLVED", "UNRESOLVED"] = "OPEN"
     attempts: int = 0
     raised_by: str = ""
+    resolution: str = ""                 # 사람이 ERD 화면에서 정한 처리 (반영함 / 문제 아님 / 미해결로 둠: 메모)
 
     @property
     def key(self) -> tuple[str, str]:

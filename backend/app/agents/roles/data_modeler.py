@@ -8,6 +8,7 @@
 - mode=fix   : 지정 엔티티의 속성만 오류 메시지를 반영해 다시 설계 (모델 검증·DB 검증 실패 시)
 - mode=redesign : 지정 엔티티(rerun --entities)나 사용자 의견과 관련된 엔티티만 컬럼을 다시 설계하고 나머지는 그대로 둔다.
   의견만 있으면 작은 요청 하나(엔티티 목록 + 의견)로 다시 설계할 엔티티와 새로 필요한 엔티티를 고른다.
+- mode=semantic : 의미 검토의 데이터 지적(SEM_MODEL_*, scope는 이슈 ID)을 의견으로 넘겨 redesign과 같은 방식으로 관련 엔티티만 고친다.
 - 사용자가 고친 엔티티(user_edited)는 full·fix·redesign 어디서도 LLM이 다시 설계하지 않는다. 카탈로그에는 그대로 넘기고,
   rerun --entities로 직접 지정한 경우만 다시 설계한다 (고정이 풀린다). 사용자가 지운 엔티티는 연결 보완에서 다시 만들지 않는다.
 
@@ -172,6 +173,9 @@ def run(state: AgentState) -> dict:
     if mode == "redesign" and current is not None:
         model, failed = _redesign(llm, current, functions, requirements, scope, _feedback(state), context, retried,
                                   rework)
+    elif mode == "semantic" and current is not None:
+        model, failed = _redesign(llm, current, functions, requirements, [], _semantic_feedback(state, scope), context,
+                                  retried, rework)
     elif current is None or mode == "full" or "*" in scope:
         locked = [e for e in current.entities if e.user_edited] if current else []
         model, failed, asked = _full(llm, functions, requirements, context, retried, locked)
@@ -187,7 +191,7 @@ def run(state: AgentState) -> dict:
         log.info("[데이터모델] 정규화: %s", note)
     new_questions = _to_questions(asked, questions, fn_reqs, {e.entity_id for e in model.entities})
     log.info("[데이터모델] mode=%s → 엔티티 %d개, 관계 %d개%s%s", mode, len(model.entities), len(model.relations),
-             f", 다시 설계 {len(rework.redesigned)}개 ({', '.join(rework.redesigned)})" if mode == "redesign" else "",
+             f", 다시 설계 {len(rework.redesigned)}개 ({', '.join(rework.redesigned)})" if mode in ("redesign", "semantic") else "",
              f", 확인 질문 {len(new_questions)}건" if new_questions else "")
     # 속성 설계 실패 원인: 속성이 빈 엔티티는 검증 오류(MODEL_NO_ATTRIBUTES)로 다시 고치고, 원인은 보고서에 남긴다
     failures = [finding("DATA_ATTR_DESIGN_FAILED", "INFO", f"{name}: 속성 설계 요청 실패 — {reason}",
@@ -199,19 +203,25 @@ def run(state: AgentState) -> dict:
                                 f"속성 설계 묶음에서 엔티티 {len(retried)}개를 다시 요청함: {', '.join(sorted(retried))[:300]}"
                                 f" — 이유: {' / '.join(reasons)[:300]}", target_id="*", raised_by="data_modeler"))
     owned = {"DATA_ATTR_DESIGN_FAILED", "DATA_ATTR_RETRIED"}
-    if mode == "redesign":   # 사용자 수정·건너뛴 엔티티 기록은 다시 설계할 때만 새로 정한다
+    if mode in ("redesign", "semantic"):   # 사용자 수정·건너뛴 엔티티 기록은 다시 설계할 때만 새로 정한다
         owned |= {"DATA_USER_EDITS", "DATA_USER_EDITED_SKIPPED"}
         failures += _rework_findings(rework)
     issues = reconcile_issues(issues_of(state), failures, lambda k: k in owned, get_settings().fix_attempts)
     r, b = rev(state), basis(state)
+    # 부분 재설계에서 다시 설계한 엔티티가 없으면 모델이 그대로이므로 수정 횟수를 올리지 않는다
+    # (ERD 저장처럼 사람이 고친 모델만 받은 실행이 의미 검토를 다시 부르지 않게)
+    unchanged = mode in ("redesign", "semantic") and current is not None and not rework.redesigned
     update = {
         "data_model": model.model_dump(mode="json"),
-        "rev": {**r, "model": r["model"] + 1},
+        "rev": {**r, "model": r["model"] + (0 if unchanged else 1)},
         "basis": {**b, "model": r["functions"]},
         "dirty_functions": [],
         "model_redesign": False,
         "model_targets": None,
         "model_rework": rework.model_dump(),
+        # 의미 검토 지적을 고쳤으면 다음 의미 검토는 고친 테이블과 그 지적만 본다 (모델 전체를 다시 보내지 않게)
+        "semantic_recheck": {"issues": list(scope), "entities": list(rework.redesigned)}
+        if mode == "semantic" and rework.redesigned else None,
         "issues": [i.model_dump() for i in issues],
         "llm_usage": merge_usage(state, llm.pop_usage()),
     }
@@ -223,6 +233,14 @@ def run(state: AgentState) -> dict:
 def _feedback(state: AgentState) -> str:
     """사용자 의견(rerun --feedback) 원문."""
     return ((state.get("options") or {}).get("feedback") or {}).get("data_modeler", "").strip()
+
+
+def _semantic_feedback(state: AgentState, issue_ids: list[str]) -> str:
+    """의미 검토 지적(내용·근거·제안)을 의견 반영 범위·재설계 입력으로 쓸 글로 만든다."""
+    ids = set(issue_ids)
+    lines = [f"- [{i.target_id}] {' / '.join(x.strip() for x in i.message.splitlines() if x.strip())}"
+             for i in issues_of(state) if i.issue_id in ids]
+    return "의미 검토가 지적한 데이터 누락·제약 누락 (아래 제안대로 고친다):\n" + "\n".join(lines) if lines else ""
 
 
 def feedback_block(state: AgentState) -> str:

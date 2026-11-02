@@ -13,7 +13,9 @@
     요구사항 의견 반영    → 요구사항 Agent 의견 반영 (rerun requirements_analyst, 바뀌는·빼는·새 요구사항만. 기능 명세 전에 멈춤)
     단계에서 멈추기       → options.stop_after(run --until, rerun의 단계)보다 뒤 단계는 고르지 않는다 (designs)
     모델·DB 검증 오류     → 데이터 모델 Agent 수정 (해당 엔티티만)
-    산출물 변경 후        → 추적 검토 Agent → 의미 검토 Agent (바뀐 부분만, 보고만 하고 자동 수정하지 않음)
+    산출물 변경 후        → 추적 검토 Agent → 의미 검토 Agent (바뀐 부분만)
+    의미 검토 데이터 누락 → 데이터 모델 Agent 부분 재설계 (SEMANTIC_REVIEW_MODE=erd, 지적과 관련된 테이블만, MODEL_FIX_ATTEMPTS번)
+                            → 고친 모델을 다시 의미 검토하고, 남은 지적은 ERD 화면에서 사람이 처리한다
 - 이슈별 시도 횟수·전체 단계 수에 한도를 두고, 넘으면 미해결 이슈를 보존한 채 완료 조건 검사로 넘긴다.
 - 반복 실패로 포기한 단계(failures ≥ MAX_FIX_ATTEMPTS)는 할 일이 남아 있어도 다시 고르지 않는다 (stuck_stages).
 - LLM 기반 정책으로 바꿀 때도 decide()의 입출력(CoordinatorDecision)만 유지하면 된다.
@@ -27,7 +29,7 @@ from app.schemas.requirement import Question
 from app.schemas.review import CoordinatorDecision
 from app.agents.roles import requirement_reviewer
 from app.agents.flow.state import (AgentState, actionable_issues, functions_stale, get_data_model, issues_of, load,
-                                   model_stale, rev, review_stale, semantic_stale_parts)
+                                   model_stale, rev, review_stale, semantic_erd, semantic_parts)
 
 log = logging.getLogger(__name__)
 MAX_QUESTIONS_PER_ROUND = 5
@@ -35,6 +37,7 @@ MAX_QUESTIONS_PER_ROUND = 5
 FUNC_GAP = "기능이 연결되지 않은 요구사항"
 MODEL_FIX = "모델·DB 검증 오류"
 MODEL_COVER = "저장 엔티티가 없는 기능"
+SEM_FIX = "의미 검토 데이터 지적"   # 이 사유로 고른 횟수는 따로 센다 (연결 보완에 라운드를 다 써도 한 번은 고친다)
 FIX_REASONS = (FUNC_GAP, MODEL_FIX, MODEL_COVER)
 REQUIREMENT_STAGES = ("requirements", "requirement_reviewer")   # 기능 명세 초안 전까지 묻지 않는 질문 단계
 
@@ -52,11 +55,11 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
     def gave_up(stage: str) -> bool:
         return failures.get(stage, 0) >= s.fix_attempts(stage)
 
-    def fixes_left(stage: str) -> bool:
+    def fixes_left(stage: str, reasons: tuple[str, ...] = FIX_REASONS) -> bool:
         """이슈를 고치려고 그 Agent를 다시 부른 횟수(라운드)가 단계 한도(FUNC·MODEL_FIX_ATTEMPTS) 안인지.
         이슈마다 세면 재설계가 다른 요구사항에서 새 누락을 만들 때 계속 돈다 (고객요구사항13: 누락 1 → 8건)."""
         done = sum(1 for x in state.get("decisions") or []
-                   if x.get("action") == stage and str(x.get("reason", "")).startswith(FIX_REASONS))
+                   if x.get("action") == stage and str(x.get("reason", "")).startswith(reasons))
         return done < s.fix_attempts(stage)
 
     stale_review = review_stale(state)
@@ -159,12 +162,20 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
 
     if review_stale(state) and not gave_up("trace_reviewer"):
         return d("trace_reviewer", "기능 명세·데이터 모델이 변경됨 → 추적 관계·누락 검토"), []
-    parts = semantic_stale_parts(state)
+    parts = semantic_parts(state)
     if parts and semantic_enabled(state) and not gave_up("semantic_reviewer"):
         labels = {"functions": "기능 명세", "model": "데이터 모델"}
         mode = "full" if len(parts) == 2 else "partial"
         return d("semantic_reviewer", f"의미 검토 전인 산출물 → {', '.join(labels[p] for p in parts)} 내용 검토",
                  mode, parts), []
+    # ERD 단계: 이 실행에서 의미 검토가 낸 데이터 누락·제약 누락을 한 번 고친다 (아직 고치려 하지 않은 지적만,
+    # 이미 시도한 것은 사람이 본다. ERD 저장처럼 의미 검토를 다시 하지 않은 실행은 이어받은 지적을 고치지 않는다)
+    if semantic_erd(state) and (state.get("semantic_review") or {}).get("parts") and get_data_model(state) is not None \
+            and not gave_up("data_modeler") and fixes_left("data_modeler", (SEM_FIX,)):
+        gaps = [i for i in issues_of(state) if i.kind.startswith("SEM_MODEL_") and i.status == "OPEN" and not i.attempts]
+        if gaps:
+            return d("data_modeler", f"{SEM_FIX} {len(gaps)}건 → 관련 테이블만 다시 설계", "semantic",
+                     [i.issue_id for i in gaps]), [i.issue_id for i in gaps]
     stuck = stuck_stages(state)
     if stuck:
         names = ", ".join(STAGE_LABELS[a] for a in stuck)
@@ -213,7 +224,7 @@ def pending_stages(state: AgentState) -> list[str]:
         pending.append("data_modeler")
     if review_stale(state):
         pending.append("trace_reviewer")
-    if semantic_enabled(state) and semantic_stale_parts(state):
+    if semantic_enabled(state) and semantic_parts(state):
         pending.append("semantic_reviewer")
     return pending
 
@@ -226,8 +237,10 @@ def stuck_stages(state: AgentState) -> list[str]:
 
 
 def semantic_enabled(state: AgentState) -> bool:
-    """실행 중에 의미 검토 Agent를 돌리는지 (run --no-semantic-review, SEMANTIC_REVIEW_MODE=final·off면 안 돌림).
-    final이면 ERD 최종 확정 때 review 명령(POST /projects/review)으로 한 번만 한다."""
+    """실행 중에 의미 검토 Agent를 돌리는지 (run --no-semantic-review, SEMANTIC_REVIEW_MODE=off면 안 돌림).
+    erd면 데이터 설계까지 하는 실행(ERD 만들기)에서만 돌린다 (업로드는 기능 명세에서 멈추므로 안 돌림)."""
+    if semantic_erd(state):
+        return designs_data(state)
     return bool((state.get("options") or {}).get("semantic_review", get_settings().semantic_auto))
 
 
