@@ -7,16 +7,16 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.agents.roles.api_designer import stack_choices
 from app.agents.storage import get_store
 from app.agents.tools.exporter import confirm_tech_stack
-from app.api.v1.deps import _no_running_job, _project
+from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
 from app.core.exceptions import BadRequest, NotFound
 from app.schemas.version import TechStackUpdate, TitleUpdate
-from app.services import output_store
+from app.services import output_store, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
 
@@ -38,7 +38,8 @@ def list_tech_stacks():
 
 
 @router.post("/projects/tech-stack", summary="최종본의 기술 스택 확정 (개발 스펙 다시 쓰기, LLM 없음)")
-def set_tech_stack(body: TechStackUpdate):
+def set_tech_stack(body: TechStackUpdate, member: users.Member = Depends(current_user)):
+    ensure(member, "final_decide")
     project, version = _project(body.project), guards.version(body.version)
     stack = " ".join(body.stack.split())
     if not stack or len(stack) > 200:

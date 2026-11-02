@@ -189,8 +189,9 @@ class _Runner:
         if self.submitted_md:
             get_store().write(self.project, newest, "functions.submitted.md", self.submitted_md)
         self.job.warnings = [*_llm_errors(self.job.log), *self.pre, *_run_warnings(self.project, newest)]
-        if self.on_done:
-            self.on_done(newest)
+        if self.on_done:   # 다시 내보내기처럼 한 작업이 버전을 둘(기능 명세 v2 + ERD v2.1) 만들면 둘 다 (제목·만든 사람)
+            for label in sorted(created, key=version_key):
+                self.on_done(label)
         self._finish("done", f"v{newest}을 만들었지만 Agent 단계 일부가 실패했습니다." if self.job.warnings
                      else f"v{newest}을 만들었습니다.")
 
@@ -207,6 +208,8 @@ class _Runner:
             data = {}
         failed = data.get("failed") or []
         self.job.warnings = [*_llm_errors(self.job.log), *([f"의미 검토 실패(미검증): {', '.join(failed)}"] if failed else [])]
+        if self.on_done:
+            self.on_done(newest)
         self._finish("done", f"최종본 v{newest}을 만들었습니다: 의미 검토 지적 {len(data.get('remarks') or [])}건의 처리를 남김")
 
     def _finish(self, status: str, message: str) -> None:

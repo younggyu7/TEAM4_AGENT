@@ -212,14 +212,12 @@ def test_api_design_off_keeps_the_final_confirmation_as_before(sample_doc):
 
 def test_stack_chosen_on_the_final_page_rewrites_the_spec_without_llm(sample_doc):
     """최종 산출물 화면에서 기술 스택을 고르면: 같은 최종본의 개발 스펙 9개를 코드로 다시 쓰고 '확정', 설계 산출물은 그대로."""
-    from fastapi.testclient import TestClient
-
     from app.agents.tools.versions import find_version
-    from app.main import app
+    from conftest import signed_in_client
 
     out = _final(sample_doc, _NoStackLLM(broken_fk=False), base_fake=_NoStackLLM(broken_fk=False))
     before = {name: (out / name).read_text(encoding="utf-8") for name in ("schema.sql", "API.md", "openapi.yaml")}
-    client = TestClient(app)
+    client = signed_in_client()
     assert [c["stack"] for c in client.get("/api/v1/tech-stacks").json()["choices"]] == list(STACK_OPTIONS)
     fake = _use(FakeLLM(broken_fk=False))
     r = client.post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "stack": STACK_OPTIONS[2]})
@@ -243,10 +241,8 @@ def test_stack_chosen_on_the_final_page_rewrites_the_spec_without_llm(sample_doc
 
 
 def test_stack_cannot_override_the_source(sample_doc):
-    from fastapi.testclient import TestClient
-
-    from app.main import app
+    from conftest import signed_in_client
 
     _final(sample_doc, FakeLLM(broken_fk=False))   # 가짜 아키텍처 요약은 원문이 Python을 정한 것으로 둔다
-    r = TestClient(app).post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "stack": "Java"})
+    r = signed_in_client().post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "stack": "Java"})
     assert r.status_code == 400 and "원문이 기술 스택을 정했습니다" in r.json()["detail"]

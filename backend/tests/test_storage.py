@@ -3,7 +3,6 @@ import json
 import re
 
 import pytest
-from fastapi.testclient import TestClient
 
 from fake_llm import FakeLLM
 from app import cli
@@ -11,7 +10,6 @@ from app.agents.llm import client as llm_module
 from app.agents.storage import LocalArtifactStore, get_store, set_store
 from app.agents.tools.versions import find_version, load_versions
 from app.core.config import get_settings, override_settings
-from app.main import app
 
 
 class MemoryArtifactStore:
@@ -111,7 +109,8 @@ def test_flow_runs_on_another_store_adapter(sample_doc):
     assert not any(p.name.startswith("v") for p in (get_settings().output_dir / "sample").glob("*")) \
         if (get_settings().output_dir / "sample").exists() else True, "산출물 폴더를 만들지 않는다"
 
-    client = TestClient(app)
+    from conftest import signed_in_client
+    client = signed_in_client()
     body = client.get("/api/v1/projects").json()
     assert body["output_dir"] == "memory://" and body["projects"][0]["id"] == "sample"
     assert client.get("/api/v1/design?project=sample&version=1.1").json()["data_model"]["entities"]

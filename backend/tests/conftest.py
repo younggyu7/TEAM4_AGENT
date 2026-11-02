@@ -57,3 +57,21 @@ def isolated_settings(tmp_path, monkeypatch):
     config._settings = None
     llm.set_llm(None)
     set_store(None)   # 저장소를 바꿔 끼운 테스트 뒤에는 설정의 로컬 폴더로 되돌린다
+
+
+def signed_in_client(role: str = "lead"):
+    """로그인한 화면 요청 (처음 가입자는 관리자·팀장, 다른 역할은 관리자가 승인한 회원). API는 로그인한 회원만 쓴다."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.services import users
+
+    if not users.list_members():
+        users.signup("admin@test.local", "관리자", "password123")
+    email = "admin@test.local" if role == "lead" else f"{role}@test.local"
+    if not any(m.email == email for m in users.list_members()):
+        member = users.signup(email, role, "password123")
+        users.update_member(member.id, role=role, status="active")
+    client = TestClient(app)
+    assert client.post("/api/v1/auth/login", json={"email": email, "password": "password123"}).status_code == 200
+    return client

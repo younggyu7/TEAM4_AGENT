@@ -130,6 +130,14 @@ def read_design(project: str, version: str) -> dict | None:
     }
 
 
+def record_maker(project: str, version: str, member, title: str = "") -> None:
+    """화면 요청으로 만든 버전에 만든 사람(이름·역할)을 남기고, 제목을 붙였으면 저장한다."""
+    from app.agents.tools.versions import update_version
+    update_version(project, version, created_by={"id": member.id, "name": member.name, "role": member.role})
+    if title.strip():
+        save_title(project, version, title)
+
+
 def save_title(project: str, version: str, title: str) -> None:
     store = get_store()
     titles = store.load_titles(project)

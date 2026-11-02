@@ -24,6 +24,16 @@ class BadRequest(AppError):
     status_code = 400
 
 
+class Unauthorized(AppError):
+    """로그인하지 않았거나 세션이 끝남"""
+    status_code = 401
+
+
+class Forbidden(AppError):
+    """로그인했지만 이 일을 할 역할이 아님"""
+    status_code = 403
+
+
 class NotFound(AppError):
     status_code = 404
 

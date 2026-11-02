@@ -12,15 +12,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from app.agents.tools.document_parser import UnsupportedFormatError, check_supported
-from app.api.v1.deps import _no_running_job
+from app.api.v1.deps import _no_running_job, current_user, ensure
 from app.core import guards
 from app.agents.llm.client import resolve_provider
 from app.core.config import ANTHROPIC_MODELS, EFFORTS, get_settings
 from app.core.exceptions import BadRequest, PayloadTooLarge
-from app.services import jobs, output_store
+from app.services import jobs, output_store, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
 
@@ -59,7 +59,9 @@ async def create_run(
     title: Annotated[str, Form(description="사업 이름 (LLM에 사업 맥락으로 줌)")] = "",
     model: Annotated[str, Form(description="LLM 모델 ID (GET /llm-options의 models, 비우면 .env)")] = "",
     effort: Annotated[str, Form(description="생각 수준 low·medium·high (비우면 .env)")] = "",
+    member: users.Member = Depends(current_user),
 ):
+    ensure(member, "upload")
     if model and model not in {m["id"] for m in llm_options()["models"]}:
         raise BadRequest(f"고를 수 없는 모델입니다: {model}")
     if effort and effort not in EFFORTS:
@@ -87,5 +89,6 @@ async def create_run(
         shutil.rmtree(folder, ignore_errors=True)
         raise BadRequest(str(e)) from e
     job = jobs.start_run(output_dir=output_store.output_root(), document=target, project=project,
-                         title=title.strip(), model=model, effort=effort)
+                         title=title.strip(), model=model, effort=effort,
+                         on_done=lambda v: output_store.record_maker(project, v, member))
     return {"job": job.to_dict()}

@@ -280,3 +280,15 @@ API 설계는 최종 확정에 남긴다. 호출이 크게 늘지 않는 범위�
 - 모델·생각 수준 선택: 홈 업로드의 DB 검증 체크칸을 모델·effort 선택으로 바꿨다(`GET /llm-options`, `run --model --effort`, 모델 이름으로 공급자 결정). 값은 실행 설정(`options.settings`)에 남아 rerun과 **최종 확정(`review`)도 그 설정을 쓴다** — 예전에는 최종 확정만 `.env` 모델을 써서 ERD와 최종본의 모델이 달랐다(test4 v1.3 Haiku 4.5 → v1.3.1 Haiku 5.5). DDL 검증은 `run` 기본 켬, rerun은 예전 실행 설정과 상관없이 켬(`--no-validate-db`로만 끔).
 - 검증: DB 없이 `pytest` 200 passed · 9 skipped. 새·바뀐 테스트: `test_hitl_flow` ERD 단계 검토 → 보완 → 재검토 호출 수(2·1·0), ERD 저장 시 재검토 0회와 처리 이어받기, 최종 확정 의미 검토 0회·API 설계 2회·판단 기록 4단계·처리 기록, 모델 오류면 최종본 없음. `test_api` 처리·기능 명세 다시 만들기 인자. `test_dev_spec` 최종 확정 의미 검토 0회. 프론트 `tsc -b`·`vite build` 통과.
 - 미검증: PostgreSQL 포함 테스트, 실제 LLM으로 ERD 단계 의미 검토·보완 품질과 호출량, 브라우저에서 확정 버튼·지적 처리·최종 화면 조작.
+
+
+## 15. 회원·권한·함께 쓰기·팀장 결정 (2026-11-02)
+
+| 항목 | 내용 |
+| --- | --- |
+| 회원·세션 | `app/models/user.py`(users·user_sessions, Alembic `7b1e4c2a9d10`), `app/services/users.py`(가입·로그인·승인, 서비스 DB 없으면 `OUTPUT_DIR/service.sqlite`), `app/core/auth.py`(역할·권한표, scrypt 해시, 세션 토큰은 SHA-256 해시만 저장). 쿠키 `reqagent_session`(httpOnly·SameSite=Strict) |
+| API | `app/api/v1/auth.py`(signup·login·logout·me·roles·users·users/update), `app/api/v1/drafts.py`(drafts, projects/approval). `main.py`가 auth 밖 라우터에 `Depends(current_user)`. 쓰기 API는 `ensure(member, 권한)` |
+| 기록 | 화면 요청으로 만든 버전에 `created_by`, 최종본에 `approval`·`approvals`. 한 작업이 버전을 둘 만들면(다시 내보내기) 둘 다 |
+| 화면 | 로그인·회원가입, 회원 관리(`#/members`, 관리자), 권한 없는 버튼·입력칸 끔(`fieldset disabled`, 초안도 편집 안 받음), 서버 초안 동기화(1.2초·임시저장·확정 때, 409면 다시 불러오기), 최종 산출물 '팀장 결정', 단계 화면 위 수정 지시, 단계 표시줄 승인 표시, 대시보드 '진행 중·최종 승인'(서버 기준) |
+| 검증 | `pytest` 203 passed · 9 skipped (새: 가입·승인·로그인, 역할별 403, 초안 공유·409, 팀장 결정). `alembic upgrade head` → `alembic check` 차이 없음. 실행 중 서버에서 `/projects` 401 확인. 화면은 `tsc -b`·`vite build`만 (브라우저 조작 미확인) |
+| 남은 것 | 비밀번호 바꾸기·찾기 없음, 로그인 시도 횟수 제한 없음, 회원 활동 기록(누가 언제 무엇을)은 버전 기록의 만든 사람·결정만, 조직(팀)별 프로젝트 분리 없음 |

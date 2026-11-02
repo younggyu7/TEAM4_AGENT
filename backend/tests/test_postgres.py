@@ -10,7 +10,7 @@ import threading
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
+from conftest import signed_in_client
 
 from fake_llm import FakeLLM
 
@@ -125,7 +125,7 @@ def test_full_flow_on_postgres(pg, sample_doc):
     override_settings(semantic_review_mode="final")
     llm_module.set_llm(FakeLLM(broken_fk=False))
     assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer", "--until", "function_designer"]) == 0
-    client = TestClient(app)
+    client = signed_in_client()
     design = client.get("/api/v1/design?project=sample&version=1").json()
     path = get_settings().output_dir / "confirmed.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -182,7 +182,7 @@ def test_import_output_moves_local_results_and_rerun_continues(pg, sample_doc, t
     assert cli.main(["import-output", "--from", str(local)]) == 0, "여러 번 실행해도 된다"
     record = find_version("sample", "1")
     assert record["output_dir"].startswith("postgresql://")
-    client = TestClient(app)
+    client = signed_in_client()
     versions = client.get("/api/v1/projects").json()["projects"][0]["versions"]
     assert versions[0]["design_version"] == "1" and versions[0]["title"] == "로컬 제목"
     for name in ("design.json", "schema.sql", "functions.md"):

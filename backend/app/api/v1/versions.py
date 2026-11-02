@@ -5,19 +5,22 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.api.v1.deps import _no_running_job, _project
+from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
 from app.core.exceptions import NotFound
 from app.schemas.version import VersionCreate
-from app.services import jobs, output_store
+from app.services import jobs, output_store, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
 
 
 @router.post("/projects/versions", status_code=202, summary="새 설계 버전 만들기 (작업)")
-def create_version(body: VersionCreate):
+def create_version(body: VersionCreate, member: users.Member = Depends(current_user)):
+    # 기능 명세 내보내기(확정) = 기획 파트장·팀장, 기능 명세 새 버전(답·수정·의견) = 기획 파트, ERD 저장 = 데이터 파트
+    ensure(member, "spec_confirm" if body.source == "spec" and not body.answers
+           else "spec_edit" if body.source in ("spec", "answers") else "erd_edit")
     project = _project(body.project)
     base = guards.version(body.base, "base")
     if not output_store.has_version(project, base):
@@ -29,7 +32,7 @@ def create_version(body: VersionCreate):
         data_model=body.data_model, design=body.design, spec_md=body.functions_md, spec_summary=body.spec_summary,
         answers=body.answers, confirm_rules=body.confirm_rules, dispositions=body.dispositions,
         functions=body.functions, feedback=body.feedback,
-        on_done=(lambda v: output_store.save_title(project, v, title)) if title else None,
+        on_done=lambda v: output_store.record_maker(project, v, member, title),
     )
     return {"job": job.to_dict()}
 

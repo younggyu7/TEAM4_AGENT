@@ -4,19 +4,20 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.api.v1.deps import _no_running_job, _project
+from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
 from app.core.exceptions import BadRequest, NotFound
 from app.schemas.version import ReviewCreate
-from app.services import jobs, output_store
+from app.services import jobs, output_store, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
 
 
 @router.post("/projects/review", status_code=202, summary="ERD 최종 확정 → 최종본 만들기 (작업)")
-def create_review(body: ReviewCreate):
+def create_review(body: ReviewCreate, member: users.Member = Depends(current_user)):
+    ensure(member, "erd_confirm")
     project = _project(body.project)
     version = guards.version(body.version)
     design = output_store.read_design(project, version)
@@ -26,4 +27,5 @@ def create_review(body: ReviewCreate):
         raise BadRequest(f"v{version}에는 ERD(데이터 모델)가 없어 최종 확정할 수 없습니다.")
     _no_running_job(body.project)
     return {"job": jobs.start_review(output_dir=output_store.output_root(), project=body.project, version=version,
-                                     dispositions=body.dispositions).to_dict()}
+                                     dispositions=body.dispositions,
+                                     on_done=lambda v: output_store.record_maker(project, v, member)).to_dict()}

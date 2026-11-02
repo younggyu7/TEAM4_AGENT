@@ -7,9 +7,10 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
-from app.api.v1 import artifacts, jobs, projects, review, runs, versions
+from app.api.v1 import artifacts, auth, drafts, jobs, projects, review, runs, versions
+from app.api.v1.deps import current_user
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
@@ -34,7 +35,8 @@ app = FastAPI(
     title="요구사항 → 설계 산출물 Agent",
     description="고객 요구사항 문서로 요구사항 정의서·기능 명세서·ERD·DDL·추적표를 만드는 백엔드 API입니다.",
     openapi_tags=[
-        {"name": "projects", "description": "프로젝트·설계 버전·산출물·새 버전 만들기"},
+        {"name": "auth", "description": "회원가입·로그인·회원 관리 (역할별 권한은 app/core/auth.py)"},
+        {"name": "projects", "description": "프로젝트·설계 버전·산출물·새 버전 만들기 (로그인 필요)"},
         {"name": "health", "description": "서버 상태 확인"},
     ],
 )
@@ -48,10 +50,13 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-# 라우터 연결 (/api/v1 아래, 기능별 파일 하나에 라우터 하나)
-app.include_router(projects.router, prefix=API_PREFIX)    # 프로젝트·버전 목록, 버전 제목
-app.include_router(artifacts.router, prefix=API_PREFIX)   # design.json·산출물 원문
-app.include_router(versions.router, prefix=API_PREFIX)    # 새 설계 버전 만들기 (작업)
-app.include_router(review.router, prefix=API_PREFIX)      # ERD 최종 확정 → 최종본 (작업)
-app.include_router(runs.router, prefix=API_PREFIX)        # 문서 업로드 → 기능 명세 초안 (작업)
-app.include_router(jobs.router, prefix=API_PREFIX)        # 작업 진행 상황
+# 라우터 연결 (/api/v1 아래, 기능별 파일 하나에 라우터 하나). 회원가입·로그인 밖은 모두 로그인한 회원만
+signed_in = [Depends(current_user)]
+app.include_router(auth.router, prefix=API_PREFIX)        # 회원가입·로그인·회원 관리
+app.include_router(projects.router, prefix=API_PREFIX, dependencies=signed_in)    # 프로젝트·버전 목록, 버전 제목
+app.include_router(artifacts.router, prefix=API_PREFIX, dependencies=signed_in)   # design.json·산출물 원문
+app.include_router(versions.router, prefix=API_PREFIX, dependencies=signed_in)    # 새 설계 버전 만들기 (작업)
+app.include_router(review.router, prefix=API_PREFIX, dependencies=signed_in)      # ERD 최종 확정 → 최종본 (작업)
+app.include_router(runs.router, prefix=API_PREFIX, dependencies=signed_in)        # 문서 업로드 → 기능 명세 초안 (작업)
+app.include_router(jobs.router, prefix=API_PREFIX, dependencies=signed_in)        # 작업 진행 상황
+app.include_router(drafts.router, prefix=API_PREFIX, dependencies=signed_in)      # 수정 초안 공유·팀장 승인

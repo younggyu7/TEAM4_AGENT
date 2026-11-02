@@ -4,12 +4,14 @@
   version.py   design_versions               설계 버전 번호·버전 기록·제목
   artifact.py  artifacts                     버전별 산출물 파일 내용
   job.py       jobs                          작업 진행 기록
+  user.py      users · user_sessions         회원·로그인 세션 (역할·권한은 core/auth.py)
 실행 체크포인트 테이블(checkpoints …)은 LangGraph PostgresSaver가 직접 만들고 관리한다 (여기·Alembic 밖).
 """
 from app.models.artifact import Artifact
 from app.models.base import Base
 from app.models.job import JobRecord
 from app.models.project import Project, ProjectFile
+from app.models.user import User, UserSession
 from app.models.version import DesignVersion
 
-__all__ = ["Artifact", "Base", "DesignVersion", "JobRecord", "Project", "ProjectFile"]
+__all__ = ["Artifact", "Base", "DesignVersion", "JobRecord", "Project", "ProjectFile", "User", "UserSession"]

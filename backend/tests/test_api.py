@@ -8,11 +8,12 @@ from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.main import app
 from app.services import jobs
+from conftest import signed_in_client
 
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    return signed_in_client()
 
 
 @pytest.fixture
@@ -218,3 +219,95 @@ def test_llm_options_list_models_of_providers_with_keys(client, monkeypatch):
     files = {"file": ("a.txt", b"hello", "text/plain")}
     assert client.post("/api/v1/runs", files=files, data={"model": "gpt-unknown"}).status_code == 400
     assert client.post("/api/v1/runs", files=files, data={"effort": "max"}).status_code == 400
+
+
+def test_signup_login_and_admin_approval():
+    """처음 가입자는 관리자·팀장, 그 뒤는 승인 대기 → 관리자가 역할을 정해 승인해야 로그인된다."""
+    anon = TestClient(app)
+    assert anon.get("/api/v1/projects").status_code == 401, "로그인 없이 API를 쓰지 못한다"
+    first = anon.post("/api/v1/auth/signup", json={"email": "Boss@Co.kr", "name": "팀장", "password": "password123"}).json()
+    assert (first["user"]["role"], first["user"]["is_admin"], first["pending"]) == ("lead", True, False)
+    r = anon.post("/api/v1/auth/signup", json={"email": "p@co.kr", "name": "기획", "password": "password123",
+                                               "requested_role": "planner"})
+    assert r.json()["pending"] and anon.post("/api/v1/auth/login", json={"email": "p@co.kr", "password": "password123"}).status_code == 403
+    assert anon.post("/api/v1/auth/signup", json={"email": "p@co.kr", "name": "x", "password": "password123"}).status_code == 409
+    assert anon.post("/api/v1/auth/login", json={"email": "boss@co.kr", "password": "wrong-pass"}).status_code == 401
+
+    admin = TestClient(app)
+    assert admin.post("/api/v1/auth/login", json={"email": "boss@co.kr", "password": "password123"}).status_code == 200
+    planner = next(u for u in admin.get("/api/v1/users").json()["users"] if u["email"] == "p@co.kr")
+    assert planner["status"] == "pending" and planner["requested_role"] == "planner"
+    assert admin.post("/api/v1/users/update", json={"id": planner["id"], "status": "active"}).status_code == 400, "역할 먼저"
+    assert admin.post("/api/v1/users/update", json={"id": planner["id"], "role": "planner", "status": "active"}).status_code == 200
+    me = anon.post("/api/v1/auth/login", json={"email": "p@co.kr", "password": "password123"})
+    assert me.status_code == 200 and me.json()["user"]["permissions"] == ["upload", "spec_edit"]
+    assert anon.get("/api/v1/users").status_code == 403, "회원 관리는 관리자만"
+    boss = next(u for u in admin.get("/api/v1/users").json()["users"] if u["is_admin"])
+    assert admin.post("/api/v1/users/update", json={"id": boss["id"], "is_admin": False}).status_code == 400, "관리자 한 명은 남는다"
+    anon.post("/api/v1/auth/logout")
+    assert anon.get("/api/v1/auth/me").status_code == 401
+
+
+def test_roles_limit_who_confirms_each_stage(project, monkeypatch):
+    """기능 명세 확정은 기획 파트장, ERD 저장은 데이터 파트, ERD 최종 확정은 데이터 파트장, 최종 결정은 팀장."""
+    monkeypatch.setattr(jobs, "start_rerun", lambda **kw: jobs.Job(id="j", project="team/demo", base="1", source="spec",
+                                                                    status="running", message=""))
+    monkeypatch.setattr(jobs, "start_review", lambda **kw: jobs.Job(id="r", project="team/demo", base="1", source="review",
+                                                                    status="running", message=""))
+    spec = {"project": "team/demo", "base": "1", "source": "spec"}
+    planner, head, data = signed_in_client("planner"), signed_in_client("planner_head"), signed_in_client("data")
+    r = planner.post("/api/v1/projects/versions", json=spec)
+    assert r.status_code == 403 and "기획 파트장" in r.json()["detail"]
+    assert planner.post("/api/v1/projects/versions", json={**spec, "source": "answers"}).status_code == 202, "수정은 파트원도"
+    assert head.post("/api/v1/projects/versions", json=spec).status_code == 202
+    assert head.post("/api/v1/projects/versions", json={**spec, "source": "erd"}).status_code == 403
+    assert data.post("/api/v1/projects/versions", json={**spec, "source": "erd"}).status_code == 202
+    assert data.post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 403
+    assert signed_in_client("data_head").post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 202
+    files = {"file": ("a.txt", b"hello", "text/plain")}
+    assert data.post("/api/v1/runs", files=files).status_code == 403, "업로드는 기획 파트·팀장"
+    assert data.get("/api/v1/projects").status_code == 200, "보기는 누구나"
+
+
+def test_shared_draft_and_lead_decision(project):
+    """수정 초안은 서버에 버전별로 공유하고, 늦게 저장하면 409. 최종본 승인·수정 지시는 팀장만."""
+    from app.agents.tools.versions import find_version, save_version
+
+    a, b = signed_in_client("planner"), signed_in_client("planner_head")
+    assert a.get("/api/v1/drafts?project=team/demo&version=1").json() == {"state": None, "rev": 0}
+    saved = a.post("/api/v1/drafts", json={"project": "team/demo", "version": "1", "state": {"functions": {"F": 1}}, "rev": 0})
+    assert saved.status_code == 200 and saved.json()["rev"] == 1
+    got = b.get("/api/v1/drafts?project=team/demo&version=1").json()
+    assert got["state"] == {"functions": {"F": 1}} and got["updated_by"]["name"] == "planner", "다른 파트원이 같은 초안을 본다"
+    late = b.post("/api/v1/drafts", json={"project": "team/demo", "version": "1", "state": {}, "rev": 0})
+    assert late.status_code == 409 and "planner님이 먼저 저장" in late.json()["detail"]
+    data = signed_in_client("data")
+    save_version("team/demo", {"design_version": "1.1", "stage": "data_modeler", "base": "1", "parent": "1"})
+    assert data.post("/api/v1/drafts", json={"project": "team/demo", "version": "1.1", "state": {}, "rev": 0}).status_code == 200
+    assert a.post("/api/v1/drafts", json={"project": "team/demo", "version": "1.1", "state": {}, "rev": 1}).status_code == 403
+
+    save_version("team/demo", {"design_version": "1.1", "stage": "final", "base": "1", "parent": "1"})
+    body = {"project": "team/demo", "version": "1.1", "decision": "changes", "target": "erd", "comment": "결재선 테이블 추가"}
+    assert b.post("/api/v1/projects/approval", json=body).status_code == 403
+    lead = signed_in_client()
+    assert lead.post("/api/v1/projects/approval", json={**body, "comment": ""}).status_code == 400
+    assert lead.post("/api/v1/projects/approval", json=body).status_code == 200
+    assert lead.post("/api/v1/projects/approval", json={**body, "decision": "approve"}).status_code == 200
+    record = find_version("team/demo", "1.1")
+    assert record["approval"]["decision"] == "approve" and [x["decision"] for x in record["approvals"]] == ["changes", "approve"]
+    assert lead.post("/api/v1/projects/approval", json={**body, "version": "1"}).status_code == 400, "최종본에만"
+
+
+def test_admin_creates_accounts_and_resets_passwords():
+    """관리자 페이지: 역할을 정한 계정을 바로 만들고(승인된 상태), 비밀번호를 초기화한다 (관리자만)."""
+    admin = signed_in_client()
+    r = admin.post("/api/v1/users/create", json={"email": "d1@co.kr", "name": "데이터1", "password": "password123", "role": "data"})
+    assert r.status_code == 200 and (r.json()["user"]["status"], r.json()["user"]["role"]) == ("active", "data")
+    user = TestClient(app)
+    assert user.post("/api/v1/auth/login", json={"email": "d1@co.kr", "password": "password123"}).status_code == 200
+    assert user.post("/api/v1/users/create", json={"email": "x@co.kr", "name": "x", "password": "password123", "role": "lead"}).status_code == 403
+    uid = r.json()["user"]["id"]
+    assert admin.post("/api/v1/users/password", json={"id": uid, "password": "short"}).status_code == 400
+    assert admin.post("/api/v1/users/password", json={"id": uid, "password": "newpassword1"}).status_code == 200
+    assert user.get("/api/v1/auth/me").status_code == 401, "초기화하면 기존 로그인은 끊긴다"
+    assert user.post("/api/v1/auth/login", json={"email": "d1@co.kr", "password": "newpassword1"}).status_code == 200
