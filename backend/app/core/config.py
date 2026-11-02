@@ -14,6 +14,15 @@ PROJECT_ROOT = BACKEND_ROOT.parent                    # TEAM4_AGENT/ (.env·comp
 load_dotenv(PROJECT_ROOT / ".env")
 
 # DDL 검증 기본 DB: 루트 compose.yaml의 db 컨테이너 안 reqagent_validation DB (서비스 DB reqagent와 따로)
+# 화면에서 고르는 생각 수준 (Anthropic effort·OpenAI reasoning effort 공통)
+EFFORTS = ("low", "medium", "high")
+# 화면에서 고르는 Anthropic 모델 (id, 이름, 설명). OpenAI는 .env의 OPENAI_MODEL만 고를 수 있다
+ANTHROPIC_MODELS = (
+    ("claude-haiku-5-5", "Haiku 5.5", "가장 저렴하고 빠름 (기본 추천)"),
+    ("claude-sonnet-5-5", "Sonnet 5.5", "균형: 품질이 더 필요할 때"),
+    ("claude-opus-5-5", "Opus 5.5", "가장 정확하지만 비쌈"),
+    ("claude-haiku-4-5", "Haiku 4.5", "이전 세대, 생각 수준(effort) 없음"),
+)
 DEFAULT_VALIDATION_DB_URL = "postgresql://reqagent:reqagent@localhost:55432/reqagent_validation"
 DEFAULT_CORS_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
 

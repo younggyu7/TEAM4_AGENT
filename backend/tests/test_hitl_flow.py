@@ -207,3 +207,23 @@ def test_review_needs_data_model(sample_doc, capsys):
     capsys.readouterr()
     assert cli.main(["review", "sample", "v1"]) == 2
     assert "데이터 모델(ERD)이 함께 있어야" in capsys.readouterr().out
+
+
+def test_upload_model_and_effort_follow_the_project_and_ddl_is_always_checked(sample_doc):
+    """업로드에서 고른 모델·생각 수준은 실행 설정에 남아 ERD 만들기·최종 확정까지 같이 쓴다 (.env가 바뀌어도).
+    DDL 검증은 체크 없이 항상 한다."""
+    _use(FakeLLM(broken_fk=False))
+    assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer", "--until", "function_designer",
+                     "--model", "claude-sonnet-5-5", "--effort", "low"]) == 0
+    override_settings(anthropic_model="claude-haiku-5-5", anthropic_effort="high")   # .env 값이 다르다고 치면
+    _use(FakeLLM(broken_fk=False))
+    path = get_settings().output_dir / "confirmed.json"
+    path.write_text(json.dumps(_design("1"), ensure_ascii=False), encoding="utf-8")
+    assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1", "--design", str(path)]) == 0
+    assert find_version("sample", "1.1")["db_validation"] == "PASSED", "체크 없이도 ERD를 만들 때 DDL 검증"
+    assert f"- 모델: claude-sonnet-5-5" in (_folder("1.1") / "review_report.md").read_text(encoding="utf-8")
+    override_settings(anthropic_model="claude-haiku-5-5", anthropic_effort="high")
+    assert cli.main(["review", "sample", "v1.1"]) == 0
+    assert "- 모델: claude-sonnet-5-5" in (_folder("1.1.1") / "review_report.md").read_text(encoding="utf-8"), \
+        "최종 확정도 업로드에서 고른 모델 (.env 아님)"
+    assert get_settings().anthropic_effort == "low"

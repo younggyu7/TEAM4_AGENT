@@ -98,9 +98,11 @@ def test_upload_run_stops_at_function_spec_and_review_runs_review(monkeypatch, t
     """업로드는 기능 명세 초안에서 멈추고, ERD 최종 확정은 review 명령 (작업 시작 전 인자만 확인)"""
     seen = {}
     monkeypatch.setattr(jobs._Runner, "start", lambda self, args: seen.update(args=args, runner=self))
-    jobs.start_run(output_dir=tmp_path, document=tmp_path / "a.pdf", project="p")
+    jobs.start_run(output_dir=tmp_path, document=tmp_path / "a.pdf", project="p", model="claude-opus-5-5", effort="low")
     args = seen["args"]
     assert args[args.index("--until") + 1] == "function_designer"
+    assert args[args.index("--model") + 1] == "claude-opus-5-5" and args[args.index("--effort") + 1] == "low"
+    assert "--validate-db" not in args, "DDL 검증은 항상 (기본 켬)"
     job = jobs.start_review(output_dir=tmp_path, project="team/p", version="1.1")
     assert job.source == "review" and seen["args"][:3] == ["review", "p", "v1.1"]
     assert seen["runner"].result == "semantic_review.json"
@@ -203,3 +205,16 @@ def test_dispositions_and_spec_redo_follow_the_screen_request(monkeypatch, tmp_p
     for f in seen["runner"].temp:
         f.unlink(missing_ok=True)
     jobs._jobs.clear()
+
+
+def test_llm_options_list_models_of_providers_with_keys(client, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    body = client.get("/api/v1/llm-options").json()
+    ids = [m["id"] for m in body["models"]]
+    assert "claude-haiku-5-5" in ids and all(m["provider"] == "anthropic" for m in body["models"])
+    assert next(m for m in body["models"] if m["id"] == "claude-haiku-4-5")["effort"] is False, "Haiku 4.5는 effort 없음"
+    assert body["efforts"] == ["low", "medium", "high"]
+    files = {"file": ("a.txt", b"hello", "text/plain")}
+    assert client.post("/api/v1/runs", files=files, data={"model": "gpt-unknown"}).status_code == 400
+    assert client.post("/api/v1/runs", files=files, data={"effort": "max"}).status_code == 400

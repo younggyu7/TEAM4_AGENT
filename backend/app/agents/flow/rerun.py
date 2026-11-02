@@ -466,7 +466,8 @@ def seed_state(values: dict, design: dict, stage: str, run_id: str, base: str, p
     options.update({
         "project": project, "base_version": base, "stage": stage,
         "feedback": {stage: feedback.strip()} if feedback.strip() else {},
-        "validate_db": options.get("validate_db", False) if validate_db is None else validate_db,
+        # DDL 검증은 항상 한다 (예전에 끄고 올린 프로젝트도). rerun --no-validate-db로만 끈다
+        "validate_db": True if validate_db is None else validate_db,
     })
     issues = [i for i in design.get("issues") or [] if not i["kind"].startswith(spec["drop_issue_prefixes"])]
     requirements_stage = stage == "requirements_analyst"

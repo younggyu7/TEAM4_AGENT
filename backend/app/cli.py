@@ -28,7 +28,7 @@ from pathlib import Path
 from langgraph.types import Command
 
 from app.agents.roles.coordinator import STAGE_LABELS, stuck_stages
-from app.core.config import get_settings, override_settings
+from app.core.config import EFFORTS, get_settings, override_settings
 from app.agents.flow.graph import build_graph, open_checkpointer
 from app.agents.flow.state import basis, rev
 from app.agents.llm.client import LLMFatalError, LLMPending, pending_requests, resolve_provider
@@ -69,7 +69,8 @@ def main(argv: list[str] | None = None) -> int:
                        help="프로젝트(고객) 이름. 같은 프로젝트는 실행이 달라도 설계 버전이 v1, v2 …로 이어진다. "
                             "생략하면 문서 파일 이름")
     p_run.add_argument("--defer", action="store_true", help="확인 질문을 묻지 않고 가정·보류로 기록")
-    p_run.add_argument("--validate-db", action="store_true", help="산출 후 별도 DB에 DDL 적용·검증")
+    p_run.add_argument("--validate-db", action=argparse.BooleanOptionalAction, default=True,
+                       help="ERD를 만들 때마다 검증용 DB에 DDL 적용·검증 (기본 켬, 실패하면 데이터 모델 Agent가 고친다)")
     p_run.add_argument("--only", default="", help="추출 단위 필터 (예: SFR,PER-002)")
     p_run.add_argument("--max-sources", type=int, default=0, help="추출 단위 최대 개수 (빠른 시험용)")
     p_run.add_argument("--include-narrative", action="store_true",
@@ -86,7 +87,10 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--standard", default="",
                        help="회사별 설계 표준 프로필 (standards/ 폴더 이름, 예: public). ERD·테이블 정의서·DDL이 표준 이름을 쓴다")
     p_run.add_argument("--provider", choices=["openai", "anthropic", "manual"])
-    p_run.add_argument("--model", help="LLM 모델 ID (provider 기본값 대체)")
+    p_run.add_argument("--model", help="LLM 모델 ID (provider 기본값 대체). claude-…면 Anthropic, 그 밖은 OpenAI "
+                                       "(--provider를 주지 않았을 때). 이 프로젝트의 다음 단계(rerun·review)도 같은 모델")
+    p_run.add_argument("--effort", choices=EFFORTS,
+                       help="생각 수준 (ANTHROPIC_EFFORT·OPENAI_REASONING_EFFORT 대체, 단계별 *_EFFORT 설정은 그대로)")
     p_run.add_argument("--output-dir")
 
     p_resume = sub.add_parser("resume", help="질문 대기·중단된 실행 재개")
@@ -207,9 +211,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         if args.provider:
             override_settings(llm_provider=args.provider)
+        elif args.model:   # 모델 이름으로 공급자를 정한다 (화면에서 모델을 고른 경우)
+            override_settings(llm_provider="anthropic" if args.model.startswith("claude-") else "openai")
         if args.model:
             key = "anthropic_model" if resolve_provider() == "anthropic" else "openai_model"
             override_settings(**{key: args.model})
+        if args.effort:
+            key = "anthropic_effort" if resolve_provider() == "anthropic" else "openai_reasoning_effort"
+            override_settings(**{key: args.effort})
         return _run(args)
     return _resume(args)
 
@@ -687,6 +696,8 @@ def _review(args) -> int:
     # 문서 블록·추출 단위 등은 ERD를 만든 실행의 상태에서, 산출물은 확정한 ERD 버전 폴더에서 가져온다
     with open_checkpointer(root) as saver:
         values = dict(build_graph(saver).get_state(_config(record["run_id"])).values or {})
+    # ERD를 만든 실행의 모델·생각 수준으로 API를 설계한다 (업로드에서 고른 모델을 최종 확정까지 쓴다. .env가 아니라)
+    override_settings(**dict((values.get("options") or {}).get("settings") or {}))
     state = {**values, "requirements": design.get("requirements") or [], "functions": design["functions"],
              "questions": design.get("questions") or [], "issues": issues, "data_model": model,
              "function_common": design.get("common") or {}, "completion": design.get("completion") or {},

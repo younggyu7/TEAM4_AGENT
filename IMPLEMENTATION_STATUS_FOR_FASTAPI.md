@@ -62,7 +62,7 @@ python -m app run data/고객요구사항4.hwpx --title "KISA 데이터 금고 �
 | `POST /projects/title` | 버전 제목 저장 (`output/<프로젝트>/titles.json`) |
 | `POST /projects/versions` | 화면의 새 버전 만들기 → `202 {job}` (아래 4.2) |
 | `POST /projects/review` | **신규.** ERD 최종 확정 → `review` → 최종본 v<ERD>.1 (추적·의미 검토) → `202 {job}`, 끝나면 `new_version`. ERD 없는 버전은 400 |
-| `POST /runs` | **신규.** 문서 업로드(multipart `file`, `project?`, `title?`, `validate_db?`) → `run --defer --until function_designer` → `202 {job}` |
+| `POST /runs` | **신규.** 문서 업로드(multipart `file`, `project?`, `title?`, `model?`, `effort?`; `validate_db`는 없앰 — DDL은 항상 검증) → `run --defer --until function_designer` → `202 {job}` |
 | `GET /jobs?id=` | 작업 진행 상황 `{status, message, log, new_version, warnings}` |
 | `GET /capabilities` | rerun이 기능 명세 수정본(`--design`·`--spec-md`)을 받는지 |
 | `GET /health` | 서버 상태 |
@@ -277,5 +277,6 @@ API 설계는 최종 확정에 남긴다. 호출이 크게 늘지 않는 범위�
 
 - 기능 명세 다시 만들기: 예전에는 사람이 고친 기능을 '어느 칸을 고쳤는지' 요약(1,800자 제한)으로만 의견에 넘겨 원본에서 다시 시작했다. 이제 고친 기능을 `--functions`로 넘겨 기준 명세에 바꿔 넣고 `state.function_locked`로 고정한다(의견 반영·확인 질문 고르기 뒤에도 되돌림). 고친 것만이면 LLM 0회(`test_function_designer`).
 - 다시 내보내기·버전 번호: 기능 명세 버튼을 내보내기 전후 같게 했다. 기능 명세를 다시 만들면(`rerun function_designer`, 기준에 기능 명세가 있음) 다음 최상위 번호(v2)를 받는다. 이미 ERD가 있는 기능 명세를 `rerun data_modeler --design`으로 다시 내보내면 CLI가 먼저 고친 명세로 기능 명세 v2를 만들고(`--design`을 기능 명세 단계에도 받음, 고친 기능 고정, LLM 없음) 그 버전에서 ERD v2.1을 만든다. ERD는 `latest_model`로 앞 기능 명세의 최신 ERD를 이어받아 바뀐 기능의 엔티티만 다시 설계(엔티티 카탈로그 0회). 같은 초에 이어 시작한 두 실행이 실행 ID·체크포인트를 같이 쓰던 문제를 `_unique_run_id`로 막았다(`test_hitl_flow`, 번호가 바뀐 기존 테스트 갱신).
-- 검증: DB 없이 `pytest` 198 passed · 9 skipped. 새·바뀐 테스트: `test_hitl_flow` ERD 단계 검토 → 보완 → 재검토 호출 수(2·1·0), ERD 저장 시 재검토 0회와 처리 이어받기, 최종 확정 의미 검토 0회·API 설계 2회·판단 기록 4단계·처리 기록, 모델 오류면 최종본 없음. `test_api` 처리·기능 명세 다시 만들기 인자. `test_dev_spec` 최종 확정 의미 검토 0회. 프론트 `tsc -b`·`vite build` 통과.
+- 모델·생각 수준 선택: 홈 업로드의 DB 검증 체크칸을 모델·effort 선택으로 바꿨다(`GET /llm-options`, `run --model --effort`, 모델 이름으로 공급자 결정). 값은 실행 설정(`options.settings`)에 남아 rerun과 **최종 확정(`review`)도 그 설정을 쓴다** — 예전에는 최종 확정만 `.env` 모델을 써서 ERD와 최종본의 모델이 달랐다(test4 v1.3 Haiku 4.5 → v1.3.1 Haiku 5.5). DDL 검증은 `run` 기본 켬, rerun은 예전 실행 설정과 상관없이 켬(`--no-validate-db`로만 끔).
+- 검증: DB 없이 `pytest` 200 passed · 9 skipped. 새·바뀐 테스트: `test_hitl_flow` ERD 단계 검토 → 보완 → 재검토 호출 수(2·1·0), ERD 저장 시 재검토 0회와 처리 이어받기, 최종 확정 의미 검토 0회·API 설계 2회·판단 기록 4단계·처리 기록, 모델 오류면 최종본 없음. `test_api` 처리·기능 명세 다시 만들기 인자. `test_dev_spec` 최종 확정 의미 검토 0회. 프론트 `tsc -b`·`vite build` 통과.
 - 미검증: PostgreSQL 포함 테스트, 실제 LLM으로 ERD 단계 의미 검토·보완 품질과 호출량, 브라우저에서 확정 버튼·지적 처리·최종 화면 조작.
