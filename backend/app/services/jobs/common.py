@@ -110,7 +110,9 @@ def _path_arg(path: Path) -> str:
 @cache
 def capabilities() -> dict:
     """백엔드 rerun이 기능 명세 수정본·추천안 확인 규칙을 받는지 (옵션이 추가되면 자동으로 그걸 쓴다)"""
-    out = subprocess.run(_cli("rerun", "-h"), cwd=BACKEND_ROOT, capture_output=True, text=True).stdout
+    # CLI는 UTF-8로 출력한다 (Windows 기본 cp949로 읽으면 한글에서 깨진다)
+    out = subprocess.run(_cli("rerun", "-h"), cwd=BACKEND_ROOT, capture_output=True, text=True,
+                         encoding="utf-8", errors="replace").stdout or ""
     return {"design": bool(re.search(r"--design\b", out)), "spec_md": bool(re.search(r"--spec-md\b", out)),
             "confirm_rules": bool(re.search(r"--confirm-rules\b", out))}
 
