@@ -173,7 +173,8 @@ def require_request(project: str, version: str, member, what: str) -> None:
 
 
 def note_event(project: str, version: str, member, label: str, what: str) -> None:
-    """확정 같은 결정을 변경 내역에 남긴다 (화면에서 누가 언제 확정했는지 보이게)"""
+    """확정을 변경 내역에 남기고 승인 요청을 닫는다 (화면에서 누가 언제 확정했는지 보이게, 같은 요청이 알림에 남지 않게)"""
     doc = read(project, version)
     doc["log"].append({"by": _who(member), "at": _now(), "event": "confirm", "changes": [{"target": "", "label": label, "what": what}]})
+    doc["request"] = None
     _write(project, version, doc)

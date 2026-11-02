@@ -267,8 +267,10 @@ def test_roles_limit_who_confirms_each_stage(project, monkeypatch):
     assert data.post("/api/v1/projects/versions", json={**spec, "source": "erd"}).status_code == 202
     assert data.post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 403
     data_head = signed_in_client("data_head")
-    assert data_head.post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 202, \
-        "같은 버전(v1)에 요청이 이미 있다"
+    assert data_head.post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 403, \
+        "기능 명세 확정 때 그 요청은 닫혔다 → ERD는 데이터 파트원의 새 요청이 있어야"
+    assert data.post("/api/v1/drafts/request", json={"project": "team/demo", "version": "1"}).status_code == 200
+    assert data_head.post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 202
     assert signed_in_client().post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 202
     files = {"file": ("a.txt", b"hello", "text/plain")}
     assert data.post("/api/v1/runs", files=files).status_code == 403, "업로드는 기획 파트·팀장"
@@ -377,3 +379,52 @@ def test_change_request_can_send_both_stages_with_items(project):
     assert lead.post("/api/v1/projects/approval", json={**body, "items": []}).status_code == 400, "단계도 내용도 없음"
     one = lead.post("/api/v1/projects/approval", json={**body, "items": [], "targets": ["erd"], "comment": "전체 검토"})
     assert one.status_code == 200 and one.json()["approval"]["target"] == "erd"
+
+
+def test_spec_first_directive_locks_old_erd_and_moves_erd_items_to_the_new_erd(project, monkeypatch):
+    """기능 명세+ERD 수정 지시: 기능 명세 먼저 → 옛 ERD 잠금 → 새 기능 명세 v2의 ERD v2.1에서 ERD 항목 처리(필수, LLM 없음) → 새 최종본이면 끝."""
+    from app.agents.tools.versions import save_version
+    from app.services import directives
+
+    monkeypatch.setattr(jobs, "start_rerun", lambda **kw: jobs.Job(id="j", project="team/demo", base="1", source="erd",
+                                                                    status="running", message=""))
+    def rec(v, stage, parent, at, base=None):
+        folder = get_settings().output_dir / "team" / "demo" / f"v{v}"
+        folder.mkdir(parents=True, exist_ok=True)
+        if not (folder / "design.json").exists():
+            (folder / "design.json").write_text(json.dumps({"meta": {}, "requirements": []}), encoding="utf-8")
+        save_version("team/demo", {"design_version": v, "stage": stage, "parent": parent, "base": base, "created_at": at})
+    rec("1", "full", None, "2000-01-01T00:00:00")
+    rec("1.1", "data_modeler", "1", "2000-01-01T00:00:01", "1")
+    rec("1.1.1", "final", "1.1", "2000-01-01T00:00:02", "1.1")
+    lead, planner, data = signed_in_client(), signed_in_client("planner"), signed_in_client("data")
+    body = {"project": "team/demo", "version": "1.1.1", "decision": "changes", "comment": "",
+            "items": [{"stage": "spec", "target_id": "FN-3", "label": "결재", "note": "3단계"},
+                      {"stage": "erd", "target_id": "budget", "label": "예산", "note": "집행일 컬럼"}]}
+    assert lead.post("/api/v1/projects/approval", json=body).status_code == 200
+
+    d = data.get("/api/v1/projects/directives?project=team/demo").json()["directives"][0]
+    assert (d["spec_done"], d["erd_waiting"], d["erd_version"]) == (False, True, None)
+    r = data.post("/api/v1/projects/versions", json={"project": "team/demo", "base": "1.1", "source": "erd"})
+    assert r.status_code == 403 and "잠겼습니다" in r.json()["detail"], "기능 명세가 고쳐질 때까지 옛 ERD는 잠금"
+    kinds = {(n["kind"], n["page"]) for n in data.get("/api/v1/notices").json()["notices"]}
+    assert ("waiting", "erd") in kinds and ("directive", "spec") in {(n["kind"], n["page"]) for n in planner.get("/api/v1/notices").json()["notices"]}
+
+    rec("2", "function_designer", "1", "2999-01-01T00:00:00")   # 기획 파트가 고쳐 내보냄 → v2, v2.1
+    rec("2.1", "data_modeler", "2", "2999-01-01T00:00:01", "2")
+    d = directives.open_directives("team/demo")[0]
+    assert (d["spec_done"], d["erd_waiting"], d["erd_version"], d["new_spec"]) == (True, False, "2.1", "2")
+    assert directives.locked("team/demo", "2.1") == "" and directives.locked("team/demo", "1.1"), "새 ERD는 풀리고 옛 ERD는 그대로 잠금"
+    notice = next(n for n in data.get("/api/v1/notices").json()["notices"] if n["kind"] == "directive")
+    assert (notice["version"], notice["page"]) == ("2.1", "erd") and "미처리 1건" in notice["detail"]
+
+    resolve = {"project": "team/demo", "final": "1.1.1", "stage": "erd", "target_id": "budget", "choice": "kept", "note": ""}
+    assert data.post("/api/v1/projects/directives/resolve", json=resolve).status_code == 400, "그대로 둠은 이유 필수"
+    assert planner.post("/api/v1/projects/directives/resolve", json={**resolve, "choice": "applied"}).status_code == 403
+    assert data.post("/api/v1/projects/directives/resolve", json={**resolve, "choice": "applied"}).status_code == 200
+    item = next(i for i in directives.open_directives("team/demo")[0]["items"] if i["target_id"] == "budget")
+    assert item["resolution"]["choice"] == "applied" and item["resolution"]["by"]["name"] == "data"
+
+    rec("2.1.1", "final", "2.1", "2999-01-01T00:00:02", "2.1")
+    assert directives.open_directives("team/demo") == [], "새 최종본이 나오면 지시는 끝"
+    assert any(n["kind"] == "decide" and n["version"] == "2.1.1" for n in lead.get("/api/v1/notices").json()["notices"])
