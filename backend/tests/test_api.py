@@ -428,3 +428,16 @@ def test_spec_first_directive_locks_old_erd_and_moves_erd_items_to_the_new_erd(p
     rec("2.1.1", "final", "2.1", "2999-01-01T00:00:02", "2.1")
     assert directives.open_directives("team/demo") == [], "새 최종본이 나오면 지시는 끝"
     assert any(n["kind"] == "decide" and n["version"] == "2.1.1" for n in lead.get("/api/v1/notices").json()["notices"])
+
+
+def test_temporary_test_accounts_are_seeded_only_into_an_empty_db(capsys):
+    """[임시] 새 PC(회원 없음)에 시연용 계정 7개. 회원이 있으면 건드리지 않고, CLI는 없는 계정만 만든다."""
+    from app import cli
+    from app.services import users
+
+    assert len(users.seed_test_accounts()) == 7
+    roles = {m.email: (m.role, m.is_admin, m.status) for m in users.list_members()}
+    assert roles["admin@team4.local"] == ("lead", True, "active") and roles["data1@team4.local"] == ("data", False, "active")
+    assert users.seed_test_accounts() == [], "회원이 있으면 만들지 않는다"
+    assert TestClient(app).post("/api/v1/auth/login", json={"email": "plan1@team4.local", "password": users.TEST_PASSWORD}).status_code == 200
+    assert cli.main(["seed-accounts"]) == 0 and "이미 있음" in capsys.readouterr().out

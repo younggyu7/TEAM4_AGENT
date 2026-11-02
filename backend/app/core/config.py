@@ -106,6 +106,7 @@ class Settings:
     api_fix_attempts: int = 1                            # API 검사 오류(없는 컬럼·API 없는 기능)를 그 기능만 다시 설계하는 횟수 (0이면 max_fix_attempts)
     api_batch_size: int = 6                              # API 설계 요청 1건에 넣는 기능 수
     api_effort: str = ""                                 # API 설계·아키텍처 요청의 생각 수준 (빈 값이면 실행 설정)
+    seed_test_accounts: bool = False                     # [임시] 회원이 없으면 서버 시작 때 시연용 계정 7개를 만든다 (.env 기본 켬)
     log_level: str = "INFO"                              # API 서버 로그 수준
     cors_origins: tuple[str, ...] = DEFAULT_CORS_ORIGINS  # 브라우저 요청을 허용할 프론트 주소 (로컬 Vite 개발 서버는 proxy라 없어도 됨)
 
@@ -148,6 +149,7 @@ class Settings:
             api_fix_attempts=_int("API_FIX_ATTEMPTS", cls.api_fix_attempts),
             api_batch_size=_int("API_BATCH_SIZE", cls.api_batch_size),
             api_effort=os.getenv("API_EFFORT", "").strip().lower(),
+            seed_test_accounts=os.getenv("SEED_TEST_ACCOUNTS", "true").strip().lower() not in ("false", "0", "no", "off"),
             log_level=os.getenv("LOG_LEVEL", "").strip().upper() or cls.log_level,
             cors_origins=tuple(o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip())
             or DEFAULT_CORS_ORIGINS,

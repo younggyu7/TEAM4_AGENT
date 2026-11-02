@@ -16,6 +16,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
 from app.core.security import add_cors
 from app.services import jobs as job_service
+from app.services import users as user_service
 
 API_PREFIX = "/api/v1"
 log = logging.getLogger(__name__)
@@ -26,6 +27,13 @@ async def lifespan(_: FastAPI):
     # 서비스 DB가 있으면: 지난번 서버가 추적하던 '진행 중' 작업은 더 볼 수 없으므로 실패로 닫는다
     if closed := job_service.close_orphaned_jobs():
         log.info("서버 시작: 추적이 끊긴 진행 중 작업 %d건을 실패로 닫음", closed)
+    # [임시] 회원이 없는 DB(새 PC)면 시연용 계정을 만든다 (services/users.py TEST_ACCOUNTS, 끄기: SEED_TEST_ACCOUNTS=false)
+    if get_settings().seed_test_accounts:
+        try:
+            if made := user_service.seed_test_accounts():
+                log.info("서버 시작: 시연용 계정 %d개를 만듦 (비밀번호 %s)", len(made), user_service.TEST_PASSWORD)
+        except Exception as e:  # noqa: BLE001 — 회원 테이블이 아직 없으면(alembic 전) 서버는 그대로 띄운다
+            log.warning("시연용 계정을 만들지 못함 (alembic upgrade head를 했는지 확인): %s", e)
     yield
 
 

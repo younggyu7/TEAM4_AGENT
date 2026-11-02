@@ -149,6 +149,10 @@ def main(argv: list[str] | None = None) -> int:
                           help="ERD 화면에서 정한 검토 지적 처리 JSON (rerun --dispositions와 같은 형식)")
     p_review.add_argument("--output-dir")
 
+    p_seed = sub.add_parser("seed-accounts", help="[임시] 시연용 계정 7개 만들기 (관리자·기획/데이터 파트장·파트원, 없는 계정만)")
+    p_seed.add_argument("--password", default="", help="비밀번호 (생략하면 services/users.py TEST_PASSWORD)")
+    p_seed.add_argument("--output-dir")
+
     p_import = sub.add_parser("import-output", help="로컬 output 폴더의 산출물·버전 기록·제목·실행 체크포인트를 서비스 DB로 가져온다 "
                                                      "(DATABASE_URL 필요, 여러 번 실행해도 같은 내용으로 덮어씀)")
     p_import.add_argument("--from", dest="source", default="", help="가져올 로컬 output 폴더 (생략하면 OUTPUT_DIR, 기본 output)")
@@ -206,6 +210,11 @@ def main(argv: list[str] | None = None) -> int:
         return _rerun(args)
     if args.command == "review":
         return _review(args)
+    if args.command == "seed-accounts":
+        from app.services import users
+        made = users.seed_test_accounts(args.password or users.TEST_PASSWORD, only_if_empty=False)
+        print(f"계정 {len(made)}개를 만들었습니다: {', '.join(made) or '없음 (이미 있음)'}")
+        return 0
     if args.command == "import-output":
         return _import_output(args)
     if args.command == "run":

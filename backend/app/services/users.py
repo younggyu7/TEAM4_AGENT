@@ -189,3 +189,34 @@ def update_member(user_id: int, *, role: str | None = None, status: str | None =
         if status != "active":   # 중지·대기로 바꾸면 로그인을 끊는다
             db.execute(delete(UserSession).where(UserSession.user_id == user.id))
         return _member(user)
+
+
+# ---------------------------------------------------------------- [임시] 시연용 계정 (나중에 지운다)
+# 계정은 git이 아니라 각 PC의 DB에 있어서, 다른 PC에서도 같은 계정으로 로그인하려고 코드에 둔다.
+# 회원이 한 명도 없을 때만 만든다 (이미 쓰는 DB는 건드리지 않음). 끄기: .env SEED_TEST_ACCOUNTS=false
+TEST_PASSWORD = "Team4!2026"
+TEST_ACCOUNTS = [   # (이메일, 이름, 역할, 관리자)
+    ("admin@team4.local", "김관리", "lead", True),
+    ("plan.head@team4.local", "이기획", "planner_head", False),
+    ("plan1@team4.local", "박기획", "planner", False),
+    ("plan2@team4.local", "최기획", "planner", False),
+    ("data.head@team4.local", "정데이터", "data_head", False),
+    ("data1@team4.local", "강데이터", "data", False),
+    ("data2@team4.local", "조데이터", "data", False),
+]
+
+
+def seed_test_accounts(password: str = TEST_PASSWORD, only_if_empty: bool = True) -> list[str]:
+    """시연용 계정을 만들고 만든 이메일을 돌려준다. only_if_empty면 회원이 한 명도 없을 때만, 아니면 없는 계정만."""
+    existing = {m.email for m in list_members()}
+    if only_if_empty and existing:
+        return []
+    made = []
+    for email, name, role, admin in TEST_ACCOUNTS:
+        if email in existing:
+            continue
+        member = signup(email, name, password) if not list_members() else create_member(email, name, password, role, admin)
+        if member.role != role or member.is_admin != admin:
+            update_member(member.id, role=role, status="active", is_admin=admin)
+        made.append(email)
+    return made
