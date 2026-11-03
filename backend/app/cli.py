@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_develop = sub.add_parser("develop", help="개발 스펙으로 서비스 코드를 만든다 (기본은 LLM 없음, 토큰 0)")
     p_develop.add_argument("project")
-    p_develop.add_argument("--from", dest="base", required=True, help="데이터 설계까지 한 버전 (예: v1.1.1)")
+    p_develop.add_argument("--from", dest="base", required=True, help="'ERD 최종 확정'으로 만든 최종본 (예: v1.1.1)")
     p_develop.add_argument("--plan", action="store_true", help="화면 수와 LLM 예상 비용만 보여 준다 (파일을 쓰지 않음)")
     p_develop.add_argument("--logic", action="store_true", help="LLM으로 업무 로직 자리를 채운다 (토큰 사용, 바뀐 기능만)")
     p_develop.add_argument("--only", help="--logic을 이 기능 ID만 (쉼표로 구분)")
