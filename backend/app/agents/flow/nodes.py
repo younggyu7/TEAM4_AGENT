@@ -52,7 +52,7 @@ def intake(state: AgentState) -> dict:
         "trace_links": [], "issues": [], "decisions": [], "versions": [], "failures": {}, "llm_usage": {},
         "rev": {"requirements": 0, "functions": 0, "model": 0},
         "basis": {"functions": -1, "model": -1, "review": [-1, -1], "semantic": dict(SEMANTIC_BASIS_INIT)},
-        "semantic_review": {},
+        "semantic_review": {}, "model_designed": [],
         "dirty_requirements": [], "dirty_functions": [], "model_redesign": False, "design_version": "", "step": 0,
         "db_attempts": 0,
         "db_validation": None, "completion": {}, "pending_answers": {},

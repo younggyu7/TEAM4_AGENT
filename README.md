@@ -63,6 +63,7 @@ python -m app versions 고객요구사항4                                   # �
 python -m app rerun data_modeler 고객요구사항4 --from v1 --design confirmed.json   # 확정한 기능 명세로 ERD → v1.1
 python -m app rerun data_modeler 고객요구사항4 --from v2 --feedback "의견"   # 데이터 설계만 다시 → v2.1
 python -m app review 고객요구사항4 v1.1 --dispositions choices.json  # ERD 최종 확정 → 최종본 v1.1.1 (지적 처리·DDL 검증·추적 검토·API 설계·개발 스펙)
+python -m app develop 고객요구사항4 --from v1.1.1 [--plan|--logic]   # 최종본 개발 스펙 → 서비스 코드 output/<프로젝트>/app (기본 토큰 0, docs/DEVELOP.md)
 python -m app resume <실행 ID> --defer                                  # 확인 질문에서 멈춘 실행 이어 가기
 ```
 

@@ -232,7 +232,10 @@ def test_common_rules_are_referenced_by_number_and_expanded_by_code():
 
 # ------------------------------------------------------------------ 공통 기능
 class _SharedLLM(_Prompts):
-    """공통 결정에서 C01-01·C01-03(서로 다른 그룹)을 공통 기능 하나로 묶고, 만드는 영역은 그 기능을 함께 만든다."""
+    """공통 결정에서 C01-01·C01-03(서로 다른 그룹)을 공통 기능 하나로 묶는다.
+
+    만드는 영역은 공통 기능과 함께 다른 영역 요구사항으로 그 영역의 기능도 만들고, 다른 영역은 공통 기능을 또 만든다 (둘 다 버려져야 함).
+    """
 
     def _CommonDecisionsOut(self, user):
         from app.agents.roles.function_designer import SharedFunctionOut
@@ -246,8 +249,11 @@ class _SharedLLM(_Prompts):
         out = super()._FunctionDesignOut(user)
         m = re.search(r"\| 연결할 요구사항: (.+)$", user, re.M)
         if m:
-            out.functions.append(out.functions[0].model_copy(update={
-                "name": "요청 내보내기", "requirement_ids": [x.strip() for x in m.group(1).split(",")]}))
+            out.functions += [out.functions[0].model_copy(update={
+                "name": "요청 내보내기", "requirement_ids": [x.strip() for x in m.group(1).split(",")]}),
+                out.functions[0].model_copy(update={"name": "요청 이력 관리", "requirement_ids": ["C01-03"]})]
+        elif "이 요구사항 일부를 맡음" in user:
+            out.functions.append(out.functions[0].model_copy(update={"name": "요청 내보내기"}))
         return out
 
 
@@ -257,7 +263,7 @@ def test_shared_function_is_made_once_by_owner_group(sample_doc):
     override_settings(func_group_size=1)   # C01.1 [C01-01] · C01.2 [C01-02] · C01.3 [C01-03]
     fake = _SharedLLM()
     out = _base_with(sample_doc, fake)
-    assert fake.calls["FunctionDesignOut"] == 2, "요구사항이 모두 다른 영역의 공통 기능에 들어간 그룹(C01.3)은 요청하지 않음"
+    assert fake.calls["FunctionDesignOut"] == 3, "공통 기능에 들어간 요구사항의 나머지 기능은 원래 영역(C01.3)이 만든다"
     assert all("## 공통 기능 (만드는 영역에서 한 번만" in p for p in fake.prompts["FunctionDesignOut"])
     owner = next(p for p in fake.prompts["FunctionDesignOut"] if "(group C01.1)" in p)
     assert "## 이 영역에서 만들 공통 기능" in owner and "  - [C01-03]" in owner, "만드는 영역에 다른 영역 요구사항도 준다"
@@ -265,7 +271,9 @@ def test_shared_function_is_made_once_by_owner_group(sample_doc):
     v1 = _design(out, "1")
     shared = next(f for f in v1["functions"] if f["name"] == "요청 내보내기")
     assert shared["group"] == "C01.1" and shared["requirement_ids"] == ["C01-01", "C01-03"]
-    assert not [f for f in v1["functions"] if f["group"] == "C01.3"], "같은 기능을 영역마다 만들지 않음"
+    assert [f["name"] for f in v1["functions"] if f["name"] == "요청 내보내기"] == ["요청 내보내기"], "같은 기능을 영역마다 만들지 않음"
+    assert not [f for f in v1["functions"] if f["name"] == "요청 이력 관리"], "다른 영역 요구사항으로 그 영역의 기능을 만들지 않음"
+    assert [f["name"] for f in v1["functions"] if f["group"] == "C01.3"] == ["기능 C01-03"]
     assert v1["common"]["shared_functions"] == [{"name": "요청 내보내기", "scope": "요청을 파일로 내보낸다",
                                                  "requirement_ids": ["C01-01", "C01-03"], "owner": "C01.1"}]
     assert v1["completion"]["satisfied"], "C01-03도 공통 기능으로 연결됨"
@@ -273,7 +281,7 @@ def test_shared_function_is_made_once_by_owner_group(sample_doc):
     assert f"| 요청 내보내기 | 요청을 파일로 내보낸다 | C01-01, C01-03 | C01.1 | {shared['function_id']} |" in spec
 
 
-def test_group_scope_hides_requirements_owned_elsewhere_and_targets_owner():
+def test_group_scope_marks_requirements_owned_elsewhere_and_targets_owner():
     from collections import OrderedDict
 
     from app.agents.roles.function_designer import _groups_for, _group_scope
@@ -284,11 +292,33 @@ def test_group_scope_hides_requirements_owned_elsewhere_and_targets_owner():
     groups = OrderedDict([("A", [reqs["A1"], reqs["A2"]]), ("B", [reqs["B1"]])])
     shared = [{"id": "S1", "name": "내보내기", "scope": "", "requirement_ids": ["B1", "A2"], "owner": "B"}]
     lines, valid = _group_scope("A", groups["A"], shared, reqs)
-    assert valid == {"A1"}, "다른 영역이 맡은 요구사항으로만 만든 기능은 근거가 없어 버려진다"
-    assert "공통 기능 [S1] 내보내기(B 영역)이 맡음" in lines[1]
+    assert valid == {"A1", "A2"}, "공통 기능이 일부만 맡은 요구사항의 나머지 기능은 원래 영역이 만든다"
+    assert "공통 기능 [S1] 내보내기(B 영역)이 이 요구사항 일부를 맡음" in lines[1]
     lines, valid = _group_scope("B", groups["B"], shared, reqs)
-    assert valid == {"B1", "A2"} and any(x.startswith("  - [A2]") for x in lines)
+    assert valid == {"B1"} and any(x.startswith("  - [A2]") for x in lines), "다른 영역 요구사항은 공통 기능에만 (_linked_ids)"
     assert _groups_for({"A2"}, groups, shared) == ["A", "B"], "공통 기능 요구사항이 바뀌면 만드는 영역도 다시 설계"
+
+
+def test_other_area_requirements_link_only_to_the_shared_function():
+    """고객요구사항13 test4: 회계 영역이 '기준정보 조회'(인사·그룹웨어 요구사항 포함)를 맡으며 인사 '조직 및 발령 관리'까지 만들었다."""
+    from app.agents.roles.function_designer import FunctionOut, _linked_ids
+
+    def out(name, ids):
+        return FunctionOut(name=name, description="", requirement_ids=ids, nfr_ids=[], actors=[], preconditions=[],
+                           inputs=[], outputs=[], business_rules=[], normal_flow=[], exception_flows=[], data_objects=[])
+
+    shared = [{"id": "S1", "name": "기준정보 목록 조회", "scope": "", "requirement_ids": ["A1", "A2", "B3", "C4"], "owner": "A"},
+              {"id": "S2", "name": "문서 내보내기", "scope": "", "requirement_ids": ["B1", "C9"], "owner": "B"}]
+    outs = [out("기준정보 목록 조회", ["A1", "A2", "B3", "C4"]), out("조직 및 발령 관리", ["B3"]),
+            out("전표 입력", ["A2", "B3"]), out("요청 내보내기 화면", ["A1", "C9"])]
+    assert _linked_ids("A", outs, {"A1", "A2"}, shared) == [["A1", "A2", "B3", "C4"], [], ["A2"], ["A1"]], \
+        "다른 영역 요구사항은 공통 기능에만, 그것만 연결한 기능은 버림, 이 영역이 만들지 않는 공통 기능(S2)의 요구사항은 연결 안 함"
+
+    renamed = [out("기준정보 조회", ["A1", "B3"]), out("코드 조회", ["A2", "C4", "B3"])]
+    assert _linked_ids("A", renamed, {"A1", "A2"}, shared) == [["A1"], ["A2", "C4", "B3"]], "이름이 다르면 가장 많이 연결한 기능"
+
+    again = [out("기준정보 목록 조회", ["B3"]), out("조직 및 발령 관리", ["B3"])]
+    assert _linked_ids("B", again, {"B1", "B3"}, shared) == [[], ["B3"]], "다른 영역이 만드는 공통 기능은 또 만들지 않음"
 
 
 # ------------------------------------------------------------------ 확인 질문
@@ -369,6 +399,9 @@ def test_confirm_asks_enough_to_keep_assumptions_under_the_limit():
 def test_confirm_keeps_checks_beyond_the_limit():
     from app.agents.roles.function_designer import ConfirmOut, ConfirmQuestionOut, _confirm
 
+    from app.core.config import override_settings
+
+    override_settings(func_rule_bundle=False)
     reqs, funcs, common = _confirm_case()   # 기본 한도 10%: 업무 규칙 6개 → '(가정)' 0개까지
     q = ConfirmQuestionOut(kind="MISSING", question="처리 기한은?", context="", options=["설정값", "7일"], recommended=1,
                            item_ids=["C1"])
@@ -385,6 +418,124 @@ def test_confirm_keeps_checks_beyond_the_limit():
     assert new_common["policies"][0]["basis"] == "확인 필요" and new_common["code_sets"][0]["basis"] == "가정", \
         "규칙에 붙지 않는 분류값은 한도와 관계없이 추천안"
     assert (summary["need"], summary["assumed"], summary["kept"], summary["assumed_rules"]) == (5, 0, 4, 0)
+
+
+def _bundle_case():
+    from app.schemas.function import FunctionSpec
+    from app.schemas.requirement import Requirement
+
+    reqs = [Requirement(requirement_id="R1", source_key="G", type="FUNCTIONAL", scope="SYSTEM", category="기능", title="요구", description="설명", priority="MUST", status="CONFIRMED")]
+    funcs = [FunctionSpec(function_id="FN-A.1-01", group="A.1", name="일정", description="", requirement_ids=["R1"],
+                          business_rules=["(가정) 일정 제목은 비워 둘 수 없다", "(가정) 일정 목록은 시작일 순으로 보여 준다", "(가정) 일정은 본인만 보고 그룹 공유는 제공하지 않으며 승인된 건만 허용하지 않는다"]),
+             FunctionSpec(function_id="FN-A.2-01", group="A.2", name="예약", description="", requirement_ids=["R1"], business_rules=["(가정) 예약 메모는 200자까지 적는다", "확정 규칙"]),
+             FunctionSpec(function_id="FN-B-01", group="B", name="공지", description="", requirement_ids=["R1"], business_rules=["(가정) 공지 제목은 비워 둘 수 없다"])]
+    return reqs, funcs
+
+
+def test_rules_left_without_a_question_are_bundled_by_area():
+    from app.agents.roles.function_designer import BUNDLE_APART, BUNDLE_OK, ConfirmOut, _confirm
+    from app.core.config import override_settings
+
+    override_settings(func_assumption_limit=0.0)
+    reqs, funcs = _bundle_case()
+    result, questions, _, summary = _confirm(_StubLLM(ConfirmOut(questions=[], resolutions=[])), funcs, {f.function_id for f in funcs}, {}, False, reqs, [], "", whole=True)
+    assert [q.question_id for q in questions] == ["FQ-001"], "규칙이 하나뿐인 영역은 묶지 않는다"
+    bundle = questions[0]
+    assert (bundle.options, bundle.recommended, bundle.stage) == ([BUNDLE_OK, BUNDLE_APART], BUNDLE_OK, "function_designer")
+    assert "A 영역" in bundle.question and "3개" in bundle.question and "(확인 필요 FQ-001)" in bundle.context, "나뉜 그룹(A.1·A.2)은 한 영역이다"
+    assert result[0].business_rules[:2] == ["(확인 필요 FQ-001) 일정 제목은 비워 둘 수 없다", "(확인 필요 FQ-001) 일정 목록은 시작일 순으로 보여 준다"]
+    assert result[0].business_rules[2].startswith("(확인 필요) "), "영향이 큰 규칙은 묶지 않고 사람이 본다"
+    assert result[1].business_rules == ["(확인 필요 FQ-001) 예약 메모는 200자까지 적는다", "확정 규칙"], "확정 규칙은 그대로"
+    assert result[2].business_rules == ["(확인 필요) 공지 제목은 비워 둘 수 없다"]
+    assert summary["bundles"] == 1
+
+
+def test_answering_a_bundle_needs_no_redesign():
+    from app.agents.roles.function_designer import BUNDLE_APART, BUNDLE_OK, ConfirmOut, _confirm, record_answers
+    from app.core.config import override_settings
+
+    override_settings(func_assumption_limit=0.0)
+    reqs, funcs = _bundle_case()
+    result, questions, _, _ = _confirm(_StubLLM(ConfirmOut(questions=[], resolutions=[])), funcs, {f.function_id for f in funcs}, {}, False, reqs, [], "", whole=True)
+    state = {"functions": [f.model_dump(mode="json") for f in result], "function_common": {}}
+    agree = record_answers(state, [questions[0].model_copy(update={"status": "ANSWERED", "answer": BUNDLE_OK})], reqs)
+    rules = agree["functions"][0]["business_rules"]
+    assert rules[0] == "(결정 FQ-001) 일정 제목은 비워 둘 수 없다" and "function_targets" not in agree, "추천안대로면 한 번의 답으로 묶인 규칙이 모두 확정된다 (LLM 없음)"
+    apart = record_answers(state, [questions[0].model_copy(update={"status": "ANSWERED", "answer": BUNDLE_APART})], reqs)
+    assert apart["functions"][0]["business_rules"][0] == "(확인 필요) 일정 제목은 비워 둘 수 없다" and "function_targets" not in apart, "하나씩 확인하기로 하면 묶음만 푼다 (설계는 그대로)"
+    assert not any(BUNDLE_APART in d for r in reqs for d in r.decisions), "결정으로 기록하지 않는다"
+
+
+def test_rule_the_model_flags_is_not_bundled():
+    from app.agents.roles.function_designer import ConfirmOut, _confirm
+    from app.core.config import override_settings
+    from app.schemas.function import FunctionSpec
+
+    override_settings(func_assumption_limit=0.34)   # 규칙 3개 → '(가정)' 1개까지
+    reqs, _ = _bundle_case()
+    funcs = [FunctionSpec(function_id="FN-A-01", group="A", name="조사", description="", requirement_ids=["R1"],
+                          business_rules=["(가정) 조사 문항은 응답이 시작되면 그대로 둔다", "(가정) 조사 제목은 비워 둘 수 없다", "(가정) 조사 설명은 200자까지 적는다"])]
+    stub = _StubLLM(ConfirmOut(questions=[], resolutions=[], must_review=["A1"]))
+    result, questions, _, _ = _confirm(stub, funcs, {"FN-A-01"}, {}, False, reqs, [], "", whole=True)
+    assert result[0].business_rules[0].startswith("(확인 필요) "), "낱말로 알 수 없어도 모델이 짚은 규칙은 사람이 하나씩 본다 (어떤 업무 문서든)"
+    assert "must_review" in stub.users[0]
+    assert questions == [] or "1개" not in questions[0].question
+
+
+def test_rule_without_recommendation_is_not_bundled():
+    from app.agents.roles.function_designer import ConfirmOut, _confirm
+    from app.core.config import override_settings
+    from app.schemas.function import FunctionSpec
+
+    override_settings(func_assumption_limit=0.0)
+    reqs, _ = _bundle_case()
+    funcs = [FunctionSpec(function_id="FN-A-01", group="A", name="일정", description="", requirement_ids=["R1"],
+                          business_rules=["(확인 필요) 처리 기한", "(확인 필요) 보관 기간", "(가정) 일정 제목은 비워 둘 수 없다"])]
+    result, questions, _, _ = _confirm(_StubLLM(ConfirmOut(questions=[], resolutions=[])), funcs, {"FN-A-01"}, {}, False, reqs, [], "", whole=True)
+    assert questions == [] and result[0].business_rules[:2] == ["(확인 필요) 처리 기한", "(확인 필요) 보관 기간"], "추천안이 없으면 확정할 내용이 없다"
+
+
+def test_bundle_can_be_turned_off():
+    from app.agents.roles.function_designer import ConfirmOut, _confirm
+    from app.core.config import override_settings
+
+    override_settings(func_assumption_limit=0.0, func_rule_bundle=False)
+    reqs, funcs = _bundle_case()
+    _, questions, _, summary = _confirm(_StubLLM(ConfirmOut(questions=[], resolutions=[])), funcs, {f.function_id for f in funcs}, {}, False, reqs, [], "", whole=True)
+    assert questions == [] and summary["bundles"] == 0
+
+
+def test_assumption_slots_go_to_low_impact_rules_not_first_ones():
+    from app.agents.roles.function_designer import ConfirmOut, _confirm
+    from app.core.config import override_settings
+    from app.schemas.function import FunctionSpec
+    from app.schemas.requirement import Requirement
+
+    override_settings(func_assumption_limit=0.34)   # 규칙 3개 → '(가정)' 1개까지
+    reqs = [Requirement(requirement_id="R1", source_key="G", type="FUNCTIONAL", scope="SYSTEM", category="기능", title="요구", description="설명", priority="MUST", status="CONFIRMED")]
+    funcs = [FunctionSpec(function_id="FN-G-01", group="G", name="처리", description="", requirement_ids=["R1"],
+                          business_rules=["(가정) 승인된 급여는 소급 변경을 허용하지 않는다", "(가정) 관리자만 금액을 승인한다", "(가정) 목록은 최신순으로 보여 준다"])]
+    result, _, _, _ = _confirm(_StubLLM(ConfirmOut(questions=[], resolutions=[])), funcs, {"FN-G-01"}, {}, False, reqs, [], "", whole=True)
+    assert result[0].business_rules[2] == "(가정) 목록은 최신순으로 보여 준다", "(가정)은 틀려도 영향이 작은 규칙에 남는다 (문서 앞뒤 순서가 아니라)"
+    assert all(r.startswith("(확인 필요) ") for r in result[0].business_rules[:2]), "영향이 큰 규칙이 먼저 확인 대상이 된다"
+
+
+def test_assumed_role_is_shown_in_common_decisions():
+    from app.agents.roles.function_designer import RoleOut, common_block
+    from app.agents.tools.exporter import _common_md
+
+    assert RoleOut(name="임직원", scope="일반 업무").basis == "원문"
+    common = {"roles": [{"name": "임직원", "scope": "일반 업무", "aliases": [], "basis": "원문"}, {"name": "예산담당자", "scope": "예산 업무", "aliases": [], "basis": "가정"}]}
+    assert "예산담당자 [가정]" in common_block(common) and "임직원 [가정]" not in common_block(common), "원문에 없는 역할 구분은 뒤 단계에도 가정으로 보인다"
+    table = "\n".join(_common_md(common))
+    assert "| 예산담당자 | 예산 업무 |  | 가정 |" in table and "| 임직원 | 일반 업무 |  | 원문 |" in table
+
+
+def test_common_policy_text_is_clean():
+    from app.agents.roles.function_designer import common_rule_texts
+
+    common = {"policies": [{"rule": "(확인 필요) 첨부는 10MB 이하로 한다", "basis": "확인 필요"}, {"rule": "결재선이 규정과 일치하는지 확인이 필요하다.", "basis": "확인 필요"}]}
+    assert common_rule_texts(common) == {"P1": "(공통 P1, 확인 필요) 첨부는 10MB 이하로 한다"}, "표시를 겹치지 않고, 할 일 문장은 기능 규칙이 되지 않는다"
 
 
 def test_confirm_caps_questions_and_leaves_the_rest_for_review():
@@ -502,7 +653,7 @@ def _ask_run(sample_doc, fake, answer):
     from app.core.config import override_settings
 
     # 기능 3개 × 규칙 2개(가정 1·확인 필요 1)라 묻지 않으면 6개 모두 '(가정)': 한도 5개(90%)면 질문 하나로 맞춘다
-    override_settings(func_assumption_limit=0.9)
+    override_settings(func_assumption_limit=0.9, func_rule_bundle=False)
     llm_module.set_llm(fake)
     graph = build_graph(InMemorySaver())
     config = {"configurable": {"thread_id": "fq"}, "recursion_limit": 500}
@@ -600,8 +751,10 @@ def test_rerun_with_answers_applies_stage_one_answers_at_once(sample_doc, tmp_pa
 
 def test_confirmed_rules_become_decided_without_llm(sample_doc, tmp_path):
     """화면 '추천안 맞음': 확인한 '(확인 필요)' 규칙은 LLM 없이 '(결정)'이 되고, 데이터 설계도 표시만 바뀐 기능을 다시 설계하지 않는다."""
+    from app.core.config import override_settings
     from app.agents.flow.rerun import changed_functions
 
+    override_settings(func_rule_bundle=False)
     out = _base_with(sample_doc, _AskingFunctionLLM())
     v1 = _design(out, "1")
     fn = next(f for f in v1["functions"] if any(r.startswith("(확인 필요) ") for r in f["business_rules"]))

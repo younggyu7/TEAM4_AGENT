@@ -10,6 +10,7 @@
   조정 Agent가 그 기능만 다시 설계하게 한다 (mode=fix). 같은 메서드·경로를 두 기능이 쓰면 경고만 남긴다.
 - 아키텍처: 시스템 비기능 요구사항과 기능 영역으로 요청 1회. 원문이 개발 언어·프레임워크를 정하지 않았으면 확인 질문 TQ-001
   (선택지 3개 + 추천)을 낸다. 답 전에는 추천안을 가정으로 쓰고, 답은 문서를 쓸 때 코드가 반영한다 (다시 설계하지 않는다).
+- 업무 동작: 값의 출처는 API를 설계할 때 함께 정하고, 상태 전환·자동 처리는 API가 정해진 뒤 요청 1회로 정한다 (agents/behavior.py).
 """
 from __future__ import annotations
 
@@ -24,19 +25,20 @@ from pydantic import BaseModel, Field
 
 from app.agents.prompts import load_prompt
 from app.core.config import get_settings
+from app.agents.roles import behavior
 from app.agents.roles.function_designer import SYSTEM_ACTOR, role_names
-from app.agents.llm.client import get_llm, run_parallel
+from app.agents.llm.client import LLMError, get_llm, run_parallel
 from app.schemas.data_model import DataModel, Entity
 from app.schemas.document import RequirementSource
 from app.schemas.function import FunctionSpec
 from app.schemas.requirement import Question, Requirement
 from app.agents.flow.state import AgentState, dump, finding, get_data_model, issues_of, load, merge_usage, reconcile_issues
+from app.agents.tools.api_shape import collection as _collection
 from app.agents.tools.model_validator import to_identifier
 
 log = logging.getLogger(__name__)
 BY = "api_designer"
 STACK_QUESTION = "TQ-001"
-AUDIT_COLUMNS = {"created_at", "updated_at"}
 # 원문이 개발 언어·프레임워크를 정하지 않았을 때 묻는 선택지 (DB는 DDL을 검증한 PostgreSQL)
 STACK_OPTIONS = (
     "Java 17 · Spring Boot 3 · PostgreSQL 16",
@@ -71,9 +73,17 @@ class ApiFieldOut(BaseModel):
 
 # LLM 응답 스키마: 기능별 오류 (예외 흐름에서)
 class ApiErrorOut(BaseModel):
-    status: int = Field(description="404·409·422 등")
+    status: int = Field(description="404·409·422·502 등")
     code: str = Field(description="영문 대문자 snake 오류 코드")
     condition: str = Field(description="오류가 나는 조건 (예외 흐름)")
+
+
+# LLM 응답 스키마: 요청에 없는 값이 어디서 오는지
+class ValueSourceOut(BaseModel):
+    target: str = Field(description="'테이블.컬럼' 또는 컬럼 없는 응답 필드 이름")
+    kind: Literal["현재 사용자", "자동 번호", "고정값", "현재 시각", "다른 테이블", "계산", "미정"]
+    value: str = Field("", description="고정값·가져올 컬럼과 어느 행인지·계산식 (필요할 때만)")
+    basis: Literal["원문", "가정"] = "가정"
 
 
 # LLM 응답 스키마: API 하나
@@ -82,11 +92,12 @@ class ApiOperationOut(BaseModel):
     path: str
     operation_id: str
     summary: str = Field(description="한국어 한 줄")
-    actors: list[str]
+    actors: list[str] = Field(description="이 API를 호출하는 주체")
     request: list[ApiFieldOut] = Field(default_factory=list)
     response: list[ApiFieldOut] = Field(default_factory=list)
     list_response: bool = False
     errors: list[ApiErrorOut] = Field(default_factory=list)
+    sources: list[ValueSourceOut] = Field(default_factory=list, description="서버가 채우는 값: 요청에 없는 필수 값, 상태와 함께 남는 값, 계산 값 (없으면 생략)")
 
 
 # LLM 응답 스키마: 기능 하나의 API (API가 필요 없으면 이유)
@@ -166,6 +177,20 @@ def architecture_stale(state: AgentState) -> bool:
         load(state, "requirements", Requirement), load(state, "functions", FunctionSpec))
 
 
+def _behavior_input(state: AgentState) -> str:
+    """상태 전환·자동 처리 요청의 입력."""
+    return behavior.request(load(state, "functions", FunctionSpec), get_data_model(state), (state.get("api_design") or {}).get("functions") or {},
+                            state.get("function_common") or {})
+
+
+def behavior_stale(state: AgentState) -> bool:
+    """기능·API가 바뀐 뒤 상태 전환·자동 처리를 아직 다시 정하지 않았는지."""
+    design = state.get("api_design") or {}
+    if not enabled(state) or get_data_model(state) is None or not state.get("functions") or not design.get("functions"):
+        return False
+    return (design.get("behavior") or {}).get("fingerprint") != behavior.fingerprint(_behavior_input(state))
+
+
 # ------------------------------------------------------------------ 노드
 def run(state: AgentState) -> dict:
     """API 설계 Agent 노드: 바뀐 기능(또는 검사 오류가 난 기능)의 API와, 필요하면 아키텍처 요약을 설계한다."""
@@ -233,11 +258,30 @@ def run(state: AgentState) -> dict:
             op["actors"] = list(dict.fromkeys(roles.get(re.sub(r"\s+", "", a), a) for a in op["actors"]
                                               if not SYSTEM_ACTOR.match(a)))
     moved = _split_routes(stored, [f.function_id for f in functions], {e.entity_id for e in model.entities})
+    behavior.fill_sources(stored, model, [f.function_id for f in functions])
 
     ask =(state.get("options") or {}).get("ask_mode", "ask") == "ask"
     new_question = _stack_question(ArchitectureOut.model_validate(architecture), questions, ask) if architecture else None
+    if new_question:
+        questions = questions + [new_question]
 
-    findings = check(stored, functions, model)
+    # 상태 전환·자동 처리: API가 정해진 뒤 문서 전체를 한 번에 (입력이 같으면 다시 묻지 않는다)
+    motion = design.get("behavior") or {}
+    motion_input = behavior.request(functions, model, stored, state.get("function_common") or {})
+    motion_print = behavior.fingerprint(motion_input)
+    new_motion: list[Question] = []
+    if motion.get("fingerprint") != motion_print:
+        try:
+            out = llm.structured(system=behavior.PROMPT, user=motion_input, schema=behavior.BehaviorOut, effort=s.api_effort,
+                                 purpose="업무 동작 설계") if motion_input else behavior.BehaviorOut()
+            motion = {**behavior.normalize(out, model, stored, motion), "fingerprint": motion_print}
+            new_motion = behavior.attach_questions(motion, questions, ask, s.behavior_max_questions)
+            questions = questions + new_motion
+        except LLMError as e:
+            failed += 1
+            log.warning("[API 설계] 업무 동작 설계 실패: %s", e)
+
+    findings = check(stored, functions, model, motion)
     issues = reconcile_issues(issues_of(state), findings, lambda k: k.startswith("API_"), s.fix_attempts)
     ops = sum(len(e.get("operations") or []) for e in stored.values())
     batch_fns = sum(1 for e in stored.values() if not e.get("operations") and e.get("no_api_reason"))
@@ -246,16 +290,18 @@ def run(state: AgentState) -> dict:
                + (", 아키텍처 요약" if arch_needed and arch_print == _arch_fingerprint(requirements, functions) else "")
                + (f", 기술 스택 질문 {STACK_QUESTION}" if new_question else "")
                + (f", 겹친 경로 나눔 {len(moved)}개" if moved else "")
+               + (f", 상태 전환 {len(motion.get('states') or [])}개·자동 처리 {len(motion.get('automations') or [])}개" if motion else "")
+               + (f", 업무 동작 질문 {len(new_motion)}개" if new_motion else "")
                + (f", 요청 실패 {failed}" if failed else ""))
     for line in moved:
         log.info("[API 설계] 경로 나눔: %s", line)
     log.info("[API 설계] %s", summary)
     design.update({"functions": stored, "fingerprints": prints, "architecture": architecture,
-                   "arch_fingerprint": arch_print, "last": summary})
+                   "arch_fingerprint": arch_print, "behavior": motion, "last": summary})
     update: dict = {"api_design": design, "issues": [i.model_dump() for i in issues],
                     "llm_usage": merge_usage(state, llm.pop_usage())}
-    if new_question:
-        update["questions"] = dump(questions + [new_question])
+    if new_question or new_motion:
+        update["questions"] = dump(questions)
     if failed:
         update["failures"] = {**(state.get("failures") or {}), BY: (state.get("failures") or {}).get(BY, 0) + 1}
     return update
@@ -279,7 +325,8 @@ def _normalize(out: FunctionApiOut, f: FunctionSpec) -> dict:
                    "condition": e.condition.strip()} for e in op.errors]
         operations.append({"method": op.method, "path": path, "operation_id": _operation_id(op.operation_id, op.method, f, n),
                            "summary": op.summary.strip() or f.name, "actors": [a.strip() for a in op.actors if a.strip()],
-                           **fields, "list_response": op.list_response, "errors": errors})
+                           **fields, "list_response": op.list_response, "errors": errors,
+                           "sources": [{"target": x.target.strip(), "kind": x.kind, "value": x.value.strip(), "basis": x.basis} for x in op.sources]})
     return {"function_id": f.function_id, "operations": operations,
             "no_api_reason": "" if operations else out.no_api_reason.strip()}
 
@@ -329,16 +376,6 @@ def _unique_operation_ids(stored: dict[str, dict], order: list[str]) -> dict[str
             op["operation_id"] = name
             seen.add(name)
     return stored
-
-
-def _collection(table: str) -> str:
-    """테이블 이름 → 경로 조각 (복수형 kebab-case): approval_document_instance → approval-document-instances."""
-    name = table.replace("_", "-")
-    if re.search(r"(s|x|z|ch|sh)$", name):
-        return name + "es"
-    if re.search(r"[^aeiou]y$", name):
-        return name[:-1] + "ies"
-    return name + "s"
 
 
 def _segment_table(op: dict, i: int, tables: set[str]) -> str:
@@ -404,8 +441,8 @@ def _split_routes(stored: dict[str, dict], order: list[str], tables: set[str]) -
     return moved
 
 
-def check(stored: dict[str, dict], functions: list[FunctionSpec], model: DataModel):
-    """API 설계 결과 검사: 기능마다 API(또는 이유)가 있는지, 연결한 컬럼이 있는지, 메서드·경로가 겹치는지."""
+def check(stored: dict[str, dict], functions: list[FunctionSpec], model: DataModel, motion: dict | None = None):
+    """API 설계 결과 검사: 기능마다 API(또는 이유)가 있는지, 연결한 컬럼이 있는지, 메서드·경로가 겹치는지, 업무 동작에 미정이 남았는지."""
     columns = {(e.entity_id, a.name) for e in model.entities for a in e.attributes}
     found = []
     routes: dict[tuple[str, str], list[str]] = {}
@@ -429,6 +466,15 @@ def check(stored: dict[str, dict], functions: list[FunctionSpec], model: DataMod
                                  f"{method} {path}를 기능 {', '.join(dict.fromkeys(fids))}가 함께 씀 → 한 API로 만들고 함께 씀 "
                                  "(같은 테이블, openapi.yaml에는 앞 기능의 API 하나)",
                                  target_id=f"{method} {path}", raised_by=BY))
+    names = {f.function_id: f.name for f in functions}
+    for fid, items in sorted(behavior.undefined_sources(stored).items()):   # 수정 요청으로 잇지 않는다 (스펙에 근거가 없다)
+        found.append(finding("API_VALUE_UNDEFINED", "WARNING", f"{fid} '{names.get(fid, '')}'의 값 출처가 정해지지 않음: {'; '.join(items)}",
+                             target_id=fid, raised_by=BY))
+    for item in (motion or {}).get("states") or []:
+        if item.get("undefined"):
+            found.append(finding("API_STATE_UNDEFINED", "WARNING", f"{item['column']}의 상태 전환이 정해지지 않음", target_id=item["column"], raised_by=BY))
+    for item in behavior.odd_initials(motion):
+        found.append(finding("API_STATE_INITIAL", "WARNING", f"{item['column']}의 처음 상태가 '{item['initial']}'다. 새 행의 상태로 맞는지 확인이 필요함", target_id=item["column"], raised_by=BY))
     return found
 
 
@@ -553,7 +599,7 @@ def _batch_prompt(batch: list[FunctionSpec], model: DataModel, others: list[str]
                 names.append(a.references)
     parts += ["", "## 테이블·컬럼 (column에는 이 이름만 쓴다)", *([_table_line(by_name[n]) for n in names] or ["- 없음"])]
     if others:
-        parts += ["", "## 이미 다른 기능이 쓰는 API (같은 메서드·경로를 쓰지 않는다)", *others]
+        parts += ["", "## 이미 다른 기능이 쓰는 API (목적이 같으면 같은 메서드·경로를 그대로 쓴다)", *others]
     parts += ["", f"## 응답 functions에 반드시 {len(batch)}개 모두 이 function_id 그대로", ", ".join(f.function_id for f in batch)]
     return "\n".join(parts)
 

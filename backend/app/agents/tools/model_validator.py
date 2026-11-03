@@ -79,11 +79,6 @@ def normalize_model(model: DataModel, function_requirements: dict[str, list[str]
             "entity_id": name, "attributes": attrs, "function_ids": function_ids, "requirement_ids": requirement_ids,
             "parents": [to_identifier(x) for x in e.parents],
         }))
-    names = {e.entity_id for e in entities}
-    for idx, e in enumerate(entities):
-        parents = sorted({x for x in e.parents if x in names and x != e.entity_id})
-        entities[idx] = _normalize_constraints(e.model_copy(update={"parents": parents}), notes)
-
     # 감사 컬럼(created_at, updated_at)이 없으면 표준대로 추가한다 (LLM은 출력하지 않으므로 보통 모든 엔티티에 추가된다)
     added = 0
     for idx, e in enumerate(entities):
@@ -96,8 +91,15 @@ def normalize_model(model: DataModel, function_requirements: dict[str, list[str]
     if added:
         notes.append(f"감사 컬럼 추가: 엔티티 {added}개")
 
+    # 제약은 감사 컬럼이 들어간 뒤에 검사한다 (created_at을 쓰는 제약이 없는 컬럼으로 버려지지 않게)
+    names = {e.entity_id for e in entities}
+    for idx, e in enumerate(entities):
+        parents = sorted({x for x in e.parents if x in names and x != e.entity_id})
+        entities[idx] = _normalize_constraints(e.model_copy(update={"parents": parents}), notes)
+
     # FK 컬럼 타입을 참조 엔티티 PK 타입에 맞춘다
     by_name = {e.entity_id: e for e in entities}
+    _align_history_values(entities, by_name, notes)
     for e in entities:
         for idx, a in enumerate(e.attributes):
             target = by_name.get(a.references)
@@ -110,6 +112,32 @@ def normalize_model(model: DataModel, function_requirements: dict[str, list[str]
     normalized = DataModel(entities=entities)
     normalized.relations = derive_relations(normalized)
     return normalized, notes
+
+
+CHANGE_PREFIX = re.compile(r"^(before|after|from|to|old|new|prev|previous|next)_")   # 이력의 전후 값 컬럼
+
+
+def _history_source(a: Attribute, owners: list[Entity]) -> Attribute | None:
+    """이력 컬럼의 원본 컬럼: 이름이 같거나 전후 표시를 뗀 이름이 같은 컬럼. before_status처럼 상태만 말하면 원본의 상태 컬럼이 하나일 때 그 컬럼."""
+    name = CHANGE_PREFIX.sub("", a.name)
+    named = [x for o in owners for x in o.attributes if x.allowed_values and x.name in (a.name, name)]
+    if named:
+        return named[0]
+    states = [x for o in owners for x in o.attributes if x.allowed_values and re.search(r"(status|state)$", x.name)]
+    return states[0] if name != a.name and re.search(r"(status|state)$", name) and len(states) == 1 else None
+
+
+def _align_history_values(entities: list[Entity], by_name: dict[str, Entity], notes: list[str]) -> None:
+    """이력 테이블의 값은 원본 테이블의 허용값을 따른다. 엔티티를 묶어 따로 설계해 값이 비거나 표현이 달라지는 일을 막는다."""
+    for e in entities:
+        if e.kind != "HISTORY":
+            continue
+        owners = [by_name[n] for n in dict.fromkeys(a.references for a in e.attributes if a.references in by_name)]   # 같은 원본을 대상·처리자로 두 번 참조할 수 있다
+        for idx, a in enumerate(e.attributes):
+            source = _history_source(a, owners) if a.data_type == "varchar" and not a.references else None
+            if source and source.allowed_values != a.allowed_values:
+                e.attributes[idx] = a.model_copy(update={"allowed_values": list(source.allowed_values)})
+                notes.append(f"이력 허용값을 원본에 맞춤: {e.entity_id}.{a.name}")
 
 
 def _with_primary_key(entity: str, label: str, attrs: list[Attribute], notes: list[str]) -> list[Attribute]:

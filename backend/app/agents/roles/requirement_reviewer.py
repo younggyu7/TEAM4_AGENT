@@ -158,6 +158,17 @@ def settle(r: Requirement, question_id: str) -> ReviewNote | None:
     return note
 
 
+def coverage_findings(requirements: list[Requirement], functions: list[FunctionSpec], fix: bool) -> list[Issue]:
+    """(다) 요구사항 → 기능 명세 연결 검사: 기능이 하나도 연결되지 않은 시스템 기능 요구사항.
+    fix면 기능 명세 Agent가 빠진 것만 채우게 하고(ERROR), 아니면(사람이 확정한 명세) 보고만 한다(WARNING)."""
+    if not functions:
+        return []
+    covered = {i for f in functions for i in f.requirement_ids}
+    return [finding(REQ_GAP, "ERROR" if fix else "WARNING", f"{r.requirement_id} '{r.title}'에 연결된 기능이 없음",
+                    "function_designer" if fix else "none", r.requirement_id, BY)
+            for r in requirements if r.designed and r.requirement_id not in covered]
+
+
 def enabled(state: AgentState) -> bool:
     """요구사항 검토 Agent를 쓰는지 (REQUIREMENT_REVIEW=false 또는 options.requirement_review=false면 끔)."""
     return bool((state.get("options") or {}).get("requirement_review", get_settings().requirement_review))
@@ -174,17 +185,6 @@ def conflicts_stale(state: AgentState) -> bool:
     """요구사항이 바뀐 뒤 충돌 검토를 아직 하지 않았는지."""
     return bool(state.get("requirements")) and \
         (state.get("requirement_review") or {}).get("conflict_rev", -1) != rev(state)["requirements"]
-
-
-def coverage_findings(requirements: list[Requirement], functions: list[FunctionSpec], fix: bool) -> list[Issue]:
-    """(다) 요구사항 → 기능 명세 연결 검사: 기능이 하나도 연결되지 않은 시스템 기능 요구사항.
-    fix면 기능 명세 Agent가 빠진 것만 채우게 하고(ERROR), 아니면(사람이 확정한 명세) 보고만 한다(WARNING)."""
-    if not functions:
-        return []
-    covered = {i for f in functions for i in f.requirement_ids}
-    return [finding(REQ_GAP, "ERROR" if fix else "WARNING", f"{r.requirement_id} '{r.title}'에 연결된 기능이 없음",
-                    "function_designer" if fix else "none", r.requirement_id, BY)
-            for r in requirements if r.designed and r.requirement_id not in covered]
 
 
 def pending(state: AgentState) -> list[str]:

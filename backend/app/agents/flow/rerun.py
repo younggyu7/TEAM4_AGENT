@@ -505,6 +505,7 @@ def seed_state(values: dict, design: dict, stage: str, run_id: str, base: str, p
         "model_redesign": False,
         "model_targets": (["*"] if targets is None else targets) if keep and not functions_stage else None,
         "model_rework": (rework or ReworkSummary()).model_dump(),
+        "model_designed": [],   # 이 실행에서 Agent가 설계한 엔티티 (기준 버전 것은 사람이 확인한 것이라 의미 검토 지적을 고치지 않는다)
         "trace_links": [],
         "dirty_requirements": [], "dirty_functions": [],
         "basis": {**b, "functions": r["requirements"], "model": r["functions"] if keep else -1, "review": [-1, -1],

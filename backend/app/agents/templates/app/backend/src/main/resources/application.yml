@@ -1,0 +1,10 @@
+server:
+  port: 8080
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/app}
+    username: ${DB_USER:app}
+    password: ${DB_PASSWORD:app}
+    hikari:
+      data-source-properties:
+        stringtype: unspecified   # 글자로 온 값(경로의 ID·날짜)을 DB가 컬럼 타입에 맞춘다 (업무 로직의 직접 쿼리가 bigint = varchar로 실패하지 않게)

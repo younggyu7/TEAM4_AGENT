@@ -172,7 +172,7 @@ def test_confirmed_rules_follow_the_screen_request(monkeypatch, tmp_path):
 
 def test_spec_format_and_dev_spec_files_are_served(client, project):
     r = client.get("/api/v1/spec-format")
-    assert r.status_code == 200 and r.text.startswith("# 개발 스펙 문서 형식 (spec-format v1)")
+    assert r.status_code == 200 and r.text.startswith("# 개발 스펙 문서 형식 (spec-format v2)")
     assert client.get(f"/api/v1/file?project={project}&version=1&name=openapi.yaml").status_code == 404, \
         "허용된 이름이지만 ERD 버전에는 없다"
     assert client.get(f"/api/v1/file?project={project}&version=1&name=secret.yaml").status_code in (400, 404)

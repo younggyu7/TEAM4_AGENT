@@ -331,14 +331,16 @@ def resolve_provider() -> str:
 
 
 def model_label() -> str:
-    """지금 설정으로 쓰는 LLM 모델 이름 (산출물 보고서의 'LLM 사용량'에 남긴다). 공급자를 정할 수 없으면 빈 문자열.
+    """지금 설정으로 쓰는 LLM 모델 이름과 생각 수준 (검토 보고서의 'LLM 사용량'에 남긴다). 공급자를 정할 수 없으면 빈 문자열.
     rerun은 기준 버전을 만든 실행의 모델 설정으로 바꾼 뒤 산출물을 쓰므로, 그 버전을 실제로 만든 모델이다."""
     try:
         provider = resolve_provider()
     except RuntimeError:
         return ""
     s = get_settings()
-    return {"anthropic": s.anthropic_model, "openai": s.openai_model}.get(provider, provider)
+    model, effort = {"anthropic": (s.anthropic_model, s.anthropic_effort),
+                     "openai": (s.openai_model, s.openai_reasoning_effort)}.get(provider, (provider, ""))
+    return f"{model} (생각 수준 {effort})" if effort else model
 
 
 def _create_from_settings() -> LLMClient:

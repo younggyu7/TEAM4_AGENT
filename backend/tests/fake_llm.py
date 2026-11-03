@@ -204,6 +204,11 @@ class FakeLLM(LLMClient):
                 summary=name, actors=["사용자"], request=fields, response=fields)]))
         return ApiDesignOut(functions=out)
 
+    # 업무 동작: 기본은 비워 둔다 (상태 전환·자동 처리는 test_behavior.py에서 따로 확인)
+    def _BehaviorOut(self, user):
+        from app.agents.roles.behavior import BehaviorOut
+        return BehaviorOut()
+
     # 아키텍처: 원문이 개발 언어를 정한 것으로 둔다 (기술 스택 질문은 테스트에서 따로 확인)
     def _ArchitectureOut(self, user):
         from app.agents.roles.api_designer import ArchitectureOut, ArchItemOut, StackMentionOut

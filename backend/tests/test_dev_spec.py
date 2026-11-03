@@ -1,4 +1,4 @@
-"""개발 스펙 (API 설계 Agent + 고정 형식 문서 9개): 'ERD 최종 확정'(최종본)에만 생기고, 기술 스택 질문은 추천안으로 가정,
+"""개발 스펙 (API 설계 Agent + 고정 형식 문서 10개): 'ERD 최종 확정'(최종본)에만 생기고, 기술 스택 질문은 추천안으로 가정,
 바뀐 기능만 다시 설계, 형식 고정 (API 불필요)."""
 import json
 import re
@@ -39,10 +39,10 @@ def _final(sample_doc, fake, base_fake=None) -> Path:
 def test_dev_spec_files_are_written_only_in_the_final_version(sample_doc):
     fake = FakeLLM(broken_fk=False)
     out = _final(sample_doc, fake)
-    assert all((out / name).exists() for name in FILES), "최종본에 개발 스펙 9개"
+    assert all((out / name).exists() for name in FILES), "최종본에 개발 스펙 10개"
     assert not any((_folder("1") / name).exists() for name in FILES), "ERD 버전에는 없다 (API 설계는 최종 확정 때만)"
     design = json.loads((out / "design.json").read_text(encoding="utf-8"))
-    assert design["meta"]["dev_spec"]["format"] == "spec-format v1"
+    assert design["meta"]["dev_spec"]["format"] == "spec-format v2"
 
     spec = yaml.safe_load((out / "openapi.yaml").read_text(encoding="utf-8"))
     ops = [op for item in spec["paths"].values() for op in item.values()]
@@ -54,7 +54,7 @@ def test_dev_spec_files_are_written_only_in_the_final_version(sample_doc):
     assert columns and all(f"CREATE TABLE {c.split('.')[0]}" in ddl for c in columns), "필드의 DB 컬럼은 schema.sql 이름"
 
     agents = (out / "AGENTS.md").read_text(encoding="utf-8")
-    assert "spec-format v1" in agents and "Python (원문)" in agents
+    assert "spec-format v2" in agents and "Python (원문)" in agents
     tasks = (out / "TASKS.md").read_text(encoding="utf-8")
     assert "TASK-001 · 프로젝트 뼈대" in tasks and "TASK-002 · DB 생성" in tasks and "FN-C01-01" in tasks
     acceptance = (out / "ACCEPTANCE_CRITERIA.md").read_text(encoding="utf-8")
@@ -67,7 +67,7 @@ def test_format_document_lists_every_section_the_code_writes(sample_doc):
     """SPEC_FORMAT.md(사용자가 보는 형식 정의)와 실제로 쓰는 문서의 절 제목이 어긋나지 않게 한다."""
     out = _final(sample_doc, FakeLLM(broken_fk=False))
     format_doc = (Path(__file__).resolve().parents[1] / "SPEC_FORMAT.md").read_text(encoding="utf-8")
-    assert "spec-format v1" in format_doc
+    assert "spec-format v2" in format_doc
     for name in FILES:
         if name.endswith(".md"):
             for heading in re.findall(r"^## (.+)$", (out / name).read_text(encoding="utf-8"), re.M):
@@ -214,7 +214,7 @@ def test_api_design_off_keeps_the_final_confirmation_as_before(sample_doc):
 
 
 def test_stack_chosen_on_the_final_page_rewrites_the_spec_without_llm(sample_doc):
-    """최종 산출물 화면에서 기술 스택을 고르면: 같은 최종본의 개발 스펙 9개를 코드로 다시 쓰고 '확정', 설계 산출물은 그대로."""
+    """최종 산출물 화면에서 기술 스택을 고르면: 같은 최종본의 개발 스펙 10개를 코드로 다시 쓰고 '확정', 설계 산출물은 그대로."""
     from app.agents.tools.versions import find_version
     from conftest import signed_in_client
 
