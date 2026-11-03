@@ -82,12 +82,15 @@ class Settings:
     func_common_decisions: bool = True                   # 기능 명세 전에 공통 결정(용어·분류값·공통 규칙)을 먼저 정함
     func_effort: str = ""                                # 기능 명세 그룹·확인 질문 요청의 생각 수준 (빈 값이면 ANTHROPIC_EFFORT·OPENAI_REASONING_EFFORT)
     func_assumption_limit: float = 0.1                   # 기능 명세 '(가정)' 규칙 한도 (전체 업무 규칙 대비). 넘으면 질문으로 정한다. 1이면 묻지 않음
+    func_rule_bundle: bool = True                        # 질문 없이 남은 영향이 작은 '(확인 필요)' 규칙을 영역마다 질문 하나로 묶는다
+    func_rule_trim: bool = True                          # 고객이 정할 내용이 없는 '(가정)'·'(확인 필요)' 규칙(되풀이·중복)을 뺀다
+    func_basis_check: bool = True                        # 표시 없는 규칙을 원문과 대조해 근거가 없으면 '(가정)'을 붙인다
     func_max_questions: int = 12                         # 기능 명세 확인 질문 상한 (한도를 넘어 덮지 못한 것은 '(확인 필요)'로 남아 사람이 확인)
     attr_batch_size: int = 5
     max_steps: int = 40
     max_fix_attempts: int = 2                            # Agent 실패·이슈 자동 수정 횟수 (아래 단계별 값이 0이면 이 값)
-    func_fix_attempts: int = 0                           # 기능 명세: 누락 요구사항 재설계·실패 재시도 횟수 (0이면 max_fix_attempts)
-    model_fix_attempts: int = 0                          # 데이터 설계: 모델 오류 수정·연결 보완·실패 재시도 횟수 (0이면 max_fix_attempts)
+    func_fix_attempts: int = 0                           # 기능 명세: 누락 요구사항 채우기·실패 재시도 횟수 (0이면 max_fix_attempts)
+    model_fix_attempts: int = 0                          # 데이터 설계: 모델 오류 수정·연결 보완·의미 검토 지적 보완·실패 재시도 횟수 (0이면 max_fix_attempts)
     max_db_attempts: int = 2
     data_dir: Path = Path("data")                          # 입력 문서 폴더 (parse 기본 대상, run에서 이름만 줘도 찾음)
     output_dir: Path = Path("output")
@@ -109,6 +112,8 @@ class Settings:
     seed_test_accounts: bool = False                     # [임시] 회원이 없으면 서버 시작 때 시연용 계정 7개를 만든다 (.env 기본 켬)
     log_level: str = "INFO"                              # API 서버 로그 수준
     cors_origins: tuple[str, ...] = DEFAULT_CORS_ORIGINS  # 브라우저 요청을 허용할 프론트 주소 (로컬 Vite 개발 서버는 proxy라 없어도 됨)
+    behavior_max_questions: int = 5                      # 상태 전환·자동 처리에서 낼 고객 확인 질문 상한 (BQ-…)
+    dev_effort: str = "medium"                           # 개발 단계(업무 로직 채우기) 요청의 생각 수준 (빈 값이면 실행 설정)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -126,6 +131,9 @@ class Settings:
             func_effort=os.getenv("FUNC_EFFORT", "").strip().lower(),
             func_assumption_limit=float(os.getenv("FUNC_ASSUMPTION_LIMIT", "").strip() or cls.func_assumption_limit),
             func_max_questions=_int("FUNC_MAX_QUESTIONS", cls.func_max_questions),
+            func_rule_bundle=os.getenv("FUNC_RULE_BUNDLE", "true").strip().lower() != "false",
+            func_rule_trim=os.getenv("FUNC_RULE_TRIM", "true").strip().lower() != "false",
+            func_basis_check=os.getenv("FUNC_BASIS_CHECK", "true").strip().lower() != "false",
             attr_batch_size=_int("ATTR_BATCH_SIZE", cls.attr_batch_size),
             max_steps=_int("MAX_STEPS", cls.max_steps),
             max_fix_attempts=_int("MAX_FIX_ATTEMPTS", cls.max_fix_attempts),
@@ -153,6 +161,8 @@ class Settings:
             log_level=os.getenv("LOG_LEVEL", "").strip().upper() or cls.log_level,
             cors_origins=tuple(o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip())
             or DEFAULT_CORS_ORIGINS,
+            behavior_max_questions=_int("BEHAVIOR_MAX_QUESTIONS", cls.behavior_max_questions),
+            dev_effort=os.getenv("DEV_EFFORT", cls.dev_effort).strip().lower(),
         )
 
     def fix_attempts(self, agent: str) -> int:

@@ -1,5 +1,5 @@
 """산출물 파일 출력: 요구사항 정의서·기능 명세서·ERD·DDL·추적표·검토 보고서·DB 검증 보고서 (Markdown/SQL/JSON/CSV),
-API 설계를 한 최종본('ERD 최종 확정')은 개발 스펙 문서 9개도 (tools/dev_spec.py)."""
+API 설계를 한 최종본('ERD 최종 확정')은 개발 스펙 문서 10개도 (tools/dev_spec.py)."""
 from __future__ import annotations
 
 import csv
@@ -63,6 +63,7 @@ def export_design(state: dict, version: str) -> list[str]:
         "stage": options.get("stage", "full"), "base_version": options.get("base_version"),
         "feedback": (options.get("feedback") or {}).get(options.get("stage", ""), ""),
         "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "group_names": {s.source_key: s.name for s in sources if s.name},   # 기능 영역 이름 (개발 단계의 메뉴 이름)
     }
     head = (f"> 문서: {doc.get('file_name', '')} (`{doc.get('document_id', '')}` / {doc.get('document_version', '')})  \n"
             f"> 프로젝트: **{meta['project']}** · 설계 버전: **v{version}** · 실행: `{state.get('run_id')}` · "
@@ -299,12 +300,16 @@ def _confirm_md(funcs: list[FunctionSpec], status: dict[str, str], questions: li
         n, total = assumption_share(funcs)
         share = f"'(가정)' 규칙은 업무 규칙 {total}개 중 {n}개({round(100 * n / max(1, total))}%)" + (
             f", 한도 {round(100 * confirm['limit'])}%" if "limit" in confirm else "")
-        out.append(f"- {share}. 확인 대상 후보 {confirm['candidates']}개 중 질문 {len(confirm.get('questions') or [])}개를 "
+        bundles = confirm.get("bundles", 0)
+        out.append(f"- {share}. 확인 대상 후보 {confirm['candidates']}개 중 질문 {len(confirm.get('questions') or []) - bundles}개"
+                   + (f"와 영역별 묶음 질문 {bundles}개" if bundles else "") + "를 "
                    f"고객에게 묻고, 묻지 않은 '(확인 필요)' {confirm.get('assumed', 0)}개는 추천안으로 정해 '(가정)'으로 표시했다"
                    + (f" (한도를 넘어 {confirm['kept']}개는 추천안을 '(확인 필요)'로 남김: 화면의 '확인 필요 규칙'에서 확인하거나 의견으로 정한다)"
                       if confirm.get("kept") else "")
                    + (f" (정하지 못한 {confirm['unresolved']}개는 '(확인 필요)'로 남음)" if confirm.get("unresolved") else "")
-                   + ".")
+                   + "."
+                   + (f" 후보 중 {confirm['basis_marked']}개는 표시가 없었지만 원문에 근거가 없어 코드가 '(가정)' 후보로 올렸다." if confirm.get("basis_marked") else "")
+                   + (f" 고객이 정할 내용이 없는 규칙 {confirm['trimmed']}개는 코드가 뺐다 (기능의 다른 칸이나 더 긴 규칙에 같은 내용이 있다)." if confirm.get("trimmed") else ""))
     out += ["- 질문은 답이 없으면 추천안으로 설계해 두었다. 업무 규칙의 '(확인 필요 FQ-…)'가 그 질문으로 정해지는 규칙이며, "
             "추천과 같은 답은 '(결정 FQ-…)'로 바뀌고 다른 답이면 관련 기능만 고친다.", ""]
     if asked:
@@ -334,9 +339,9 @@ def _common_md(common: dict, funcs: list[FunctionSpec] | None = None) -> list[st
         return []
     out = ["## 공통 결정", "", "여러 기능 영역에 같게 적용한다. 기능 업무 규칙의 '(공통 P번호)'는 아래 공통 규칙을 붙인 것이다.", ""]
     if common.get("roles"):
-        out += ["**사용자 역할** (기능의 사람 행위자는 이 이름. 같은 뜻의 표현은 시스템이 이 이름으로 맞춘다)", "",
-                table(["역할", "하는 일", "같은 뜻의 표현"],
-                      [[r["name"], r.get("scope", ""), ", ".join(r.get("aliases") or [])] for r in common["roles"]]), ""]
+        out += ["**사용자 역할** (기능의 사람 행위자는 이 이름. 같은 뜻의 표현은 시스템이 이 이름으로 맞춘다. 근거가 가정이면 원문에 없는 역할 구분이다)", "",
+                table(["역할", "하는 일", "같은 뜻의 표현", "근거"],
+                      [[r["name"], r.get("scope", ""), ", ".join(r.get("aliases") or []), r.get("basis") or "원문"] for r in common["roles"]]), ""]
     if common.get("terms"):
         out += ["**업무 객체 표준 이름**", "", table(["이름", "같은 뜻의 표현"],
                                                   [[t["name"], ", ".join(t.get("synonyms") or [])] for t in common["terms"]]), ""]
@@ -633,12 +638,19 @@ def _semantic_md(state: dict, issues: list[Issue]) -> list[str]:
         notes.append(f"- ⚠ 검토 실패(미검증): {', '.join(labels.get(p, p) for p in meta['failed'])}")
     if meta.get("dropped"):
         notes.append(f"- 대상 ID를 산출물에서 찾을 수 없는 지적 {meta['dropped']}건은 근거를 확인할 수 없어 제외했다.")
+    fixed = [i for i in issues if (i.kind.startswith("SEM_MODEL_") or i.kind == "TRACE_STATE_COLUMN_MISSING")
+             and i.status == "RESOLVED" and i.attempts]
+    redone = [d.get("result", "") for d in state.get("decisions") or []
+              if d.get("action") == "data_modeler" and d.get("mode") == "semantic"]
+    if redone:
+        notes.append(f"- 데이터 모델 Agent가 지적을 반영해 다시 설계함: {' / '.join(r.split(' · ')[0] for r in redone)}"
+                     + (f" → 다시 검토에서 해결된 지적 {len(fixed)}건 ({', '.join(i.issue_id for i in fixed)})" if fixed else ""))
     body = table(["ID", "종류", "대상", "내용", "근거", "제안", "확인 담당", "처리"], rows) if rows else "- 지적 없음"
     return head + [body, "", *notes, *([""] if notes else [])]
 
 
 def confirm_tech_stack(project: str, version: str, stack: str) -> dict:
-    """최종본의 기술 스택을 사람이 정한 값으로 확정하고 개발 스펙 9개를 다시 쓴다 (LLM 없음, 화면 '개발 스펙 파일'에서 선택).
+    """최종본의 기술 스택을 사람이 정한 값으로 확정하고 개발 스펙 10개를 다시 쓴다 (LLM 없음, 화면 '개발 스펙 파일'에서 선택).
 
     같은 최종본 안에서 개발 스펙 문서와 design.json(TQ-001 답·meta.dev_spec)만 바꾼다. 설계 산출물(기능 명세·ERD·DDL·API 설계)은
     그대로다. 정한 값은 버전 기록에도 tech_stack으로 남긴다 (개발 AI에 넘길 때 서버에 명시된 값).

@@ -8,12 +8,12 @@ from app.schemas.data_model import Attribute, DataModel, Entity
 from app.agents.tools.model_validator import normalize_model, validate_model
 
 
-def _run(sample_doc, fake, thread="dm"):
+def _run(sample_doc, fake, thread="dm", **options):
     llm_module.set_llm(fake)
     graph = build_graph(InMemorySaver())
     config = {"configurable": {"thread_id": thread}, "recursion_limit": 500}
     graph.invoke({"run_id": thread, "source_path": str(sample_doc),
-                  "options": {"ask_mode": "defer", "validate_db": False}}, config)
+                  "options": {"ask_mode": "defer", "validate_db": False, **options}}, config)
     return graph.get_state(config).values
 
 
@@ -24,6 +24,24 @@ class _FlakyBatchLLM(FakeLLM):
         if user.count("\n### ") > 1:
             raise ValueError("묶음 응답 오류")
         return super()._AttributesOut(user)
+
+
+def test_constraint_can_use_audit_columns_and_history_follows_source():
+    from app.schemas.data_model import Attribute, CheckRule, DataModel, Entity
+    from app.agents.tools.model_validator import normalize_model
+
+    pk = {"primary_key": True, "nullable": False, "data_type": "bigint"}
+    owner = Entity(entity_id="ticket", attributes=[Attribute(name="ticket_id", **pk), Attribute(name="ticket_status", allowed_values=["OPEN", "DONE"]),
+                                                   Attribute(name="expires_at", data_type="timestamp")],
+                   checks=[CheckRule(column="expires_at", op=">", value="created_at")])
+    history = Entity(entity_id="ticket_history", kind="HISTORY", parents=["ticket"], attributes=[
+        Attribute(name="ticket_history_id", **pk), Attribute(name="ticket_id", data_type="bigint", references="ticket"), Attribute(name="merged_ticket_id", data_type="bigint", references="ticket"),
+        Attribute(name="before_status"), Attribute(name="after_status", allowed_values=["열림", "완료"]), Attribute(name="memo")])
+    model, _ = normalize_model(DataModel(entities=[owner, history], relations=[]), {})
+    assert len(model.entity("ticket").checks) == 1, "감사 컬럼을 쓰는 제약이 없는 컬럼으로 버려지면 안 된다"
+    values = {a.name: a.allowed_values for a in model.entity("ticket_history").attributes}
+    assert values["before_status"] == ["OPEN", "DONE"] and values["after_status"] == ["OPEN", "DONE"], "묶음이 달라 원본 값을 몰라도 전후 상태는 원본을 따른다"
+    assert values["memo"] == [], "상태가 아닌 컬럼은 그대로"
 
 
 def test_failed_attribute_batch_is_retried_one_by_one(sample_doc):
@@ -51,7 +69,8 @@ class _ServiceRequestFailsLLM(FakeLLM):
 
 def test_parents_survive_redesign_and_failure_reason_is_recorded(sample_doc):
     fake = _ServiceRequestFailsLLM()
-    state = _run(sample_doc, fake)
+    # 의미 검토 지적 보완은 같은 엔티티를 다시 설계해 (이 가짜 LLM에서는) 또 실패하므로 끄고 검증 오류 수정만 본다
+    state = _run(sample_doc, fake, semantic_review=False)
     failed = next(i for i in state["issues"] if i["kind"] == "DATA_ATTR_DESIGN_FAILED")
     assert failed["target_id"] == "service_request" and "ValueError: 속성 응답 형식 오류" in failed["message"]
     assert failed["status"] == "RESOLVED", "검증 오류로 다시 설계해 성공하면 해결로 바뀜"
@@ -167,7 +186,9 @@ def test_attribute_batches_share_prefix_and_list_each_function_once(sample_doc):
     _run(sample_doc, fake)
     shared, user = fake.attr_calls[0]
     assert "## 엔티티 카탈로그" in shared and "## 엔티티 카탈로그" not in user, "카탈로그는 캐시할 공통 앞부분으로"
-    assert len({s for s, _ in fake.attr_calls}) == 1, "묶음마다 공통 앞부분이 같아야 캐시가 맞음"
+    # 의미 검토 지적 보완은 지적 글이 앞부분에 들어가는 다른 단계라 빼고, 한 번의 설계 안의 묶음끼리 본다
+    first = [s for s, _ in fake.attr_calls if "의미 검토가 지적한" not in s]
+    assert len(set(first)) == 1, "묶음마다 공통 앞부분이 같아야 캐시가 맞음"
     for fid in set(re.findall(r"^- \[(FN-[^\]]+)\]", user, re.M)):
         assert user.count(f"- [{fid}]") == 1, "묶음 안에서 같은 기능은 한 번만"
 

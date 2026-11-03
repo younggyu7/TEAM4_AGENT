@@ -120,6 +120,8 @@
 │   │   ├── 📄 data_modeler.py                     # 데이터 설계: 엔티티 카탈로그·속성 설계·수정·연결 보완
 │   │   ├── 📄 trace_reviewer.py                   # 추적 검토: 추적표 생성, 기능→ERD 연결 누락 (LLM 없음)
 │   │   ├── 📄 api_designer.py                     # API 설계: 기능별 API·아키텍처 요약·기술 스택 질문, 최종 확정 때만 (바뀐 기능만)
+│   │   ├── 📄 behavior.py                         # 업무 동작: 상태 전환표·자동 처리·값의 출처 (API 설계와 함께, 입력이 같으면 다시 묻지 않음)
+│   │   ├── 📄 developer.py                        # 개발: 서비스 코드 뼈대의 업무 로직 자리(hole)만 LLM으로 채움 (develop --logic)
 │   │   └── 📄 semantic_reviewer.py                # 의미 검토: ERD↔기능 명세(·기능 명세↔요구사항), 최종 확정 때
 │   ├── 📁 prompts/                                # Agent 시스템 프롬프트 (.md 하나에 프롬프트 하나)
 │   │   ├── 📄 __init__.py                         # load_prompt(): .md를 읽어 문자열로 (끝 줄바꿈 하나 제거)
@@ -136,10 +138,15 @@
 │   │   ├── 📁 api_designer/
 │   │   │   ├── 📄 api.md                          # 기능별 REST API 설계 지침
 │   │   │   └── 📄 architecture.md                 # 아키텍처 요약·기술 스택 지침
+│   │   ├── 📁 behavior/
+│   │   │   └── 📄 system.md                       # 상태 전환·자동 처리·값의 출처 지침
+│   │   ├── 📁 developer/
+│   │   │   └── 📄 system.md                       # 업무 로직(Java 메서드 본문) 작성 지침
 │   │   └── 📁 semantic_reviewer/
 │   │       ├── 📄 functions.md                    # 기능 명세 의미 검토 지침 (본문)
 │   │       ├── 📄 model.md                        # 데이터 모델 의미 검토 지침 (본문)
 │   │       └── 📄 common_rules.md                 # 두 검토 공통 규칙 ({limit} 자리 표시)
+│   ├── 📁 templates/app/                          # 개발 단계 서비스 코드 고정 틀 (React·Vite 화면, Spring Boot 공통 코드)
 │   ├── 📁 llm/                                    # LLM 포트·어댑터
 │   │   ├── 📄 __init__.py                         # 패키지 표시
 │   │   └── 📄 client.py                           # LLMClient(포트)·Anthropic·OpenAI·Manual 어댑터, get_llm·set_llm, 병렬 호출
@@ -161,7 +168,12 @@
 │       ├── 📄 ddl.py                              # PostgreSQL DDL 생성
 │       ├── 📄 db_validator.py                     # DDL을 격리 DB(PostgreSQL, 없으면 SQLite)에 적용해 검증
 │       ├── 📄 exporter.py                         # 산출물 쓰기: 요구사항·기능 명세·ERD·DDL·추적표·검토 보고서·의미 검토
-│       ├── 📄 dev_spec.py                         # 개발 스펙 9개(AGENTS·PRD·ARCHITECTURE·DATABASE·API·openapi·AC·TASKS·DECISIONS) 고정 형식 생성
+│       ├── 📄 dev_spec.py                         # 개발 스펙 10개(AGENTS·PRD·ARCHITECTURE·DATABASE·API·openapi·BEHAVIOR·AC·TASKS·DECISIONS) 고정 형식 생성
+│       ├── 📄 api_shape.py                        # API·테이블 모양 판단 공통 (경로 변수·대상 테이블·상태 컬럼)
+│       ├── 📄 rule_basis.py                       # 업무 규칙 근거 대조 '(가정)' 표시·되풀이 규칙 정리·영향 판단
+│       ├── 📄 screens.py                          # 개발 단계: 기능 → 화면(메뉴·탭·버튼) 설계
+│       ├── 📄 sample_data.py                      # 개발 단계: 예시 데이터(화면 mock·seed.sql)
+│       ├── 📄 scaffold.py                         # 개발 단계: 최종본 스펙 → 서비스 코드 파일 (LLM 없음, 같은 스펙이면 같은 파일)
 │       ├── 📄 trace_diff.py                       # 이전 버전 대비 변경과 영향 (추적표 4절·diff)
 │       └── 📄 versions.py                         # 버전 번호 규칙·버전 기록(versions.json)
 │
@@ -241,6 +253,10 @@
     ├── 📄 test_coordinator_stages.py              # 단계별 버전(요구사항→기능 명세→데이터 설계)·확정·diff
     ├── 📄 test_hitl_flow.py                       # 화면 흐름: 초안 멈춤·--design·답 코드 반영·최종본
     ├── 📄 test_dev_spec.py                        # 개발 스펙: 최종본에만 생성·형식 고정·기술 스택 가정·바뀐 기능만·경로 정리
+    ├── 📄 test_behavior.py                        # 업무 동작: 최종본에 BEHAVIOR.md·BQ 질문, 같은 입력이면 다시 안 물음, 생성 코드의 값 출처
+    ├── 📄 test_develop.py                         # 개발 단계: LLM 없이 같은 파일, 사람이 고친 파일 보존, 화면·예시 데이터, --logic 검사
+    ├── 📄 test_fix_loops.py                       # 자동 수정 라운드: 의미 검토 지적 보완·누락 채우기·단계별 한도
+    ├── 📄 test_rule_basis.py                      # 규칙 근거 대조·규칙 정리
     ├── 📄 test_versions.py                        # 버전 번호·프로젝트 이름
     ├── 📄 test_parsing.py                         # 문서 파서 (PDF·HWPX·DOCX)
     ├── 📄 test_broken_documents.py                # 깨진·나뉜 요구사항 표 복구

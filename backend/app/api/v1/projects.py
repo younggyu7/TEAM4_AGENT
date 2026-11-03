@@ -3,7 +3,7 @@
   GET  /projects          프로젝트와 설계 버전 목록 (버전 번호는 '4', '4.1' 같은 문자열)
   POST /projects/title    버전 제목 저장
   GET  /tech-stacks       개발 스펙의 기술 스택 선택지
-  POST /projects/tech-stack  최종본의 기술 스택 확정 → 개발 스펙 9개 다시 쓰기 (LLM 없음)
+  POST /projects/tech-stack  최종본의 기술 스택 확정 → 개발 스펙 10개 다시 쓰기 (LLM 없음)
 """
 from __future__ import annotations
 

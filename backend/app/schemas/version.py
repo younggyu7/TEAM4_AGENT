@@ -28,7 +28,7 @@ class TitleUpdate(BaseModel):
 
 
 class TechStackUpdate(BaseModel):
-    """최종본의 기술 스택 확정 (화면 '개발 스펙 파일'에서 선택·직접 입력). LLM 없이 개발 스펙 9개를 다시 쓴다."""
+    """최종본의 기술 스택 확정 (화면 '개발 스펙 파일'에서 선택·직접 입력). LLM 없이 개발 스펙 10개를 다시 쓴다."""
     project: str
     version: str
     stack: str

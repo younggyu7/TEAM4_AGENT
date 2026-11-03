@@ -8,7 +8,10 @@
 - mode=fix   : 지정 엔티티의 속성만 오류 메시지를 반영해 다시 설계 (모델 검증·DB 검증 실패 시)
 - mode=redesign : 지정 엔티티(rerun --entities)나 사용자 의견과 관련된 엔티티만 컬럼을 다시 설계하고 나머지는 그대로 둔다.
   의견만 있으면 작은 요청 하나(엔티티 목록 + 의견)로 다시 설계할 엔티티와 새로 필요한 엔티티를 고른다.
-- mode=semantic : 의미 검토의 데이터 지적(SEM_MODEL_*, scope는 이슈 ID)을 의견으로 넘겨 redesign과 같은 방식으로 관련 엔티티만 고친다.
+- mode=semantic : 의미 검토의 데이터 지적(SEM_MODEL_*)과 상태 컬럼 누락(TRACE_STATE_COLUMN_MISSING, scope는 이슈 ID)을
+  의견으로 넘겨 redesign과 같은 방식으로 관련 엔티티만 고친다. 다음 의미 검토는 고친 테이블만 다시 본다 (state.semantic_recheck).
+  고칠 수 있는 엔티티는 이 실행에서 Agent가 설계한 것뿐이다 (state.model_designed: 사람이 고친 엔티티, rerun --entities로
+  고르지 않은 엔티티는 지적이 있어도 다시 설계하지 않는다). 새 엔티티는 만들 수 있다.
 - 사용자가 고친 엔티티(user_edited)는 full·fix·redesign 어디서도 LLM이 다시 설계하지 않는다. 카탈로그에는 그대로 넘기고,
   rerun --entities로 직접 지정한 경우만 다시 설계한다 (고정이 풀린다). 사용자가 지운 엔티티는 연결 보완에서 다시 만들지 않는다.
 
@@ -97,8 +100,8 @@ class AttributeOut(BaseModel):
     length: int = Field(0, description="varchar만 1~4000, 그 외 생략")
     unique: bool = Field(False, description="이 컬럼 하나로 유일할 때만 true, 아니면 생략")
     references: str = Field("", description="외래키면 참조 엔티티 name, 아니면 생략")
-    allowed_values: list[str] = Field(default_factory=list, description="값 전체가 확인된 경우만, 아니면 생략")
-    description: str = Field("", description="이름·label만으로 부족하거나 (가정)·(확인 필요)를 적을 때만")
+    allowed_values: list[str] = Field(default_factory=list, description="값 전체가 확인됐거나 상태 컬럼이면 쓴다 (상태는 처음 상태를 맨 앞에), 아니면 생략")
+    description: str = Field("", description="이름·label만으로 부족하거나 (가정)·(확인 필요)·값의 공급 시점을 적을 때만")
 
 
 # LLM 응답 스키마: 조건부 필수 (when_column이 when_values 중 하나이면 column 필수)
@@ -174,8 +177,16 @@ def run(state: AgentState) -> dict:
         model, failed = _redesign(llm, current, functions, requirements, scope, _feedback(state), context, retried,
                                   rework)
     elif mode == "semantic" and current is not None:
-        model, failed = _redesign(llm, current, functions, requirements, [], _semantic_feedback(state, scope), context,
-                                  retried, rework)
+        # 지적 글은 범위 고르기와 컬럼 설계 요청 모두에 넣는다 (지적 없이 범위만 다시 설계하면 고칠 내용을 모른다).
+        # 이 실행이 앞서 다시 설계한 범위(rerun --entities·의견 등) 기록은 지우지 않고 이어 붙인다
+        notes = _semantic_feedback(state, scope)
+        before = rework.model_copy(deep=True)
+        model, failed = _redesign(llm, current, functions, requirements, [], notes,
+                                  "\n\n".join(x for x in (context, notes) if x), retried, rework,
+                                  allowed=set(state.get("model_designed") or []))
+        semantic_fixed = list(rework.redesigned)
+        rework.redesigned = before.redesigned + [n for n in semantic_fixed if n not in before.redesigned]
+        rework.skipped = before.skipped + [n for n in rework.skipped if n not in before.skipped]
     elif current is None or mode == "full" or "*" in scope:
         locked = [e for e in current.entities if e.user_edited] if current else []
         model, failed, asked = _full(llm, functions, requirements, context, retried, locked)
@@ -189,6 +200,8 @@ def run(state: AgentState) -> dict:
     model, notes = normalize_model(model, fn_reqs)
     for note in notes:
         log.info("[데이터모델] 정규화: %s", note)
+    designed_now = designed_entities(current, model)
+    designed = set(state.get("model_designed") or []) | designed_now
     new_questions = _to_questions(asked, questions, fn_reqs, {e.entity_id for e in model.entities})
     log.info("[데이터모델] mode=%s → 엔티티 %d개, 관계 %d개%s%s", mode, len(model.entities), len(model.relations),
              f", 다시 설계 {len(rework.redesigned)}개 ({', '.join(rework.redesigned)})" if mode in ("redesign", "semantic") else "",
@@ -210,7 +223,8 @@ def run(state: AgentState) -> dict:
     r, b = rev(state), basis(state)
     # 부분 재설계에서 다시 설계한 엔티티가 없으면 모델이 그대로이므로 수정 횟수를 올리지 않는다
     # (ERD 저장처럼 사람이 고친 모델만 받은 실행이 의미 검토를 다시 부르지 않게)
-    unchanged = mode in ("redesign", "semantic") and current is not None and not rework.redesigned
+    fixed = semantic_fixed if mode == "semantic" and current is not None else rework.redesigned
+    unchanged = mode in ("redesign", "semantic") and current is not None and not fixed
     update = {
         "data_model": model.model_dump(mode="json"),
         "rev": {**r, "model": r["model"] + (0 if unchanged else 1)},
@@ -219,9 +233,12 @@ def run(state: AgentState) -> dict:
         "model_redesign": False,
         "model_targets": None,
         "model_rework": rework.model_dump(),
-        # 의미 검토 지적을 고쳤으면 다음 의미 검토는 고친 테이블과 그 지적만 본다 (모델 전체를 다시 보내지 않게)
-        "semantic_recheck": {"issues": list(scope), "entities": list(rework.redesigned)}
-        if mode == "semantic" and rework.redesigned else None,
+        "model_designed": sorted(designed),
+        # 의미 검토 지적을 고쳤으면 다음 의미 검토는 고친 테이블과 그 지적만 본다 (모델 전체를 다시 보내지 않게).
+        # 그 사이 검증 오류 수정 등으로 바뀐 테이블도 다시 볼 범위에 더한다
+        "semantic_recheck": ({"issues": list(scope), "entities": list(fixed)} if fixed else None) if mode == "semantic" else
+        ({**recheck, "entities": sorted(set(recheck.get("entities") or []) | designed_now)}
+         if (recheck := state.get("semantic_recheck")) else None),
         "issues": [i.model_dump() for i in issues],
         "llm_usage": merge_usage(state, llm.pop_usage()),
     }
@@ -235,12 +252,20 @@ def _feedback(state: AgentState) -> str:
     return ((state.get("options") or {}).get("feedback") or {}).get("data_modeler", "").strip()
 
 
+def designed_entities(before: DataModel | None, after: DataModel) -> set[str]:
+    """이 단계에서 Agent가 설계한 엔티티: 새로 생겼거나 컬럼·제약이 바뀐 것 (기능 연결만 바뀐 것, 사람이 고친 것은 빼고)."""
+    old = {e.entity_id: e for e in (before.entities if before else [])}
+    skip = {"function_ids", "requirement_ids", "user_edited"}
+    return {e.entity_id for e in after.entities if not e.user_edited and (
+        e.entity_id not in old or e.model_dump(exclude=skip) != old[e.entity_id].model_dump(exclude=skip))}
+
+
 def _semantic_feedback(state: AgentState, issue_ids: list[str]) -> str:
-    """의미 검토 지적(내용·근거·제안)을 의견 반영 범위·재설계 입력으로 쓸 글로 만든다."""
+    """의미 검토 지적(내용·근거·제안)과 상태 컬럼 누락을 의견 반영 범위·재설계 입력으로 쓸 글로 만든다."""
     ids = set(issue_ids)
     lines = [f"- [{i.target_id}] {' / '.join(x.strip() for x in i.message.splitlines() if x.strip())}"
              for i in issues_of(state) if i.issue_id in ids]
-    return "의미 검토가 지적한 데이터 누락·제약 누락 (아래 제안대로 고친다):\n" + "\n".join(lines) if lines else ""
+    return "## 의미 검토가 지적한 데이터 누락·제약 누락 (아래 제안대로 고친다)\n" + "\n".join(lines) if lines else ""
 
 
 def feedback_block(state: AgentState) -> str:
@@ -393,20 +418,21 @@ def _fix(llm, model: DataModel, functions, requirements, entity_names: set[str],
     return model, failed
 
 
-REDESIGN_NOTE = ("## 다시 설계 지시\n'현재 속성'을 바탕으로 사용자 의견을 반영한다. 의견과 관계없는 컬럼·제약은 그대로 둔다. "
+REDESIGN_NOTE = ("## 다시 설계 지시\n'현재 속성'을 바탕으로 사용자 의견·검토 지적을 반영한다. 의견·지적과 관계없는 컬럼·제약은 그대로 둔다. "
                  "의견을 반영하려고 외래키 대상(상위 엔티티)을 바꿔야 하면 바꿔도 된다.")
 CHANGE_NOTE = ("## 다시 설계 지시\n'현재 속성'을 바탕으로 내용이 바뀐 기능 {ids}을 반영한다. "
                "바뀐 내용과 관계없는 컬럼·제약은 이름·타입·필수 여부를 그대로 둔다.")
 
 
 def _redesign(llm, model: DataModel, functions, requirements, names: list[str], feedback: str, context: str,
-              retried: dict, rework: ReworkSummary):
+              retried: dict, rework: ReworkSummary, allowed: set[str] | None = None):
     """지정 엔티티(없으면 사용자 의견과 관련된 엔티티)의 컬럼만 다시 설계하고 나머지 엔티티는 그대로 둔다.
 
     - names: rerun --entities로 사용자가 직접 지정한 엔티티. 사용자가 고친 엔티티도 다시 설계하고 고정을 푼다.
     - names가 없고 의견이 있으면 작은 요청 하나(엔티티 목록 + 기능 이름 + 의견)로 다시 설계할 엔티티와 새 엔티티를 고른다.
       고른 엔티티 중 사용자가 고친 것은 다시 설계하지 않고 rework.skipped로 남긴다.
     - 의견이 있으면 다시 설계한 엔티티의 상위 엔티티를 새 외래키에 맞춘다 (의견으로 관계가 바뀔 수 있다).
+    - allowed: 의견으로 고른 기존 엔티티 중 다시 설계해도 되는 것 (의미 검토 지적 보완: 이 실행에서 Agent가 설계한 엔티티). None이면 제한 없음.
     다시 설계한 엔티티는 rework.redesigned에 적는다. (모델, 속성 설계에 실패한 엔티티 → 원인)
     """
     by_name = {e.entity_id: e for e in model.entities}
@@ -417,7 +443,7 @@ def _redesign(llm, model: DataModel, functions, requirements, names: list[str], 
         scope = llm.structured(system=CATALOG_PROMPT, user=_scope_input(model, functions, feedback),
                                schema=RedesignScopeOut, purpose="의견 반영 범위")
         chosen = [n for n in dict.fromkeys(to_identifier(x) for x in scope.entity_names) if n in by_name]
-        targets = [n for n in chosen if not by_name[n].user_edited]
+        targets = [n for n in chosen if not by_name[n].user_edited and (allowed is None or n in allowed)]
         rework.skipped = [n for n in chosen if by_name[n].user_edited]
         new_plans = _new_plans(scope.new_entities, {f.function_id for f in functions},
                                set(by_name) | set(rework.removed))

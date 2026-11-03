@@ -6,7 +6,8 @@
     추출 실패 단위        → 요구사항 Agent 재추출 (해당 단위만)
     분류 검토 전 요구사항 → 요구사항 검토 Agent (기능/비기능·시스템/수행 의무 검증, 기능 명세·확인 질문보다 먼저)
     차단 질문 대기        → 사용자 확인 질문
-    요구사항 변경·누락    → 기능 명세 Agent 부분 재설계 (해당 그룹만)
+    요구사항 변경         → 기능 명세 Agent 부분 재설계 (해당 그룹만)
+    기능 없는 요구사항    → 기능 명세 Agent 누락 채우기 (gap, 빠진 기능만 추가하고 기존 기능은 다시 쓰지 않음, FUNC_FIX_ATTEMPTS번)
     기능 변경·데이터 누락 → 데이터 모델 Agent 연결 보완 (해당 기능만)
     엔티티 다시 설계 요청 → 데이터 모델 Agent 부분 재설계 (rerun --entities·--feedback, 해당 엔티티만)
     기능 다시 설계 요청   → 기능 명세 Agent 부분 재설계 (rerun function_designer, 해당 그룹만. 데이터 설계 전에 멈춤)
@@ -14,10 +15,12 @@
     단계에서 멈추기       → options.stop_after(run --until, rerun의 단계)보다 뒤 단계는 고르지 않는다 (designs)
     모델·DB 검증 오류     → 데이터 모델 Agent 수정 (해당 엔티티만)
     산출물 변경 후        → 추적 검토 Agent → 의미 검토 Agent (바뀐 부분만)
-    의미 검토 데이터 누락 → 데이터 모델 Agent 부분 재설계 (SEMANTIC_REVIEW_MODE=erd, 지적과 관련된 테이블만, MODEL_FIX_ATTEMPTS번)
-                            → 고친 모델을 다시 의미 검토하고, 남은 지적은 ERD 화면에서 사람이 처리한다
+    의미 검토 데이터 누락 → 데이터 모델 Agent 부분 재설계 (지적과 관련된 테이블 중 이 실행에서 설계한 것만, MODEL_FIX_ATTEMPTS번)
+                            규칙이 정한 상태 값을 담는 컬럼이 없음(TRACE_STATE_COLUMN_MISSING)도 같이 고친다
+                            → 고친 테이블만 다시 의미 검토하고, 남은 지적은 ERD 화면에서 사람이 처리한다
 - 이슈별 시도 횟수·전체 단계 수에 한도를 두고, 넘으면 미해결 이슈를 보존한 채 완료 조건 검사로 넘긴다.
-- 반복 실패로 포기한 단계(failures ≥ MAX_FIX_ATTEMPTS)는 할 일이 남아 있어도 다시 고르지 않는다 (stuck_stages).
+  이슈를 고치려고 같은 Agent를 다시 부르는 횟수(라운드)도 단계별 한도(FUNC·MODEL_FIX_ATTEMPTS) 안에서만 센다 (fixes_left).
+- 반복 실패로 포기한 단계(failures ≥ 단계별 한도)는 할 일이 남아 있어도 다시 고르지 않는다 (stuck_stages).
 - LLM 기반 정책으로 바꿀 때도 decide()의 입출력(CoordinatorDecision)만 유지하면 된다.
 """
 from __future__ import annotations
@@ -39,6 +42,7 @@ MODEL_FIX = "모델·DB 검증 오류"
 MODEL_COVER = "저장 엔티티가 없는 기능"
 SEM_FIX = "의미 검토 데이터 지적"   # 이 사유로 고른 횟수는 따로 센다 (연결 보완에 라운드를 다 써도 한 번은 고친다)
 FIX_REASONS = (FUNC_GAP, MODEL_FIX, MODEL_COVER)
+STATE_GAP = "TRACE_STATE_COLUMN_MISSING"   # 규칙이 정한 상태 값을 담는 컬럼이 없음 (추적 검토의 코드 검사, 의미 검토 지적과 함께 고친다)
 REQUIREMENT_STAGES = ("requirements", "requirement_reviewer")   # 기능 명세 초안 전까지 묻지 않는 질문 단계
 
 
@@ -57,7 +61,7 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
 
     def fixes_left(stage: str, reasons: tuple[str, ...] = FIX_REASONS) -> bool:
         """이슈를 고치려고 그 Agent를 다시 부른 횟수(라운드)가 단계 한도(FUNC·MODEL_FIX_ATTEMPTS) 안인지.
-        이슈마다 세면 재설계가 다른 요구사항에서 새 누락을 만들 때 계속 돈다 (고객요구사항13: 누락 1 → 8건)."""
+        이슈마다 세면 재설계가 다른 요구사항에서 새 누락을 만들 때 계속 돈다 (누락 1건을 고치다 8건이 되는 경우)."""
         done = sum(1 for x in state.get("decisions") or []
                    if x.get("action") == stage and str(x.get("reason", "")).startswith(reasons))
         return done < s.fix_attempts(stage)
@@ -168,11 +172,13 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
         mode = "full" if len(parts) == 2 else "partial"
         return d("semantic_reviewer", f"의미 검토 전인 산출물 → {', '.join(labels[p] for p in parts)} 내용 검토",
                  mode, parts), []
-    # ERD 단계: 이 실행에서 의미 검토가 낸 데이터 누락·제약 누락을 한 번 고친다 (아직 고치려 하지 않은 지적만,
-    # 이미 시도한 것은 사람이 본다. ERD 저장처럼 의미 검토를 다시 하지 않은 실행은 이어받은 지적을 고치지 않는다)
-    if semantic_erd(state) and (state.get("semantic_review") or {}).get("parts") and get_data_model(state) is not None \
-            and not gave_up("data_modeler") and fixes_left("data_modeler", (SEM_FIX,)):
-        gaps = [i for i in issues_of(state) if i.kind.startswith("SEM_MODEL_") and i.status == "OPEN" and not i.attempts]
+    # ERD 단계: 이 실행에서 의미 검토가 낸 데이터 누락·제약 누락과 상태 컬럼 누락을 관련 테이블만 다시 설계해 고친다
+    # (아직 고치려 하지 않은 지적만, 이 실행에서 Agent가 설계한 테이블만. 이미 시도한 것과 사람이 고친 테이블은 사람이 본다.
+    #  ERD 저장처럼 의미 검토를 다시 하지 않은 실행은 이어받은 지적을 고치지 않는다)
+    if semantic_enabled(state) and designs_data(state) and (state.get("semantic_review") or {}).get("parts") \
+            and get_data_model(state) is not None and not gave_up("data_modeler") and fixes_left("data_modeler", (SEM_FIX,)):
+        gaps = [i for i in issues_of(state) if (i.kind.startswith("SEM_MODEL_") or i.kind == STATE_GAP)
+                and i.status == "OPEN" and not i.attempts and _on_designed(state, i)]
         if gaps:
             return d("data_modeler", f"{SEM_FIX} {len(gaps)}건 → 관련 테이블만 다시 설계", "semantic",
                      [i.issue_id for i in gaps]), [i.issue_id for i in gaps]
@@ -181,6 +187,20 @@ def decide(state: AgentState) -> tuple[CoordinatorDecision, list[str]]:
         names = ", ".join(STAGE_LABELS[a] for a in stuck)
         return d("check_completion", f"{names} Agent 반복 실패 → 더 진행할 수 없어 완료 조건 검사"), []
     return d("check_completion", "남은 작업 없음 → 완료 조건 검사"), []
+
+
+def _on_designed(state: AgentState, issue) -> bool:
+    """지적 대상 테이블이 이 실행에서 데이터 모델 Agent가 설계한 것인지 (사람이 고친 테이블·rerun 범위 밖 테이블은 사람이 본다).
+    상태 컬럼 누락은 대상이 기능이라 그 기능에 연결된 테이블로 본다."""
+    designed = set(state.get("model_designed") or [])
+    model = get_data_model(state)
+    if not designed or model is None:
+        return False
+    if issue.kind == STATE_GAP:
+        tables = {e.entity_id for e in model.entities if issue.target_id in e.function_ids}
+    else:
+        tables = {t.strip() for t in issue.target_id.split(",")}
+    return bool(tables & designed)
 
 
 STAGE_LABELS = {"requirements_analyst": "요구사항", "requirement_reviewer": "요구사항 검토",

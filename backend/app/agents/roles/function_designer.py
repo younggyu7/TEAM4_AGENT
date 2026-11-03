@@ -2,7 +2,9 @@
 
 - 생성 단위(group)는 원문 요구사항 번호. 요구사항이 많으면 FUNC_GROUP_SIZE 단위로 나눈다.
 - mode=full    : 모든 그룹 생성
-- mode=partial : 변경되었거나 기능이 연결되지 않은 요구사항이 속한 그룹만 다시 생성 (부분 재설계)
+- mode=partial : 변경된 요구사항이 속한 그룹만 다시 생성 (부분 재설계)
+- mode=gap     : 기능이 연결되지 않은 요구사항(요구사항 검토 Agent의 연결 검사)의 그룹에서 빠진 기능만 받아 채운다.
+  그룹을 통째로 다시 쓰지 않아 다른 요구사항 연결이 깨지지 않는다 (조정 Agent가 FUNC_FIX_ATTEMPTS번까지).
 - mode=redesign: 기능 명세 단계 다시 만들기(rerun function_designer). scope가 ["*"]면 전체, 요구사항 ID면 그 그룹만,
   비어 있고 사용자 의견이 있으면 작은 요청 하나(그룹·요구사항·기능 이름 + 의견)로 다시 설계할 요구사항을 고른다.
   의견이 있으면 그룹의 현재 기능을 함께 보내 의견과 관계없는 기능은 그대로 두게 한다.
@@ -15,7 +17,10 @@
   그룹마다 같은 앞부분(shared)으로 넘겨 그룹끼리 규칙이 어긋나거나 같은 가정을 그룹마다 따로 쓰지 않게 하고(가정은 공통 결정에서 한 번만),
   프롬프트 캐시로 재사용한다. 결과는 state.function_common에 두고 부분 재설계·의견 반영·데이터 설계에서도 쓴다 (FUNC_COMMON_DECISIONS로 끔).
 - 공통 기능: 공통 결정에서 여러 영역의 요구사항이 같은 기능을 요구하는 것(같은 데이터 내보내기, 같은 사용자의 대시보드 등)을 정하고,
-  요구사항이 가장 많은 영역 하나에서만 만든다. 다른 영역은 그 요구사항으로 기능을 만들지 않는다 (영역마다 같은 기능이 생기지 않게).
+  요구사항이 가장 많은 영역 하나에서만 만든다. 다른 영역 요구사항은 그 공통 기능에만 연결하고, 그 요구사항의 나머지 기능은
+  원래 영역이 만든다 (공통 기능은 요구사항의 일부만 맡는 일이 많다). 다른 영역이 같은 이름으로 또 만든 공통 기능은 버린다.
+- 근거 대조: 표시 없는 규칙을 원문과 코드로 대조해 근거가 없으면 '(가정)'을 붙인다 (tools/rule_basis.py, 모델이 표시를 빠뜨려도 확정처럼 구현되지 않게).
+  이어서 고객이 정할 내용이 없는 '(가정)'·'(확인 필요)' 규칙(기능의 다른 칸을 되풀이하거나 더 긴 규칙과 같은 문장)을 뺀다.
 - 확인 질문: 설계 뒤 요청 1회로 확인 대상 후보('(확인 필요)'·'(가정)' 규칙, 공통 결정의 가정, 확정 안 된 요구사항)에서 질문을 고른다.
   목표는 '(가정)' 규칙을 전체 업무 규칙의 FUNC_ASSUMPTION_LIMIT(기본 10%) 이하로 두는 것이다 (질문 수 한도가 아니다).
   묻지 않으면 '(가정)'이 될 후보가 한도를 넘으면 영향이 큰 것부터 질문으로 묶어 정한다 (질문은 FUNC_MAX_QUESTIONS개까지).
@@ -45,6 +50,7 @@ from app.schemas.document import RequirementSource
 from app.schemas.function import ExceptionFlow, FunctionIO, FunctionSpec
 from app.schemas.requirement import Question, Requirement
 from app.agents.flow.state import AgentState, basis, dump, load, merge_usage, rev
+from app.agents.tools.rule_basis import impact_of, mark_unsupported, trim_rules
 
 log = logging.getLogger(__name__)
 
@@ -130,6 +136,7 @@ class RoleOut(BaseModel):
     name: str = Field(description="사용자 역할 이름 (actors에 쓸 이름)")
     scope: str = Field(description="이 역할이 하는 일 한 줄")
     aliases: list[str] = Field(default_factory=list, description="같은 사람을 가리키는 다른 표현 (없으면 생략)")
+    basis: BASIS = Field("원문", description="원문에 이 역할(담당자)이 나오면 원문, 원문에 없는 구분이면 가정")
 
 
 class CommonDecisionsOut(BaseModel):
@@ -145,11 +152,13 @@ COMMON_REQUEST = """## 이번 요청: 공통 결정
 기능 명세는 쓰지 않는다. 여러 기능 영역이 같게 써야 하는 결정만 정하며, 이 결정은 모든 영역의 기능 설계에 그대로 전달된다.
 - roles: 요구사항의 사람 행위자를 권한을 나눠야 하는 역할로 묶는다. 같은 사람을 가리키는 표현(결재자·승인자 등)은 하나로 하고 aliases에 둔다.
   결재자·작성자처럼 문서마다 데이터로 정해지는 사람은 따로 두지 않고 그 사람이 속한 역할(예: 임직원)로 둔다. 시스템·외부 시스템은 넣지 않는다.
+  원문에 그 역할(담당자)이 나오면 basis 원문, 원문에 없는 구분(업무별로 담당자를 나누거나 합침)이면 basis 가정으로 둔다.
 - terms: 둘 이상의 영역에 나오는 영속 업무 객체의 표준 이름과 동의어. 한 영역에서만 쓰는 객체는 넣지 않는다.
 - code_sets: 둘 이상의 기능이 함께 쓰는 분류·상태 값. 원문에 값 전체가 있으면 basis 원문, 일부만 있거나 원문끼리 다르면 확인 필요,
   원문에 없으면 설계에 꼭 필요할 때만 가정으로 둔다.
 - policies: 둘 이상의 영역에 같게 적용되는 규칙(계정·권한·승인, 알림, 첨부 파일, 보관·파기, 공통 처리 등).
   원문 근거를 우선하고, 근거 없는 규칙은 설계에 꼭 필요할 때만 가정으로 둔다.
+  rule은 지킬 규칙 문장으로 쓴다. '확인이 필요하다'로 끝내지 않고, 정하지 못했으면 추천안을 쓰고 basis를 확인 필요로 둔다.
 - shared_functions: 서로 다른 영역의 요구사항이 같은 행위자·대상 데이터·결과를 요구해 영역마다 만들면 같은 기능이 되는 것만
   (예: 같은 데이터의 엑셀·PDF 내보내기, 같은 사용자의 대시보드 조회). 시작 조건이 다른 자동 실행(알림 발송 등)이나
   행위자·대상이 다른 기능은 넣지 않는다. requirement_ids에는 이 기능 하나로 충족하는 요구사항을 모두 넣는다.
@@ -175,6 +184,7 @@ class ResolutionOut(BaseModel):
 class ConfirmOut(BaseModel):
     questions: list[ConfirmQuestionOut] = Field(description="고객에게 꼭 물을 질문만 (한도 이내)")
     resolutions: list[ResolutionOut] = Field(description="모든 C 후보와, 추천안과 다른 질문 A 후보의 추천안 규칙")
+    must_review: list[str] = Field(default_factory=list, description="질문에 넣지 않았지만 사람이 하나씩 봐야 하는 C·A 후보 ID")
 
 
 CONFIRM_REQUEST = """## 이번 요청: 고객 확인 질문 고르기
@@ -182,6 +192,7 @@ CONFIRM_REQUEST = """## 이번 요청: 고객 확인 질문 고르기
 - questions: 먼저 답에 따라 기능의 존재·범위, 저장할 데이터 구조, 권한, 금액·법적 의무가 달라지는데 원문·결정·공통 결정으로 정할 수 없는 것을 고른다.
   가정 한도를 맞춰야 하면 그다음으로 영향이 큰 '(가정)'·'(확인 필요)' 후보도 질문에 넣는다.
   같은 결정에 걸린 후보는 다른 기능의 것도 질문 하나로 묶어 item_ids에 모두 넣는다 (질문 수를 줄인다).
+  여러 기능에 되풀이되는 판단은 정책 하나로 묻는다: 역할별 담당 범위(공통 결정의 역할대로 할지), 사용 중지 항목의 처리, 기준 변경의 소급 적용, 본인 데이터만 다루는 범위 등.
   화면 표시 항목·집계 단위·문구·운영 설정값(기간·횟수 등)은 하나씩 묻지 않고, 한도를 맞추려면 '추천값을 그대로 쓸지' 묻는 질문 하나로 묶는다.
   options는 2~4개, recommended는 원문·결정·공통 결정과 다른 기능의 기존 규칙에 어긋나지 않고 기능을 늘리지 않는 안이다.
   '이미 한 질문'과 같은 내용은 묻지 않는다.
@@ -189,7 +200,9 @@ CONFIRM_REQUEST = """## 이번 요청: 고객 확인 질문 고르기
   질문에 넣은 A 후보도 추천 선택지와 내용이 다르면 추천안대로 고친 규칙을 쓴다.
   그 기능의 입력·다른 규칙과 공통 결정에 어긋나지 않게 정하고, 앞 표시는 붙이지 않는다 (시스템이 붙인다).
   근거가 없으면 기능을 늘리지 않는 가장 단순한 처리로 정하고,
-  근거 없는 운영 설정값(유효시간·횟수·주기·보관 기간 등)은 수치를 만들지 않고 시스템 설정값으로 둔다."""
+  근거 없는 운영 설정값(유효시간·횟수·주기·보관 기간 등)은 수치를 만들지 않고 시스템 설정값으로 둔다.
+- must_review: 질문에 넣지 않은 C·A 후보 중 답에 따라 기능 범위·권한·금액·법적 의무가 달라져 사람이 하나씩 봐야 하는 후보 ID.
+  입력 검증·표시 형식·정렬·운영 설정값은 넣지 않는다. 여기 없는 후보는 기능 영역별로 묶어 한 번에 확인한다."""
 
 
 def design_groups(requirements: list[Requirement], group_size: int) -> "OrderedDict[str, list[Requirement]]":
@@ -241,8 +254,8 @@ def run(state: AgentState) -> dict:
 
     common = dict(state.get("function_common") or {})
     shared_fns = shared_functions(common, groups)
-    # 누락 채우기(gap): 기능이 연결되지 않은 요구사항의 그룹만, 빠진 기능만 받는다. 공통 기능을 맡은 다른 그룹은
-    # 다시 설계하지 않고(그 그룹을 다시 쓰면 다른 요구사항 연결이 깨진다) 빠진 요구사항을 제 그룹에서 직접 연결하게 한다
+    # 누락 채우기(gap): 기능이 연결되지 않은 요구사항의 그룹만, 빠진 기능만 받는다 (그룹을 통째로 다시 쓰면
+    # 다른 요구사항 연결이 깨져 새 누락이 생긴다). 빠진 요구사항은 제 그룹 기능에 직접 연결한다
     gaps = set(scope) if mode == "gap" and functions else set()
     if mode == "redesign":
         targets = _redesign_targets(llm, groups, functions, scope, feedback, shared_fns)
@@ -271,18 +284,15 @@ def run(state: AgentState) -> dict:
     shared = "\n\n".join(x for x in (common_block(common), _shared_block(shared_fns), _nfr_block(nfrs)) if x)
     rule_texts = common_rule_texts(common)
     by_req = {r.requirement_id: r for r in requirements}
-    scopes = {g: _group_scope(g, groups[g], shared_fns, by_req, gaps) for g in targets}   # (요구사항 줄, 연결할 수 있는 ID)
-    # 요구사항이 모두 다른 영역의 공통 기능에 들어간 그룹은 요청하지 않는다 (만들 기능이 없다)
-    calls = [g for g in targets if scopes[g][1]]
+    scopes = {g: _group_scope(g, groups[g], shared_fns, by_req) for g in targets}   # (요구사항 줄, 이 영역 요구사항 ID)
     if patch:
         results = run_parallel(lambda g: _patch(llm, g, scopes[g][0], groups, source_names, old_by_group[g],
-                                                feedback, shared), calls)
+                                                feedback, shared), targets)
     else:
-        results = run_parallel(lambda g: _design(llm, g, scopes[g][0], groups, source_names, feedback, shared), calls)
-        results += [(g, FunctionDesignOut(functions=[]), None) for g in targets if g not in calls]
+        results = run_parallel(lambda g: _design(llm, g, scopes[g][0], groups, source_names, feedback, shared), targets)
 
     redone = {g for g, out, err in results if not err and out is not None}
-    failed = set(calls) - redone
+    failed = set(targets) - redone
     nfr_ids = {r.requirement_id for r in nfrs}
     result = [f for f in functions if f.group in groups and f.group not in redone]
     for group, out, err in results:
@@ -290,19 +300,31 @@ def run(state: AgentState) -> dict:
             continue
         valid = scopes[group][1]
         if patch:
-            new = _apply_patch(group, old_by_group[group], out, valid, nfr_ids, rule_texts)
+            new = _apply_patch(group, old_by_group[group], out, valid, nfr_ids, rule_texts, shared_fns)
         else:
-            new = _from_design(group, old_by_group[group], out.functions, valid, nfr_ids, rule_texts)
+            new = _from_design(group, old_by_group[group], out.functions, valid, nfr_ids, rule_texts, shared_fns)
         done = {q.question_id for q in answered}   # 답대로 고친 기능에 남은 질문 표시는 '결정'으로
         result += [f.model_copy(update={"business_rules": [_mark_decided(x, done) for x in f.business_rules]})
                    for f in new] if done else new
     group_order = {g: i for i, g in enumerate(groups)}
     result.sort(key=lambda f: (group_order.get(f.group, 999), f.function_id))
     result = _review_marks(normalize_actors(result, common), by_req)
+    new_ids, changed_ids, _ = _diff(functions, result)
+    designed = set(new_ids) | set(changed_ids)   # 손대지 않은 기능의 규칙은 그대로 둔다 (바뀌면 뒤 단계를 다시 만들게 된다)
+    unmarked: list[tuple[str, str, str]] = []
+    if s.func_basis_check:
+        result, unmarked = mark_unsupported(result, by_req, common, only=designed, note=feedback or "")
+        for fid, rule, reason in unmarked:
+            log.info("[기능명세] 근거 대조 '(가정)': %s %s (%s)", fid, rule[:60], reason)
+    trimmed: list[tuple[str, str, str]] = []
+    if s.func_rule_trim:
+        result, trimmed = trim_rules(result, only=designed)
+        for fid, rule, reason in trimmed:
+            log.info("[기능명세] 규칙 정리: %s %s (%s)", fid, rule[:60], reason)
+        gone = {(fid, rule) for fid, rule, _ in trimmed}
+        unmarked = [x for x in unmarked if (x[0], f"(가정) {x[1]}") not in gone]
 
     # 확인 질문 고르기: 다시 설계한 기능의 확인 대상 후보 중 소수만 묻고 나머지는 추천안으로 정한다
-    new_ids, changed_ids, _ = _diff(functions, result)
-    designed = set(new_ids) | set(changed_ids)
     number = max((_number(q.question_id) for q in questions if q.stage == "function_designer"), default=0)
     if whole:   # 전체를 다시 설계하면 답하지 않은 이전 질문은 새 기능과 맞지 않아 버린다 (답한 것은 요구사항 결정에 남아 있다)
         questions = [q for q in questions if q.stage != "function_designer" or q.status == "ANSWERED"]
@@ -318,6 +340,8 @@ def run(state: AgentState) -> dict:
         stack = stack_question(requirements, questions + new_questions,
                                (state.get("options") or {}).get("ask_mode", "ask") == "ask")
         new_questions += [stack] if stack else []
+    if confirm and (unmarked or trimmed):
+        confirm = {**confirm, "basis_marked": len(unmarked), "trimmed": len(trimmed)}
     added, changed, removed = _diff(functions, result)
     log.info("[기능명세] 그룹 %d/%d개 %s → 기능 %d개 (새 %d · 바뀜 %d · 지움 %d), 실패 %d, 확인 질문 %d개",
              len(targets), len(groups), "의견 반영" if patch else "생성", len(result), len(added), len(changed),
@@ -351,6 +375,16 @@ def run(state: AgentState) -> dict:
 def _feedback(state: AgentState) -> str:
     """사용자 의견(rerun function_designer --feedback) 원문."""
     return ((state.get("options") or {}).get("feedback") or {}).get("function_designer", "").strip()
+
+
+def _gap_feedback(missing: list[Requirement]) -> str:
+    """누락 채우기 지시: 기능이 연결되지 않은 요구사항만 채우고 다른 기능은 건드리지 않는다 (_patch의 의견으로 넘긴다)."""
+    return "\n".join([
+        "아래 요구사항에 연결된 기능이 없다. 이 요구사항만 채운다.",
+        "- 이 요구사항을 실제로 처리하는 현재 기능이 있으면 그 기능을 고쳐(replaces) requirement_ids에 추가한다.",
+        "- 없으면 이 요구사항을 처리하는 새 기능을 만든다.",
+        "- 다른 기능은 넣지 않고(그대로 유지), removed는 비운다.",
+        *(f"- [{r.requirement_id}] {r.title}" for r in missing)])
 
 
 def _answer_feedback(answered: list[Question]) -> str:
@@ -473,7 +507,8 @@ def _match_by_requirements(old: list[FunctionSpec], new: list[tuple[str, list[st
 
 
 def _from_design(group: str, old: list[FunctionSpec], outs: list[FunctionOut], valid: set[str],
-                 nfr_ids: set[str], common_rules: dict[str, str] | None = None) -> list[FunctionSpec]:
+                 nfr_ids: set[str], common_rules: dict[str, str] | None = None,
+                 shared_fns: list[dict] = ()) -> list[FunctionSpec]:
     """그룹을 새로 설계한 결과로 기능 목록을 만든다.
 
     이름이 같은 이전 기능의 ID를 이어 쓰고, 이름이 달라진 기능은 근거 요구사항으로 이전 기능을 찾는다 (_match_by_requirements).
@@ -481,13 +516,7 @@ def _from_design(group: str, old: list[FunctionSpec], outs: list[FunctionOut], v
     """
     by_name = {_name_key(f.name): f.function_id for f in old}
     next_no = max((_number(f.function_id) for f in old), default=0)
-    kept: list[tuple[FunctionOut, list[str]]] = []
-    for f in outs:
-        req_ids = [rid for rid in f.requirement_ids if rid in valid]
-        if not req_ids:
-            log.warning("[기능명세] 근거 요구사항이 없는 기능 제외: %s", f.name)
-            continue
-        kept.append((f, req_ids))
+    kept = [(f, req_ids) for f, req_ids in zip(outs, _linked_ids(group, outs, valid, shared_fns)) if req_ids]
     used: set[str] = set()
     ids: list[str | None] = []
     for f, _ in kept:
@@ -506,7 +535,8 @@ def _from_design(group: str, old: list[FunctionSpec], outs: list[FunctionOut], v
 
 
 def _apply_patch(group: str, old: list[FunctionSpec], out: FunctionPatchOut, valid: set[str],
-                 nfr_ids: set[str], common_rules: dict[str, str] | None = None) -> list[FunctionSpec]:
+                 nfr_ids: set[str], common_rules: dict[str, str] | None = None,
+                 shared_fns: list[dict] = ()) -> list[FunctionSpec]:
     """의견 반영 결과를 그룹의 기존 기능에 적용한다. 응답에 없는 기능은 그대로 두고, removed에 있는 것만 지운다.
 
     고친 기능은 replaces(없으면 같은 이름)로 기존 기능을 찾아 ID를 이어 쓴다.
@@ -516,10 +546,8 @@ def _apply_patch(group: str, old: list[FunctionSpec], out: FunctionPatchOut, val
     next_no = max((_number(f.function_id) for f in old), default=0)
     replaced: dict[str, FunctionSpec] = {}
     added: list[FunctionSpec] = []
-    for f in out.functions:
-        req_ids = [rid for rid in f.requirement_ids if rid in valid]
+    for f, req_ids in zip(out.functions, _linked_ids(group, out.functions, valid, shared_fns)):
         if not req_ids:
-            log.warning("[기능명세] 근거 요구사항이 없는 기능 제외: %s", f.name)
             continue
         fid = f.replaces.strip() if f.replaces.strip() in by_id else by_name.get(_name_key(f.name), "")
         if fid and fid not in replaced:
@@ -582,7 +610,8 @@ def common_block(common: dict, header: str = "") -> str:
     lines = [header or "## 공통 결정 (모든 기능 영역에 같게 적용. 공통 규칙은 적용되는 번호만 common_rules에 — 문장과 근거 표시는 시스템이 붙인다)"]
     if common.get("roles"):
         lines.append("사용자 역할 (사람 행위자는 이 이름만. 자동 실행은 '시스템(…)', 외부 연계는 '외부 시스템(…)'): " + ", ".join(
-            r["name"] + (f"({'·'.join(r['aliases'])})" if r.get("aliases") else "") for r in common["roles"]))
+            r["name"] + (f"({'·'.join(r['aliases'])})" if r.get("aliases") else "") + (" [가정]" if r.get("basis") == "가정" else "")
+            for r in common["roles"]))
     if common.get("terms"):
         lines.append("업무 객체 표준 이름: " + ", ".join(
             t["name"] + (f"({'·'.join(t['synonyms'])})" if t.get("synonyms") else "") for t in common["terms"]))
@@ -626,12 +655,19 @@ def common_rule_texts(common: dict) -> dict[str, str]:
     """공통 규칙 번호 → 기능 업무 규칙에 붙일 문장. 근거가 원문이 아니면 표시를 남긴다 (모델이 바꿔 쓰지 않게 코드가 붙인다)."""
     out = {}
     for i, p in enumerate(common.get("policies") or [], start=1):
+        if TODO_RULE.search(p["rule"]):   # 규칙이 아니라 할 일이다: 기능에 붙이지 않고 공통 결정의 확인 대상으로만 둔다
+            continue
         mark = _basis_text(p)
-        out[f"P{i}"] = f"(공통 P{i}{'' if mark == '원문' else ', ' + mark}) {p['rule']}{_answer_text(p)}"
+        out[f"P{i}"] = f"(공통 P{i}{'' if mark == '원문' else ', ' + mark}) {_plain(p['rule'])}{_answer_text(p)}"
     return out
 
 
+BUNDLE_OK = "추천안대로 확정한다"
+BUNDLE_APART = "규칙을 하나씩 확인한다"
+BUNDLE_IMPACT = 1   # 영향이 이보다 큰 규칙은 묶지 않는다 (사람이 하나씩 본다)
+BUNDLE_MIN = 2      # 규칙이 이보다 적으면 묶지 않는다
 COMMON_TAG = re.compile(r"^\(공통 (P\d+)")
+TODO_RULE = re.compile(r"확인(이|을)?\s*(필요하다|필요합니다|해야 한다|한다)\.?$")
 QUESTION_TAG = re.compile(r"^\((?:[^)]*, )?(?:확인 필요|결정) (?:FQ|RC|CF)-\d+\)")   # 확인 질문으로 정하는 규칙 표시
 QUESTION_ID = re.compile(r"(?:FQ|RC|CF)-\d+")   # FQ: 기능 명세 질문, RC·CF: 요구사항 검토 질문 (분류·포함 여부 / 충돌)
 
@@ -666,32 +702,62 @@ def _shared_block(shared_fns: list[dict]) -> str:
 
 
 def _group_scope(group: str, reqs: list[Requirement], shared_fns: list[dict],
-                 by_req: dict[str, Requirement], gaps: set[str] = frozenset()) -> tuple[list[str], set[str]]:
-    """그룹 요청의 요구사항 부분과, 이 그룹의 기능이 연결할 수 있는 요구사항 ID.
+                 by_req: dict[str, Requirement]) -> tuple[list[str], set[str]]:
+    """그룹 요청의 요구사항 부분과 이 영역 요구사항 ID.
 
-    다른 영역이 만드는 공통 기능에 들어간 요구사항은 맡은 기능만 알려 주고 연결 대상에서 뺀다
-    (그 요구사항만으로 만든 기능은 근거가 없어 버려진다). 이 영역이 만드는 공통 기능은 다른 영역 요구사항도 보여 주고 연결하게 한다.
-    gaps(기능이 연결되지 않은 요구사항)는 공통 기능이 맡았더라도 이 그룹이 직접 연결한다 (누락 채우기).
+    다른 영역이 만드는 공통 기능에 들어간 요구사항은 그 공통 기능만 여기서 만들지 않게 하고, 나머지 요구는 이 영역에서 만든다
+    (공통 기능은 요구사항의 일부만 맡는 일이 많다. 고객요구사항13: '조직 및 발령 관리' 중 '기준정보 조회'만 공통 기능).
+    이 영역이 만드는 공통 기능은 다른 영역 요구사항도 보여 주되, 그 요구사항은 공통 기능에만 연결된다 (_linked_ids).
     """
-    elsewhere = {rid: sf for sf in shared_fns if sf["owner"] != group for rid in sf["requirement_ids"] if rid not in gaps}
-    lines, valid = [], set()
+    elsewhere = {rid: sf for sf in shared_fns if sf["owner"] != group for rid in sf["requirement_ids"]}
+    lines = []
     for r in reqs:
         sf = elsewhere.get(r.requirement_id)
-        if sf:
-            lines.append(_req_line(r) + f" | 공통 기능 [{sf['id']}] {sf['name']}({sf['owner']} 영역)이 맡음: "
-                                        "이 요구사항만을 위한 기능은 만들지 않는다")
-        else:
-            lines.append(_req_line(r))
-            valid.add(r.requirement_id)
+        lines.append(_req_line(r) + (f" | 공통 기능 [{sf['id']}] {sf['name']}({sf['owner']} 영역)이 이 요구사항 일부를 맡음: "
+                                     "그 기능은 만들지 않고, 나머지 요구가 있으면 이 영역에서 만든다" if sf else ""))
     own = [sf for sf in shared_fns if sf["owner"] == group]
+    mine = {r.requirement_id for r in reqs}
     if own:
-        mine = {r.requirement_id for r in reqs}
-        lines += ["", "## 이 영역에서 만들 공통 기능 (아래 다른 영역 요구사항도 그 기능 하나에 함께 연결한다)"]
+        lines += ["", "## 이 영역에서 만들 공통 기능 (아래 다른 영역 요구사항은 이 공통 기능에만 연결한다. "
+                      "그 요구사항의 다른 기능은 그 영역에서 만든다)"]
         for sf in own:
             lines.append(f"- [{sf['id']}] {sf['name']}: {sf['scope']} | 연결할 요구사항: {', '.join(sf['requirement_ids'])}")
             lines += ["  " + _req_line(by_req[rid]) for rid in sf["requirement_ids"] if rid not in mine and rid in by_req]
-            valid |= set(sf["requirement_ids"])
-    return lines, valid
+    return lines, mine
+
+
+def _linked_ids(group: str, outs: list[FunctionOut], valid: set[str], shared_fns: list[dict] = ()) -> list[list[str]]:
+    """기능마다 연결할 요구사항 ID. 빈 목록인 기능은 버린다.
+
+    이 영역 요구사항(valid)은 어느 기능에나 연결한다. 이 영역이 만드는 공통 기능의 다른 영역 요구사항은 그 공통 기능에만
+    연결한다: 이름이 같은 기능, 없으면 그 요구사항을 가장 많이 연결한 기능이다. 다른 기능에도 열어 두면 그 영역의 기능까지
+    여기서 만들어 영역마다 같은 기능이 생긴다 (고객요구사항13: 회계 영역이 '기준정보 조회'를 맡으며 인사 영역의 '조직 및 발령 관리'까지 만듦).
+    다른 영역이 만드는 공통 기능과 이름이 같은 기능도 버린다.
+    """
+    keys = [_name_key(f.name) for f in outs]
+    allowed = [set(valid) for _ in outs]
+    duplicate: set[int] = set()
+    for sf in shared_fns:
+        named = [i for i, key in enumerate(keys) if key == _name_key(sf["name"])]
+        if sf["owner"] != group:
+            duplicate |= set(named)
+            continue
+        foreign = set(sf["requirement_ids"]) - valid
+        hits = [len(foreign & set(f.requirement_ids)) for f in outs]
+        best = named[0] if named else max(range(len(outs)), key=lambda i: (hits[i], -i), default=None)
+        if best is not None and (named or hits[best]):
+            allowed[best] |= foreign
+    links = []
+    for i, f in enumerate(outs):
+        ids = [] if i in duplicate else [rid for rid in dict.fromkeys(f.requirement_ids) if rid in allowed[i]]
+        if i in duplicate:
+            log.warning("[기능명세] 다른 영역이 만드는 공통 기능과 같은 기능 제외: %s", f.name)
+        elif not ids and set(f.requirement_ids) - valid:
+            log.warning("[기능명세] 다른 영역 요구사항만 연결한 기능 제외 (그 영역에서 만든다): %s", f.name)
+        elif not ids:
+            log.warning("[기능명세] 근거 요구사항이 없는 기능 제외: %s", f.name)
+        links.append(ids)
+    return links
 
 
 def _common_decisions(llm, groups: "OrderedDict[str, list[Requirement]]", nfrs: list[Requirement],
@@ -717,8 +783,8 @@ def _common_decisions(llm, groups: "OrderedDict[str, list[Requirement]]", nfrs: 
     # 공통 기능은 둘 이상의 그룹에 걸친 것만 남긴다 (만드는 영역도 함께 기록해 명세서에 보여 준다)
     common["shared_functions"] = [{k: sf[k] for k in ("name", "scope", "requirement_ids", "owner")}
                                   for sf in shared_functions(common, groups)]
-    log.info("[기능명세] 공통 결정: 사용자 역할 %d, 업무 객체 %d, 분류·상태 %d, 공통 규칙 %d (가정 %d, 확인 필요 %d), 공통 기능 %d",
-             len(out.roles), len(out.terms), len(out.code_sets), len(out.policies),
+    log.info("[기능명세] 공통 결정: 사용자 역할 %d (가정 %d), 업무 객체 %d, 분류·상태 %d, 공통 규칙 %d (가정 %d, 확인 필요 %d), 공통 기능 %d",
+             len(out.roles), sum(r.basis == "가정" for r in out.roles), len(out.terms), len(out.code_sets), len(out.policies),
              sum(x.basis == "가정" for x in (*out.code_sets, *out.policies)),
              sum(x.basis == "확인 필요" for x in (*out.code_sets, *out.policies)), len(common["shared_functions"]))
     return common
@@ -800,6 +866,11 @@ def _question_ids(rule: str) -> set[str]:
     """규칙 앞 표시에 붙은 확인 질문 ID ((확인 필요 FQ-001) …, (공통 P4, 결정 FQ-002) …, (확인 필요 CF-001) …)."""
     m = re.match(r"^\(([^)]*)\)", rule)
     return set(QUESTION_ID.findall(m.group(1))) if m else set()
+
+
+def _unbundle(rule: str, qids: set[str]) -> str:
+    """묶음 질문을 푼다 ((확인 필요 FQ-013) → (확인 필요))."""
+    return re.sub(r"^\(확인 필요 (FQ-\d+)\)", lambda m: "(확인 필요)" if m.group(1) in qids else m.group(0), rule)
 
 
 def _mark_decided(rule: str, qids: set[str]) -> str:
@@ -916,6 +987,7 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
     - 묻지 않으면 '(가정)'이 될 규칙 수가 한도를 넘으면, 넘는 만큼(need)을 영향이 큰 것부터 질문으로 덮게 한다
       (질문은 FUNC_MAX_QUESTIONS개까지, 같은 결정은 묶음). 한도 안이면 꼭 물을 것 하나만.
     - 질문한 후보: 추천안으로 설계해 '(확인 필요 FQ-001)'로 표시한다 (공통 결정은 근거를 '확인 필요 FQ-001'로).
+    - '(가정)' 자리는 영향이 작은 규칙부터 준다. 질문 없이 남은 영향이 작은 '(확인 필요)'는 기능 영역마다 질문 하나로 묶는다 (_bundle).
     - 묻지 않은 C·공통 결정의 확인 필요: 한도 안에서만 추천안 '(가정)'으로 바꾸고, 넘으면 추천안을 '(확인 필요) …'로 둔다 (요약의 kept).
       그래도 한도를 넘으면 묻지 않은 A('(가정)' 규칙)를 '(확인 필요)'로 바꾼다 ('(가정)'은 한도 안에서만 둔다).
     asking=False(답을 반영하는 수정)면 질문은 만들지 않고 새로 생긴 C만 한도 안에서 정한다. 요청이 실패하면 그대로 둔다.
@@ -1054,7 +1126,11 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
     texts = common_rule_texts(common)
     assumed_now = sum(1 for fid in rules for r in rules[fid] if _is_assumed(_expand(r, texts)))
     assumed = unresolved = kept = 0
-    for key, item in items.items():
+    # '(가정)' 자리는 영향이 작은 규칙부터 준다 (순서대로 주면 문서 앞쪽 기능만 확인 대상이 된다). 모델이 하나씩 봐야 한다고 한 규칙은 영향이 큰 쪽이다
+    review = {k.strip() for k in out.must_review}
+    by_impact = sorted((i for i in items.items() if i[1]["kind"] in ("C", "A")),
+                       key=lambda i: (i[0] in review, impact_of(rules[i[1]["function_id"]][i[1]["index"]])))
+    for key, item in by_impact:
         if asked_by.get(key) or item["kind"] != "C":
             continue
         fid, index = item["function_id"], item["index"]
@@ -1075,8 +1151,8 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
             assumed_now += item["weight"]
         else:
             kept += 1
-    # 3) 그래도 한도를 넘으면 묻지 않은 기능 규칙의 '(가정)'을 '(확인 필요)'로 바꾼다 ('(가정)'은 한도 안에서만 둔다)
-    for key, item in items.items():
+    # 3) 그래도 한도를 넘으면 묻지 않은 기능 규칙의 '(가정)'을 영향이 큰 것부터 '(확인 필요)'로 바꾼다 ('(가정)'은 한도 안에서만 둔다)
+    for key, item in reversed(by_impact):
         if assumed_now <= allowed:
             break
         if item["kind"] == "A" and not asked_by.get(key):
@@ -1084,6 +1160,10 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
             rules[fid][index] = f"(확인 필요) {_plain(rules[fid][index])}"
             assumed_now -= 1
             kept += 1
+    # 4) 남은 '(확인 필요)' 중 영향이 작은 규칙은 영역마다 질문 하나로 묶는다 (사람이 규칙마다 확인하지 않게)
+    apart = {(i["function_id"], i["index"]) for k, i in items.items() if i["kind"] in ("C", "A") and (k in review or (i["kind"] == "C" and k not in resolved))}
+    bundles = _bundle(functions, rules, designed, number, apart) if asking and s.func_rule_bundle else []
+    new_questions += bundles
     texts = common_rule_texts(common)
     result = []
     for f in functions:
@@ -1091,11 +1171,40 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
         result.append(f.model_copy(update={"business_rules": new_rules}) if new_rules != f.business_rules else f)
     final = sum(1 for f in result for r in f.business_rules if _is_assumed(r))
     summary.update(questions=[q.question_id for q in new_questions], assumed=assumed, unresolved=unresolved, kept=kept,
-                   assumed_rules=final)
-    log.info("[기능명세] 확인 대상 후보 %d개 %s → 질문 %d개 (최대 %d), 추천안으로 정함 %d, 한도 때문에 확인 필요로 둠 %d, 못 정함 %d"
-             " · (가정) %d/%d개 (%.0f%%, 한도 %.0f%%)", len(items), summary["kinds"], len(new_questions), budget, assumed,
+                   assumed_rules=final, bundles=len(bundles))
+    log.info("[기능명세] 확인 대상 후보 %d개 %s → 질문 %d개 (최대 %d) + 영역 묶음 %d개, 추천안으로 정함 %d, 한도 때문에 확인 필요로 둠 %d, 못 정함 %d"
+             " · (가정) %d/%d개 (%.0f%%, 한도 %.0f%%)", len(items), summary["kinds"], len(new_questions) - len(bundles), budget, len(bundles), assumed,
              kept, unresolved, final, total, 100 * final / max(1, total), 100 * share)
     return result, new_questions, common, summary
+
+
+def _bundle(functions: list[FunctionSpec], rules: dict[str, list[str]], designed: set[str], start: int,
+            skip: set[tuple[str, int]] = frozenset()) -> list[Question]:
+    """질문 없이 남은 '(확인 필요)' 규칙 중 영향이 작은 것을 기능 영역마다 질문 하나로 묶는다.
+
+    규칙을 지우거나 확정으로 바꾸지 않고 고객이 영역별로 한 번에 답하게 한다. '추천안대로 확정'이면 묶인 규칙이 모두 '(결정 FQ-…)'가 된다
+    (LLM 없음). skip은 묶지 않는 규칙이다: 추천안이 없어 확정할 내용이 없거나, 모델이 사람이 하나씩 봐야 한다고 한 규칙.
+    rules의 규칙 앞 표시를 '(확인 필요 FQ-…)'로 바꾸고 새 질문을 돌려준다."""
+    areas: OrderedDict[str, list[tuple[FunctionSpec, int]]] = OrderedDict()
+    for f in functions:
+        if f.function_id in designed:
+            for index, rule in enumerate(rules[f.function_id]):
+                if rule.startswith("(확인 필요)") and impact_of(rule) <= BUNDLE_IMPACT and (f.function_id, index) not in skip:
+                    areas.setdefault(f.group.split(".")[0], []).append((f, index))
+    out: list[Question] = []
+    for area, items in areas.items():
+        if len(items) < BUNDLE_MIN:
+            continue
+        qid = f"FQ-{start + len(out) + 1:03d}"
+        sample = [_plain(rules[f.function_id][index]) for f, index in items[:3]]
+        for f, index in items:
+            rules[f.function_id][index] = f"(확인 필요 {qid}) {_plain(rules[f.function_id][index])}"
+        out.append(Question(
+            question_id=qid, kind="MISSING", question=f"{area} 영역에서 따로 묻지 않은 규칙 {len(items)}개를 추천안대로 확정할까요?",
+            context=f"답이 달라도 범위가 크게 바뀌지 않는 규칙이다. 기능 명세서에서 '(확인 필요 {qid})' 규칙을 볼 수 있다. 예: {' / '.join(sample)}",
+            options=[BUNDLE_OK, BUNDLE_APART], recommended=BUNDLE_OK, blocking=True, stage="function_designer",
+            requirement_ids=sorted({rid for f, _ in items for rid in f.requirement_ids})))
+    return out
 
 
 def _is_assumed(rule: str) -> bool:
@@ -1128,8 +1237,12 @@ def record_answers(state: AgentState, answered: list[Question], requirements: li
     by_id = {r.requirement_id: r for r in requirements}
     common = deepcopy(state.get("function_common") or {})
     agreed: set[str] = set()
+    apart: set[str] = set()
     differ: list[Question] = []
     for q in answered:
+        if q.answer.strip() == BUNDLE_APART:   # 묶음을 풀고 규칙마다 확인한다 (설계는 그대로)
+            apart.add(q.question_id)
+            continue
         for rid in q.requirement_ids:
             if rid in by_id:
                 by_id[rid].decisions.append(f"[{q.question_id}] {q.question} → {q.answer}")
@@ -1148,7 +1261,7 @@ def record_answers(state: AgentState, answered: list[Question], requirements: li
                     item["answer"] = q.answer
     texts = common_rule_texts(common)
     functions = load(state, "functions", FunctionSpec)
-    updated = [f.model_copy(update={"business_rules": [_mark_decided(_expand(x, texts), agreed)
+    updated = [f.model_copy(update={"business_rules": [_unbundle(_mark_decided(_expand(x, texts), agreed), apart)
                                                        for x in f.business_rules]}) for f in functions]
     changed = [f.function_id for f, g in zip(functions, updated) if f != g]
     out: dict = {"function_common": common}

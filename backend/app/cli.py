@@ -160,6 +160,20 @@ def main(argv: list[str] | None = None) -> int:
     p_import.add_argument("--overwrite-runs", action="store_true", help="DB에 이미 있는 실행 체크포인트도 다시 덮어씀")
     p_import.add_argument("--output-dir")
 
+    p_develop = sub.add_parser("develop", help="개발 스펙으로 서비스 코드를 만든다 (기본은 LLM 없음, 토큰 0)")
+    p_develop.add_argument("project")
+    p_develop.add_argument("--from", dest="base", required=True, help="데이터 설계까지 한 버전 (예: v1.1.1)")
+    p_develop.add_argument("--plan", action="store_true", help="화면 수와 LLM 예상 비용만 보여 준다 (파일을 쓰지 않음)")
+    p_develop.add_argument("--logic", action="store_true", help="LLM으로 업무 로직 자리를 채운다 (토큰 사용, 바뀐 기능만)")
+    p_develop.add_argument("--only", help="--logic을 이 기능 ID만 (쉼표로 구분)")
+    p_develop.add_argument("--menu", action="append", default=[], metavar="영역=이름", help="메뉴 이름 (예: SFR-001=재무회계, 여러 번 쓸 수 있음)")
+    p_develop.add_argument("--title", help="화면에 보일 서비스 이름 (기본: 개발 스펙의 사업 이름)")
+    p_develop.add_argument("--out", help="코드 폴더 (기본: output/<프로젝트>/app)")
+    p_develop.add_argument("--force", action="store_true", help="사람이 고친 파일도 덮어쓴다")
+    p_develop.add_argument("--provider", choices=["openai", "anthropic", "manual"])
+    p_develop.add_argument("--model")
+    p_develop.add_argument("--output-dir")
+
     p_versions = sub.add_parser("versions", help="프로젝트의 설계 버전 목록 (생략하면 프로젝트 목록)")
     p_versions.add_argument("project", nargs="?")
     p_versions.add_argument("--output-dir")
@@ -217,6 +231,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "import-output":
         return _import_output(args)
+    if args.command == "develop":
+        return _develop(args)
     if args.command == "run":
         if args.provider:
             override_settings(llm_provider=args.provider)
@@ -658,7 +674,7 @@ def _review(args) -> int:
     여기서는 다시 검토하지 않고, 사람이 ERD 화면에서 정한 검토 지적 처리(--dispositions)를 남긴 뒤 코드로 확인만 한다.
       1) 모델 오류(MODEL_·DB_ 오류)가 남았거나 생성 DDL이 검증 DB에 적용되지 않으면 최종본을 만들지 않는다
       2) 추적 검토 (코드)
-      3) API_DESIGN이면 API 설계 Agent(LLM)가 기능별 API·아키텍처 요약을 만들고 개발 스펙 문서 9개를 쓴다
+      3) API_DESIGN이면 API 설계 Agent(LLM)가 기능별 API·아키텍처 요약을 만들고 개발 스펙 문서 10개를 쓴다
          (이전 최종본의 API 설계를 이어받아 바뀐 기능만 LLM으로)
     각 단계는 최종본의 판단 기록에 이어 붙고, 최종본의 'LLM 사용량'은 이 단계에서 쓴 양(API 설계)이다.
     최종본에서 다시 하면 같은 ERD 아래 다음 최종본(v1.1.2)을 만든다.
@@ -760,6 +776,73 @@ def _final_step(state: dict, action: str, reason: str, result: str) -> None:
     decisions = state["decisions"]
     step = max((d.get("step") or 0 for d in decisions), default=0) + 1
     decisions.append({"step": step, "action": action, "scope": [], "mode": "final", "reason": reason, "result": result})
+
+def _develop(args) -> int:
+    """개발 단계: 스펙 → 서비스 코드. --logic을 주지 않으면 LLM을 만들지도 않는다."""
+    from app.agents.tools import scaffold   # 개발 단계를 쓰지 않는 명령은 불러오지 않는다
+
+    project = project_name(args.project)
+    try:
+        spec = scaffold.load_spec(project, args.base)
+    except (scaffold.AppError, ValueError) as e:
+        print(f"시작할 수 없습니다: {e}")
+        return 2
+    if args.title:
+        spec.options["title"] = args.title
+    out_dir = Path(args.out) if args.out else scaffold.app_dir(project)
+    only = {x.strip() for x in (args.only or "").split(",") if x.strip()} or None
+    menu = dict(item.split("=", 1) for item in args.menu if "=" in item)
+    record = find_version(project, args.base) or {}
+    if not record.get("confirmed"):
+        print(f"참고: v{spec.version}은 확정하지 않은 버전입니다.")
+
+    from app.agents.roles import developer
+
+    todo = developer.plan(spec, out_dir, only)
+    if not scaffold.has_backend(spec):
+        print(f"참고: 기술 스택 '{spec.stack.get('backend') or '미정'}'의 백엔드 뼈대는 아직 없어 화면·DB·스펙만 만듭니다.")
+    files, data = scaffold.render_app(spec, menu)
+    menus = sum(len(m["pages"]) for m in data["menu"])
+    print(f"스펙 v{spec.version}: 메뉴 {menus}개 · 화면 {len(data['screens'])}개 · 자동 실행 {len(data['autos'])}개 · 파일 {len(files)}개 (토큰 0)")
+    if getattr(spec, "filled_reads", None):
+        print(f"  응답 칸이 빈 조회 API {len(spec.filled_reads)}개는 그 테이블의 컬럼을 보여 준다: {', '.join(sorted(set(spec.filled_reads)))}")
+    if getattr(spec, "unstored_inputs", None):
+        print(f"  저장 컬럼이 없는 입력 {len(spec.unstored_inputs)}개 (수정에서는 필수 아님, 데이터 모델에 컬럼이 빠졌는지 확인): "
+              + ", ".join(spec.unstored_inputs[:8]) + (" …" if len(spec.unstored_inputs) > 8 else ""))
+    print(f"업무 로직 자리: LLM이 채울 기능 {todo['functions']}개 · 이미 채운 기능 {todo['cached']}개"
+          + (f" · 스펙이 바뀌어 다시 채울 기능 {len(todo['stale'])}개" if todo["stale"] else ""))
+    print(f"  --logic 예상: 입력 약 {todo['input_tokens']:,} · 출력 약 {todo['output_tokens']:,} 토큰, "
+          + " / ".join(f"{name} 약 ${cost}" for name, cost in todo["cost"].items()))
+    if args.plan:
+        return 0
+    filled = None
+    if args.logic:
+        if args.provider:
+            override_settings(llm_provider=args.provider)
+        if args.model:
+            key = "anthropic_model" if resolve_provider() == "anthropic" else "openai_model"
+            override_settings(**{key: args.model})
+        try:
+            filled = developer.fill_logic(spec, out_dir, only)
+        except LLMFatalError as e:
+            print(f"업무 로직을 채우지 못했습니다: {e}")
+            return 1
+    logic = {fid: r.get("hooks") or {} for fid, r in scaffold.load_logic(out_dir).items()}
+    files, _ = scaffold.render_app(spec, menu, logic)
+    report = scaffold.write_app(files, out_dir, force=args.force)
+    print(f"코드 폴더: {out_dir}")
+    print(f"  새로 쓴 파일 {len(report['written'])}개 · 그대로 {report['same']}개 · 지운 파일 {len(report['removed'])}개")
+    if report["kept"]:
+        print(f"  사람이 고쳐서 그대로 둔 파일 {len(report['kept'])}개: {', '.join(report['kept'][:5])}"
+              + (" …" if len(report["kept"]) > 5 else "") + " (덮어쓰려면 --force)")
+    if filled:
+        usage = filled["usage"]
+        print(f"  업무 로직: 채움 {len(filled['filled'])}개 · 실패 {len(filled['failed'])}개 (기본 동작을 둠) · "
+              f"LLM {usage.get('calls', 0)}회, 입력 {usage.get('input_tokens', 0):,} · 출력 {usage.get('output_tokens', 0):,} 토큰")
+    print(f"화면 보기: cd {out_dir / 'frontend'} && npm install && npm run dev")
+    return 0
+
+
 
 
 def _design_api(state: dict, project: str) -> dict:

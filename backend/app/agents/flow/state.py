@@ -50,6 +50,7 @@ class AgentState(TypedDict, total=False):
     model_redesign: bool          # 데이터 설계 질문에 추천과 다른 답이 와서 데이터 모델을 다시 설계해야 함
     model_targets: list[str] | None  # 컬럼만 다시 설계할 엔티티 (rerun --entities, 빈 목록이면 의견과 관련된 엔티티)
     model_rework: dict            # 데이터 설계 다시 만들기 요약 (사용자 수정 반영·다시 설계 범위, ReworkSummary)
+    model_designed: list[str]     # 이 실행에서 데이터 모델 Agent가 설계한(새로 만들었거나 바꾼) 엔티티 (의미 검토 지적은 이것만 고친다)
     api_design: dict              # API 설계: functions(기능별 API), fingerprints(설계 당시 기능·테이블 지문), architecture, last(요약)
     design_version: str           # 프로젝트 단위 설계 버전 번호 ('2', '2.1' …)
     versions: list[dict]

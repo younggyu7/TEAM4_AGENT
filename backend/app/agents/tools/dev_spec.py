@@ -1,6 +1,6 @@
 """개발 스펙 문서: 설계 산출물을 개발 AI(Claude Code 등)가 읽고 개발할 수 있는 고정 형식 문서로 묶는다 (LLM 없음).
 
-AGENTS.md · PRD.md · ARCHITECTURE.md · DATABASE.md · API.md · openapi.yaml · ACCEPTANCE_CRITERIA.md · TASKS.md · DECISIONS.md
+AGENTS.md · PRD.md · ARCHITECTURE.md · DATABASE.md · API.md · openapi.yaml · BEHAVIOR.md · ACCEPTANCE_CRITERIA.md · TASKS.md · DECISIONS.md
 - 형식은 코드가 정한다 (SPEC_FORMAT). 칸 내용만 요구사항·기능 명세·데이터 모델·API 설계·질문에서 가져온다.
   같은 입력이면 항상 같은 문서가 나온다 (생성 시각도 넣지 않는다).
 - ID도 코드가 붙인다: AC-<기능 ID>-<n>, AC-<요구사항 ID>-<n>, TASK-001 …, ADR-001 …
@@ -14,16 +14,18 @@ from collections.abc import Callable
 
 import yaml
 
+from app.agents.roles.behavior import resolved
 from app.agents.roles.function_designer import SYSTEM_ACTOR
 from app.schemas.data_model import DataModel
 from app.schemas.function import FunctionSpec
 from app.schemas.requirement import Question, Requirement
 from app.agents.tools.convention import ConventionReport, Profile
 
-SPEC_FORMAT = "spec-format v1"
-FILES = ("AGENTS.md", "PRD.md", "ARCHITECTURE.md", "DATABASE.md", "API.md", "openapi.yaml",
+SPEC_FORMAT = "spec-format v2"
+FILES = ("AGENTS.md", "PRD.md", "ARCHITECTURE.md", "DATABASE.md", "API.md", "openapi.yaml", "BEHAVIOR.md",
          "ACCEPTANCE_CRITERIA.md", "TASKS.md", "DECISIONS.md")
-QUESTION_ID = re.compile(r"(?:Q|FQ|DQ|RC|CF|TQ)-\d+")
+QUESTION_ID = re.compile(r"(?:Q|FQ|DQ|RC|CF|TQ|BQ)-\d+")
+HELD = ("확인 필요", "제외")   # 구현하지 않는 업무 동작
 STATUS_LABEL = {"CONFIRMED": "확정", "ASSUMED": "가정한 해석 (고객 확인 필요)", "OPEN": "결정 필요 (고객 확인 필요)",
                 "EXCLUDED": "제외"}
 PRIORITY_LABEL = {"MUST": "필수", "SHOULD": "권장", "COULD": "선택", "UNSPECIFIED": "미정"}
@@ -94,9 +96,16 @@ class Spec:
         self.arch = (state.get("api_design") or {}).get("architecture")
         self.common = state.get("function_common") or {}
         self.columns = {(e.entity_id, a.name): a for e in model.entities for a in e.attributes}
+        # 설계 이름 → schema.sql의 실제 컬럼 (설계 표준을 쓰면 타입이 다를 수 있다: boolean → varchar(1) Y/N)
+        by_table = {e.entity_id: {a.name: a for a in e.attributes} for e in ddl.entities}
+        self.physical = {(t, c): by_table.get(names.table(t), {}).get(names.column(t, c), a) for (t, c), a in self.columns.items()}
         self.linked = {f.function_id: [e.entity_id for e in model.entities if f.function_id in e.function_ids]
                        for f in self.functions}
-        self.acceptance = {f.function_id: _acceptance(f, self.by_req, self.by_question) for f in self.functions}
+        self.behavior = resolved((state.get("api_design") or {}).get("behavior"), self.by_question)
+        self.acceptance = {f.function_id: _acceptance(f, self.by_req, self.by_question) + _behavior_rows(self, f) for f in self.functions}
+        for f in self.functions:
+            for n, row in enumerate(self.acceptance[f.function_id], start=1):
+                row["id"] = f"AC-{f.function_id}-{n}"
 
     def head(self, title: str, purpose: str) -> str:
         return (f"# {title}\n\n> 프로젝트: **{self.project}** · 설계 버전: **v{self.version}** · {SPEC_FORMAT}  \n"
@@ -122,6 +131,30 @@ class Spec:
                     out.setdefault(op["shared_with"], []).append(f.function_id)
         return out
 
+    def transition_of(self, operation_id: str) -> dict | None:
+        """API가 일으키는 상태 전환 {table, column, to, from, moves}. 고객 답을 기다리는 전환은 구현하지 않아 돌려주지 않는다.
+
+        moves는 목표 상태 → 허용된 현재 상태들이다. 둘 이상이면 API 하나가 여러 상태로 보내므로 요청 값이 목표를 정한다."""
+        for state in self.behavior["states"]:
+            rows = [t for t in state["transitions"] if t["operation_id"] == operation_id and t["basis"] not in HELD and state.get("basis") not in HELD]
+            if rows:
+                table, _, column = state["column"].partition(".")
+                moves: dict[str, list[str]] = {}
+                for t in rows:
+                    moves.setdefault(t["to"], []).append(t["from"])
+                to = rows[0]["to"]
+                return {"table": table, "column": column, "to": to, "from": moves[to], "moves": moves}
+        return None
+
+    def initial_of(self, table: str, column: str) -> str:
+        """새 행의 상태 (전환표가 없으면 빈 문자열)."""
+        state = next((s for s in self.behavior["states"] if s["column"] == f"{table}.{column}" and not s.get("undefined")), None)
+        return state["initial"] if state else ""
+
+    def automations_of(self, function_id: str) -> list[dict]:
+        """기능이 맡는 자동 처리 중 구현할 것."""
+        return [a for a in self.behavior["automations"] if function_id in a["function_ids"] and a["basis"] not in HELD]
+
     def stack_text(self) -> str:
         s = self.stack
         if not s["backend"]:
@@ -137,11 +170,11 @@ class Spec:
 
 def write_dev_spec(state: dict, write: Callable[[str, str], str], project: str, version: str, model: DataModel,
                    ddl: DataModel, conv: ConventionReport | None, profile: Profile | None, stack: dict) -> list[str]:
-    """개발 스펙 문서 9개를 쓴다 (write(파일 이름, 내용) → 저장 위치, 산출물 저장소). ddl은 schema.sql을 만든 모델(표준 이름·소문자)이다."""
+    """개발 스펙 문서 10개를 쓴다 (write(파일 이름, 내용) → 저장 위치, 산출물 저장소). ddl은 schema.sql을 만든 모델(표준 이름·소문자)이다."""
     spec = Spec(state, project, version, model, ddl, Names(conv, profile), stack, profile)
     texts = {
         "AGENTS.md": _agents_md(spec), "PRD.md": _prd_md(spec), "ARCHITECTURE.md": _architecture_md(spec),
-        "DATABASE.md": _database_md(spec), "API.md": _api_md(spec), "openapi.yaml": _openapi_yaml(spec),
+        "DATABASE.md": _database_md(spec), "API.md": _api_md(spec), "openapi.yaml": _openapi_yaml(spec), "BEHAVIOR.md": _behavior_md(spec),
         "ACCEPTANCE_CRITERIA.md": _acceptance_md(spec), "TASKS.md": _tasks_md(spec), "DECISIONS.md": _decisions_md(spec),
     }
     return [write(name, texts[name]) for name in FILES]
@@ -196,6 +229,75 @@ def _acceptance(f: FunctionSpec, by_req: dict[str, Requirement], questions: dict
     return rows
 
 
+def _basis_tag(item: dict) -> str:
+    """업무 동작 항목의 근거 표시. 고객 답이 있으면 답을, 답을 기다리면 질문 ID를 함께 쓴다."""
+    qid = item.get("question_id") or ""
+    if item.get("answer"):
+        return f"{item['basis']} {qid}: {item['answer']}"
+    return f"{item['basis']} {qid}".strip()
+
+
+def _behavior_rows(spec: Spec, f: FunctionSpec) -> list[dict]:
+    """상태 전환·자동 처리의 수용 기준. 기존 수용 기준 뒤에 붙여 번호가 밀리지 않게 한다."""
+    rows: list[dict] = []
+    ops = {op["operation_id"]: op for op in (spec.api.get(f.function_id) or {}).get("operations") or []}
+    for state in spec.behavior["states"]:
+        held = state.get("question_id") and state.get("basis") != "결정"
+        column = spec.names.ref(state["column"])
+        by_op: dict[str, list[dict]] = {}
+        for t in state["transitions"]:
+            if t["operation_id"] in ops:
+                by_op.setdefault(t["operation_id"], []).append(t)
+        for oid, items in by_op.items():
+            op = ops[oid]
+            when = f"{op['method']} {op['path']} 호출"
+            kind = f"상태 전환 (보류 {state['question_id']})" if held else "상태 전환 (가정)" if all(t["basis"] == "가정" for t in items) else "상태 전환"
+            rows += [{"kind": kind, "given": f"{column} = {t['from']}" + (f"; {t['condition']}" if t["condition"] else ""), "when": when,
+                      "then": f"{column} = {t['to']}", "basis": t["basis"]} for t in items]
+            rows.append({"kind": kind, "given": f"{column}이(가) {', '.join(dict.fromkeys(t['from'] for t in items))} 외의 값", "when": when,
+                         "then": "409 INVALID_STATE로 거절하고 값을 바꾸지 않는다", "basis": "상태 전환표"})
+    for a in spec.behavior["automations"]:
+        if f.function_id in a["function_ids"][:1] and a["basis"] != "제외":
+            kind = f"자동 처리 (보류 {a['question_id'] or '확인 필요'})" if a["basis"] == "확인 필요" else "자동 처리 (가정)" if a["basis"] == "가정" else "자동 처리"
+            rows.append({"kind": kind, "given": a["when"], "when": a["id"], "then": a["action"], "basis": a["id"]})
+    return rows
+
+
+def _behavior_md(spec: Spec) -> str:
+    """BEHAVIOR.md: 상태 전환·자동 처리·값의 출처."""
+    out = [spec.head("BEHAVIOR — 업무 동작", "상태가 어떻게 바뀌고, 시스템이 무엇을 스스로 하며, 요청에 없는 값이 어디서 오는지 정리한 문서다."), "",
+           "근거: 원문(요구사항·규칙에 있음) · 결정(고객 답) · 가정(설계에 필요한 추천안) · 확인 필요(고객 답 대기, 구현하지 않고 TODO) · 제외(고객이 뺌)", "",
+           "## 1. 상태 전환", ""]
+    operations = {op["operation_id"]: op for entry in spec.api.values() for op in entry.get("operations") or []}
+    label = lambda oid: f"{operations[oid]['method']} {operations[oid]['path']}" if oid in operations else "시스템"   # noqa: E731
+    if not spec.behavior["states"]:
+        out += ["없음", ""]
+    for state in spec.behavior["states"]:
+        table_name, _, column = state["column"].partition(".")
+        attr = spec.columns.get((table_name, column))
+        out += [f"### {spec.names.ref(state['column'])}" + (f" ({attr.label})" if attr and attr.label else ""), ""]
+        if state.get("undefined"):
+            out += ["전환이 정해지지 않았다 (미정). 고객에게 확인한다.", ""]
+            continue
+        out += [f"새 행의 상태: `{state['initial']}`" + (f" · 고객 확인 {_basis_tag(state)}" if state.get("question_id") else ""), "",
+                table(["현재 상태", "처리", "바뀐 상태", "조건", "근거"],
+                      [[t["from"], label(t["operation_id"]), t["to"], t["condition"] or "-", t["basis"]] for t in state["transitions"]]), ""]
+    out += ["## 2. 자동 처리", "",
+            table(["ID", "이름", "언제", "무엇을", "바꾸는 테이블", "실패하면", "근거", "맡는 기능"],
+                  [[a["id"], a["name"], f"{a['trigger']}: {a['schedule'] or a['when']}" + (f" ({label(a['operation_id'])})" if a["operation_id"] else ""),
+                    a["action"], ", ".join(spec.names.table(t) for t in a["targets"]) or "-", a["on_failure"] or "정해지지 않음", _basis_tag(a),
+                    ", ".join(a["function_ids"]) or "-"] for a in spec.behavior["automations"]]), "",
+            "## 3. 값의 출처", "",
+            "요청에 없는 필수 값과 계산 값이 어디서 오는지다. 출처가 미정이면 지어내지 말고 `TODO`로 남긴다.", ""]
+    rows = []
+    for fn, op in spec.operations():
+        for s in op.get("sources") or []:
+            target = spec.names.ref(s["target"]) if "." in s["target"] else s["target"]
+            rows.append([f"{op['method']} {op['path']}", target, s["kind"], s["value"] or "-", s["basis"]])
+    out += [table(["API", "값", "출처", "내용", "근거"], rows), ""]
+    return "\n".join(out)
+
+
 def _acceptance_md(spec: Spec) -> str:
     out = [spec.head("수용 기준 (ACCEPTANCE_CRITERIA)", "작업이 끝났는지 판정하는 기준이다. 기준 하나가 테스트 하나다."), ""]
     out += ["## 1. 테스트 방침", "",
@@ -239,9 +341,10 @@ def _agents_md(spec: Spec) -> str:
                ["2", "ARCHITECTURE.md", "기술 스택, 모듈, 외부 연계, 보안, 성능, 배포 제약"],
                ["3", "DATABASE.md + schema.sql", "테이블·관계·업무 제약 (schema.sql이 기준)"],
                ["4", "API.md + openapi.yaml", "기능별 API (openapi.yaml이 기준)"],
-               ["5", "ACCEPTANCE_CRITERIA.md", "완료 판정 기준 (AC ID = 테스트 이름)"],
-               ["6", "TASKS.md", "작업 순서와 작업별 완료 기준"],
-               ["7", "DECISIONS.md", "결정의 이유와 아직 가정인 것"]]), "",
+               ["5", "BEHAVIOR.md", "상태 전환, 자동 처리, 값의 출처"],
+               ["6", "ACCEPTANCE_CRITERIA.md", "완료 판정 기준 (AC ID = 테스트 이름)"],
+               ["7", "TASKS.md", "작업 순서와 작업별 완료 기준"],
+               ["8", "DECISIONS.md", "결정의 이유와 아직 가정인 것"]]), "",
            "## 3. 지킬 원칙", "",
            "1. 스펙에 없는 기능·테이블·컬럼·API를 만들지 않는다. 필요해 보이면 만들지 말고 `TODO(질문)`으로 남겨 작업 보고에 적는다.",
            f"2. DB는 `schema.sql`을 그대로 만든다. 테이블·컬럼 이름을 바꾸지 않는다. 이름: {standard}.",
@@ -254,9 +357,10 @@ def _agents_md(spec: Spec) -> str:
                ["(확인 필요 …)", "고객 답 대기", "구현하지 않고 `TODO(질문 ID)`. 그 규칙의 테스트도 보류"],
                ["(공통 P…)", "여러 기능이 같이 쓰는 규칙", "공통 모듈 한 곳에 구현하고 기능에서 불러 쓴다"]]),
            "",
-           "5. 보안: `*_hash` 컬럼은 단방향 해시(비밀번호는 비밀번호 전용 해시), `*_enc` 컬럼은 암호화해 저장한다. "
+           "5. 상태 변경·자동 처리·요청에 없는 값은 `BEHAVIOR.md`대로 구현한다. 근거가 '확인 필요'인 항목은 구현하지 않고 `TODO(질문 ID)`로 둔다.",
+           "6. 보안: `*_hash` 컬럼은 단방향 해시(비밀번호는 비밀번호 전용 해시), `*_enc` 컬럼은 암호화해 저장한다. "
            "평문 비밀값을 로그·응답에 남기지 않는다.",
-           "6. 스펙 문서는 고치지 않는다. 스펙과 코드가 다르면 코드를 스펙에 맞추고, 스펙이 틀렸다고 보이면 질문으로 남긴다.", "",
+           "7. 스펙 문서는 고치지 않는다. 스펙과 코드가 다르면 코드를 스펙에 맞추고, 스펙이 틀렸다고 보이면 질문으로 남긴다.", "",
            "## 4. 작업 방식", "",
            "1. `TASKS.md` 순서대로 한 작업씩 한다. 선행 작업이 끝나야 시작한다.",
            "2. 작업의 완료 기준(AC) 테스트를 먼저 쓰고 구현한다.",
@@ -528,6 +632,8 @@ def _openapi_yaml(spec: Spec) -> str:
             responses[str(status)] = {"description": "; ".join(errors[status]),
                                       "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
         item["responses"] = responses
+        if any(SYSTEM_ACTOR.match(a) for a in op.get("actors") or []):   # 외부 시스템이 호출하는 API
+            item["security"] = [{"apiKey": []}, *([{"bearerAuth": []}] if any(not SYSTEM_ACTOR.match(a) for a in op["actors"]) else [])]
         paths.setdefault(op["path"], {})[op["method"].lower()] = item
     doc = {
         "openapi": "3.1.0",
@@ -537,7 +643,7 @@ def _openapi_yaml(spec: Spec) -> str:
         "security": [{"bearerAuth": []}],
         "paths": paths,
         "components": {
-            "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}},
+            "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}, "apiKey": {"type": "apiKey", "in": "header", "name": "X-Api-Key"}},
             "schemas": {"Error": {"type": "object", "required": ["code", "message"],
                                   "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}},
         },
@@ -579,7 +685,7 @@ def _tasks(spec: Spec) -> list[dict]:
     human = sorted({a for f in spec.functions for a in f.actors if not SYSTEM_ACTOR.match(a)})
     systems = sorted({a for f in spec.functions for a in f.actors if SYSTEM_ACTOR.match(a)})
     other = [a for a in human if a not in {r["name"] for r in roles}] if roles else []
-    access = [("사용자 역할: " + ", ".join(f"{r['name']}({r['scope']})" if r.get("scope") else r["name"] for r in roles))
+    access = [("사용자 역할: " + ", ".join(f"{r['name']}({r['scope']}{', 가정' if r.get('basis') == '가정' else ''})" if r.get("scope") else r["name"] for r in roles))
               if roles else f"사용자(행위자) 권한: {', '.join(human) or '없음'}"]
     access += [f"역할 목록에 없는 행위자 (가까운 역할에 맞추고 작업 보고에 적는다): {', '.join(other)}"] if other else []
     access += [f"자동 실행·연계 주체 (사용자 역할 아님 — 시스템 계정·연계 인증): {', '.join(systems)}"] if systems else []
@@ -626,6 +732,7 @@ def _tasks(spec: Spec) -> list[dict]:
         if not make:
             make = [f"배치·자동 실행: {entry.get('no_api_reason') or '(API 설계 없음)'}"]
         make.append("테이블: " + (", ".join(spec.names.table(t) for t in linked) or "없음"))
+        make += [f"자동 처리 {a['id']} {a['name']} (`BEHAVIOR.md` 2절)" for a in spec.automations_of(f.function_id)]
         acs = [r["id"] for r in spec.acceptance[f.function_id]]
         open_q = _open_questions(f, spec.by_question)
         tasks.append({"id": tid, "name": f.name, "phase": _phase(f, spec.by_req), "after": after,

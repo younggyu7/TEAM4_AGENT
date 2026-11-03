@@ -292,3 +292,26 @@ API 설계는 최종 확정에 남긴다. 호출이 크게 늘지 않는 범위�
 | 화면 | 로그인·회원가입, 회원 관리(`#/members`, 관리자), 권한 없는 버튼·입력칸 끔(`fieldset disabled`, 초안도 편집 안 받음), 서버 초안 동기화(1.2초·임시저장·확정 때, 409면 다시 불러오기), 최종 산출물 '팀장 결정', 단계 화면 위 수정 지시, 단계 표시줄 승인 표시, 대시보드 '진행 중·최종 승인'(서버 기준) |
 | 검증 | `pytest` 203 passed · 9 skipped (새: 가입·승인·로그인, 역할별 403, 초안 공유·409, 팀장 결정). `alembic upgrade head` → `alembic check` 차이 없음. 실행 중 서버에서 `/projects` 401 확인. 화면은 `tsc -b`·`vite build`만 (브라우저 조작 미확인) |
 | 남은 것 | 비밀번호 바꾸기·찾기 없음, 로그인 시도 횟수 제한 없음, 회원 활동 기록(누가 언제 무엇을)은 버전 기록의 만든 사람·결정만, 조직(팀)별 프로젝트 분리 없음 |
+
+## 16. client_requirement 추가 기능 반영: 업무 동작·개발 단계·의미 검토 지적 보완·빠진 기능만 채우기 (2026-11-03)
+
+`client_requirement`의 `134c97b4`(10-30, 13절에서 옮긴 마지막 커밋) 이후 커밋 12개(`e440187b` … `53379088`)를 3-way 병합으로 옮겼다.
+13절의 결정(API 설계는 조정 Agent에 넣지 않고 'ERD 최종 확정' 때만)은 그대로 두고, 그 안에서 돌게 맞췄다.
+
+| 기능 | 원본 | 여기 |
+| --- | --- | --- |
+| 업무 동작 `BEHAVIOR.md` (spec-format v2, 개발 스펙 10개) | 데이터 설계 버전마다 API 설계와 함께 | `cli review`의 API 설계와 함께 (`agents/roles/behavior.py`, 프롬프트 `prompts/behavior/system.md`). 이전 최종본과 입력이 같으면 다시 묻지 않음. 고객 확인 `BQ-…`(최대 `BEHAVIOR_MAX_QUESTIONS`). 수용 기준·작업에 상태 전환·자동 처리 행 |
+| 개발 단계 `develop` | `python -m req_agent develop <프로젝트> --from v1` (버전 폴더에서 읽음) | `python -m app develop <프로젝트> --from v1.1.1` (최종본만). 스펙은 **산출물 저장소**(DB·로컬)에서 읽고 코드는 `OUTPUT_DIR/<프로젝트>/app`에 쓴다. 예시 값 `sample_words.json`은 프로젝트 파일. 화면·API는 없음 ([docs/DEVELOP.md](docs/DEVELOP.md)) |
+| 업무 로직 채우기 `--logic` | `agents/developer.py` + 코드 검사 | `agents/roles/developer.py` (프롬프트 `prompts/developer/system.md`), 생각 수준 `DEV_EFFORT` |
+| 서비스 코드 틀 | `req_agent/templates/app` | `app/agents/templates/app` (React·Vite 화면, Spring Boot 공통 코드 22개) |
+| 의미 검토 데이터 지적 보완 | 데이터 지적·상태 컬럼 누락을 이 실행에서 설계한 테이블만 한 번 다시 설계, 고친 테이블만 다시 검토 | 같음. `SEMANTIC_REVIEW_MODE=erd`(기본)면 ERD를 만들 때. 지적 글을 컬럼 설계 요청에도 넣음, 보고서에 고친 테이블·해결된 지적 |
+| 기능 명세 누락 채우기 | 빠진 기능만 추가 (그룹을 통째로 다시 쓰지 않음), 다른 영역 요구사항은 공통 기능에만 연결 | 같음 (`function_designer._linked_ids`) |
+| 규칙 근거 대조·정리 | 표시 없는 규칙을 원문과 대조해 '(가정)'(`FUNC_BASIS_CHECK`), 되풀이 규칙 정리(`FUNC_RULE_TRIM`), 영역별 묶음 질문(`FUNC_RULE_BUNDLE`) | 같음 (`agents/tools/rule_basis.py`) |
+| 단계별 수정 한도 | `FUNC_·MODEL_·API_FIX_ATTEMPTS`, `Settings.fix_attempts` | 같음 (`.env.example` 값은 이 저장소 기본 1 유지) |
+| 사용자 역할 근거 | 원문에 없는 역할 구분은 '가정' | 같음 (기능 명세 공통 결정 표에 근거 칸) |
+| 화면 | 개발 스펙 탭에 BEHAVIOR.md | `TEAM4_AGENT_FRONT` `artifacts.ts`에 '업무 동작', 화면 글의 '개발 스펙 9개' → 10개. 백엔드 `output_store.FILES`에 BEHAVIOR.md |
+
+- 프롬프트: 옮긴 13개(.md)가 원본 최종 문자열과 같음을 확인했다 (behavior·developer 새로, api·attribute·function_designer system 갱신).
+- 테스트를 이 흐름에 맞춤: 개발 스펙·업무 동작 테스트는 `run` 뒤 `review`로 만든 최종본 `v1.1`에서 본다. 조정 Agent 루프에 API 설계가 없음을 확인하는 줄로 바꿈(`test_fix_loops`).
+- 검증: DB 없이 `pytest` 310 passed · 9 skipped (새 파일 `test_behavior`·`test_develop`·`test_fix_loops`·`test_rule_basis`, 기존 파일에 병합된 테스트 포함). `ruff --select F`는 이번에 고친 파일에서 0건 (남은 9건은 main에 있던 것).
+- 미검증: `TEST_DATABASE_URL`·`TEST_PG_URL` 테스트(9 skipped), PostgreSQL 저장소에서 `develop`, 실제 LLM으로 최종 확정(업무 동작 요청) → `develop --logic`, 프론트 `tsc`·`vite build`(이 PC에 node_modules 없음). 원본에서는 13_test v4와 다른 문서 7건으로 서버 5xx 0을 확인했다.

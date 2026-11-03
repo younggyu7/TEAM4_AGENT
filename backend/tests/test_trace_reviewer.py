@@ -25,6 +25,31 @@ def _trace(out, version):
     return (out / "sample" / f"v{version}" / "traceability.md").read_text(encoding="utf-8")
 
 
+def test_state_values_without_status_column_are_reported():
+    from app.agents.roles.trace_reviewer import state_gaps, stated_states
+    from app.schemas.data_model import Attribute, DataModel, Entity
+    from app.schemas.function import ExceptionFlow, FunctionSpec
+
+    assert stated_states("전표 처리 상태는 입력, 승인, 승인해제, 출력 중 하나로 관리한다") == ["입력", "승인", "승인해제", "출력"]
+    assert stated_states("(확인 필요 FQ-001) 결재 진행상태는 상신, 결재 중, 승인, 반려 4개 값으로 관리한다") == ["상신", "결재 중", "승인", "반려"]
+    assert stated_states("임직원의 재직 상태는 재직자 또는 퇴직자 중 하나로 관리한다.") == ["재직자", "퇴직자"]
+    assert stated_states("상태를 확인한 뒤 승인한다") == [] and stated_states("처리 상태는 저장 시 기록한다") == []
+    assert stated_states("재직 상태 값은 재직, 퇴직 중 하나다") == ["재직", "퇴직"]
+
+    fn = FunctionSpec(function_id="FN-1", group="G", name="전표 관리", description="", requirement_ids=["R1"],
+                      business_rules=["전표 처리 상태는 입력, 승인, 승인해제, 출력 중 하나로 관리한다"],
+                      exception_flows=[ExceptionFlow(condition="c", handling="h")])
+    pk = {"primary_key": True, "nullable": False, "data_type": "bigint"}
+    line = Entity(entity_id="approval_line", function_ids=["FN-1"], attributes=[Attribute(name="id", **pk), Attribute(name="line_status", allowed_values=["진행", "승인", "반려"])])
+    voucher = Entity(entity_id="voucher", function_ids=["FN-1"], attributes=[Attribute(name="voucher_id", **pk), Attribute(name="memo")])
+    history = Entity(entity_id="approval_history", kind="HISTORY", function_ids=["FN-1"], attributes=[Attribute(name="id", **pk), Attribute(name="action_type", allowed_values=["승인", "반려", "승인해제"])])
+    gaps = state_gaps([fn], DataModel(entities=[voucher, line, history], relations=[]))
+    assert [(f.function_id, values, tables) for f, values, tables in gaps] == [("FN-1", ["입력", "승인", "승인해제", "출력"], ["voucher", "approval_line", "approval_history"])], \
+        "값 일부가 겹치는 다른 상태 컬럼이나 이력의 처리 구분으로는 전표 상태를 담지 못한다"
+    voucher.attributes.append(Attribute(name="voucher_status", allowed_values=["입력", "승인", "승인해제", "출력"]))
+    assert state_gaps([fn], DataModel(entities=[voucher, line], relations=[])) == []
+
+
 def test_function_stage_version_trace_is_before_data_design_and_shows_impact(sample_doc):
     out = _base(sample_doc)
     assert "## 4. 이전 버전" not in _trace(out, "1"), "첫 버전은 비교할 이전 버전이 없음"
