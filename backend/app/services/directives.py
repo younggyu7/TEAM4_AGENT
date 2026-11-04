@@ -23,6 +23,18 @@ from app.services import drafts, output_store
 SPEC_STAGE = "function_designer"
 PLANNERS, DATA = {"planner", "planner_head", "lead"}, {"data", "data_head", "lead"}
 DEV = {"dev", "dev_head", "lead"}
+PART = {"spec": {"planner", "planner_head"}, "erd": {"data", "data_head"}}   # 그 단계 초안을 고치는 파트 (팀장 빼고)
+
+
+def rejected_people(doc: dict, stage: str) -> set[int]:
+    """반려를 알릴 회원: 요청한 파트원 + 그 초안을 고친 같은 파트 회원 (반려한 사람 빼고). doc = drafts.read 결과"""
+    rejection = doc.get("rejection") or {}
+    if not rejection:
+        return set()
+    ids = {((rejection.get("request") or {}).get("by") or {}).get("id")}
+    ids |= {(e.get("by") or {}).get("id") for e in doc.get("log") or [] if (e.get("by") or {}).get("role") in PART.get(stage, set())}
+    ids.discard((rejection.get("by") or {}).get("id"))
+    return {i for i in ids if isinstance(i, int)}
 
 
 class Tree:
@@ -191,8 +203,9 @@ def job_event(job) -> None:
                   "최종 개발물 1단계에서 결과와 코드를 확인하세요", "develop", job.new_version, {"dev", "dev_head"})
 
 
-def notices(member) -> list[dict]:
-    """홈·사이드바의 '나에게 온 알림': 상태 알림(내 역할에 해당하는 수정 지시·승인 요청·승인 대기·개발 대기) + 일 알림. 확인한 것은 뺀다"""
+def notices(member, include_dismissed: bool = False) -> list[dict]:
+    """홈·사이드바의 '나에게 온 알림': 상태 알림(내 역할에 해당하는 수정 지시·승인 요청·승인 대기·개발 대기, 내가 요청했거나 고친 초안의 반려)
+    + 일 알림(업로드 분석 완료·ERD 초안·개발 초안). 확인한 것은 뺀다 (include_dismissed=True면 빼지 않는다: Slack 전송용)"""
     out = []
     role = member.role
     for p in output_store.find_projects():
@@ -218,11 +231,19 @@ def notices(member) -> list[dict]:
                                 "title": f"ERD v{d['erd_version']}에서 수정 지시 처리 ({src})",
                                 "detail": f"항목 {len(erd_items)}건 · 미처리 {left(erd_items)}건" if erd_items
                                 else "바뀐 기능 명세에 맞게 확인하고 승인 요청"})
-        # 파트장: 승인 요청 / 팀장: 승인 대기 최종본
+        # 요청했거나 고친 파트원: 반려 / 파트장: 승인 요청 / 팀장: 승인 대기 최종본
         for label, r in tree.records.items():
             stage = tree.stage_of(label)
+            doc = drafts.read(project, label) if stage in PART else None
+            rejection = (doc or {}).get("rejection")
+            if rejection and not doc["request"] and member.id in rejected_people(doc, stage) \
+                    and not [v for v in tree.after(rejection["at"], stage, tree.spec_of(label)) if v != label]:
+                out.append({"project": project, "kind": "rejected", "at": rejection["at"], "page": stage, "version": label,
+                            "title": f"{rejection['by']['name']}님이 승인 요청을 반려했습니다 "
+                                     f"({'기능 명세' if stage == 'spec' else 'ERD'} v{label})",
+                            "detail": f"사유: {rejection.get('reason', '')} · 고친 뒤 다시 승인 요청"})
             if (stage == "spec" and role in ("planner_head", "lead")) or (stage == "erd" and role in ("data_head", "lead")):
-                req = drafts.read(project, label)["request"]
+                req = doc["request"]
                 # 요청 뒤에 다음 단계(ERD·최종본)가 이미 나왔으면 처리된 요청이다 (예전 기록)
                 done = req and any(v.startswith(f"{label}.") and (rr.get("created_at") or "") > req["at"]
                                    for v, rr in tree.records.items())
@@ -244,7 +265,8 @@ def notices(member) -> list[dict]:
         out += [{"project": project, **{k: e[k] for k in ("kind", "at", "title", "detail", "page", "version", "id")}}
                 for e in data["events"] if e.get("roles") is None or role in e["roles"]]
         gone = set(data["dismissed"].get(str(member.id)) or [])
-        out = [n for n in out if n["project"] != project or _nid(n) not in gone]
+        if not include_dismissed:
+            out = [n for n in out if n["project"] != project or _nid(n) not in gone]
     for n in out:
         n["id"] = _nid(n)
     return sorted(out, key=lambda n: n["at"], reverse=True)

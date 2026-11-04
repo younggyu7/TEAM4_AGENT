@@ -77,6 +77,7 @@
 │   ├── 📄 __init__.py                             # 패키지 표시
 │   ├── 📄 output_store.py                         # 화면용 산출물 읽기: 프로젝트·버전 목록, design 합치기, 파일, 버전 제목
 │   ├── 📄 output_import.py                        # 로컬 output 폴더 → 서비스 DB 가져오기 (import-output, 체크포인트 포함)
+│   ├── 📄 slack.py                                # Slack 알림: 프로젝트별 비공개 채널 자동 생성·담당자 초대·바꾸기, 나에게 온 알림·승인·반려를 채널에 @멘션
 │   └── 📁 jobs/                                   # 화면 요청을 CLI 하위 프로세스 작업으로 실행·기록
 │       ├── 📄 __init__.py                         # 패키지 공개 이름 (jobs.start_run 등)
 │       ├── 📄 common.py                           # 공통: 작업 기록(Job)·실행기(_Runner)·종료 코드·LLM 오류 안내
@@ -183,7 +184,8 @@
 │   ├── 📄 project.py                              # projects 프로젝트 · project_files 프로젝트 파일(diff 등)
 │   ├── 📄 version.py                              # design_versions 버전 번호·버전 기록(JSONB)·화면 제목
 │   ├── 📄 artifact.py                             # artifacts 버전별 산출물 파일 내용
-│   └── 📄 job.py                                  # jobs 작업 진행 기록
+│   ├── 📄 job.py                                  # jobs 작업 진행 기록
+│   └── 📄 notification.py                         # slack_projects 프로젝트별 Slack 연결 · slack_notifications 채널에 올린 알림
 ├── 📁 repositories/                               # 서비스 DB 읽기·쓰기 (세션 안에서, 트랜잭션은 session_scope)
 │   ├── 📄 __init__.py                             # 저장소 목록·트랜잭션 규칙
 │   ├── 📄 project_repository.py                   # 프로젝트 만들기·잠그기·목록, 프로젝트 파일

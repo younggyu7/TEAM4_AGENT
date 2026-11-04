@@ -20,6 +20,7 @@ class User(Base):
     requested_role: Mapped[str] = mapped_column(String(30), default="")   # 가입할 때 적은 희망 역할 (관리자 참고용)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)         # 회원 승인·역할 지정
     status: Mapped[str] = mapped_column(String(20), default="pending")    # pending / active / disabled
+    slack_id: Mapped[str] = mapped_column(String(50), default="", server_default="")   # Slack 멤버 ID (U…). 비우면 이메일로 찾음
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
 
 

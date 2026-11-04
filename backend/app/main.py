@@ -16,6 +16,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
 from app.core.security import add_cors
 from app.services import jobs as job_service
+from app.services import slack
 from app.services import users as user_service
 
 API_PREFIX = "/api/v1"
@@ -36,7 +37,11 @@ async def lifespan(_: FastAPI):
             log.warning("시연용 계정을 만들지 못함 (alembic upgrade head를 했는지 확인): %s", e)
     from app.services import preview
     preview.start_reaper()   # 10분 동안 안 본 실행 미리보기를 끈다
+    # Slack 알림 (.env SLACK_BOT_TOKEN이 있을 때): 프로젝트마다 채널을 만들고 나에게 온 알림·승인·반려를 올린다 (services/slack.py)
+    if slack.start():
+        log.info("Slack 알림 켬: %d초마다 프로젝트 채널·'나에게 온 알림'을 확인", get_settings().slack_sync_seconds)
     yield
+    slack.stop()
 
 
 setup_logging(get_settings().log_level)
