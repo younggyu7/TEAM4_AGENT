@@ -10,6 +10,12 @@
 """
 from __future__ import annotations
 
+import json
+import threading
+from datetime import datetime
+
+from app.agents.storage import get_store
+
 from app.agents.tools.versions import load_versions, update_version, version_key
 from app.core.exceptions import BadRequest, Forbidden, NotFound
 from app.services import drafts, output_store
@@ -133,8 +139,60 @@ def resolve(project: str, final: str, stage: str, target_id: str, choice: str, n
     return resolutions.get(key) or {}
 
 
+# ------------------------------------------------------------------ 알림
+# 두 가지: ① 상태 알림(수정 지시·승인 요청·승인 대기·개발 대기) — 지금 상태에서 계산, 처리하면 사라진다.
+# ② 일 알림(업로드 분석 완료·ERD 초안·개발 초안) — 그 일이 끝날 때 프로젝트 파일 notices.json에 남긴다.
+# 둘 다 '확인'을 누르면 그 회원에게서만 사라진다 (notices.json의 dismissed[회원 ID]).
+NOTICE_FILE = "notices.json"
+EVERYONE = None
+_notice_lock = threading.Lock()
+
+
+def _notice_data(project: str) -> dict:
+    text = get_store().read_project_file(project, NOTICE_FILE)
+    data = json.loads(text) if text else {}
+    return {"events": data.get("events") or [], "dismissed": data.get("dismissed") or {}}
+
+
+def add_event(project: str, kind: str, title: str, detail: str, page: str, version: str, roles: set[str] | None) -> None:
+    """일 알림을 남긴다. roles=None이면 모든 회원"""
+    with _notice_lock:
+        data = _notice_data(project)
+        at = datetime.now().isoformat(timespec="seconds")
+        data["events"] = [*data["events"][-199:], {"id": f"{kind}:{version}:{at}", "kind": kind, "at": at, "title": title,
+                                                   "detail": detail, "page": page, "version": version,
+                                                   "roles": sorted(roles) if roles is not None else None}]
+        get_store().write_project_file(project, NOTICE_FILE, json.dumps(data, ensure_ascii=False))
+
+
+def dismiss(project: str, notice_id: str, member) -> None:
+    """확인: 그 회원에게서 알림을 지운다"""
+    with _notice_lock:
+        data = _notice_data(project)
+        mine = data["dismissed"].setdefault(str(member.id), [])
+        if notice_id not in mine:
+            mine.append(notice_id)
+            del mine[:-500]
+        get_store().write_project_file(project, NOTICE_FILE, json.dumps(data, ensure_ascii=False))
+
+
+def job_event(job) -> None:
+    """작업이 끝나면 일 알림: 업로드 분석 완료 → 모든 회원, ERD 초안 → 데이터 파트, 개발 초안 → 개발 파트"""
+    if job.status != "done" or not job.new_version:
+        return
+    if job.source == "run":
+        add_event(job.project, "uploaded", f"새 문서 분석 완료 — 기능 명세 초안 v{job.new_version}",
+                  "기획 파트가 기능 명세를 검토합니다", "spec", job.new_version, EVERYONE)
+    elif job.source == "spec":
+        add_event(job.project, "erd_draft", f"기능 명세 v{job.base} 확정 — ERD 초안 v{job.new_version}",
+                  "데이터 파트가 ERD를 검토합니다", "erd", job.new_version, {"data", "data_head"})
+    elif job.source == "develop":
+        add_event(job.project, "developed", f"최종본 v{job.base} 개발 초안 완료",
+                  "최종 개발물 1단계에서 결과와 코드를 확인하세요", "develop", job.new_version, {"dev", "dev_head"})
+
+
 def notices(member) -> list[dict]:
-    """홈·단계 화면의 '나에게 온 알림': 내 역할에 해당하는 수정 지시, 파트장에게 온 승인 요청, 팀장의 승인 대기 최종본"""
+    """홈·사이드바의 '나에게 온 알림': 상태 알림(내 역할에 해당하는 수정 지시·승인 요청·승인 대기·개발 대기) + 일 알림. 확인한 것은 뺀다"""
     out = []
     role = member.role
     for p in output_store.find_projects():
@@ -174,7 +232,7 @@ def notices(member) -> list[dict]:
                                 "detail": req.get("note") or ""})
             # 개발 파트: 팀장이 승인했는데 아직 개발하지 않은(또는 승인 뒤 다시 개발하지 않은) 최종본
             approval = r.get("approval") or {}
-            if r.get("stage") == "final" and role in DEV and approval.get("decision") == "approve" \
+            if r.get("stage") == "final" and role in ("dev", "dev_head") and approval.get("decision") == "approve" \
                     and (r.get("develop") or {}).get("at", "") < approval.get("at", ""):
                 out.append({"project": project, "kind": "develop", "at": approval.get("at", ""), "page": "develop", "version": label,
                             "title": f"최종본 v{label} 승인됨 — 개발 대기",
@@ -182,4 +240,16 @@ def notices(member) -> list[dict]:
             if r.get("stage") == "final" and role == "lead" and not r.get("approval") and not tree.after(r.get("created_at") or "", "final", tree.spec_of(label)):
                 out.append({"project": project, "kind": "decide", "at": r.get("created_at") or "", "page": "final", "version": label,
                             "title": f"최종본 v{label} 승인 대기", "detail": "최종 승인 또는 수정 지시"})
+        data = _notice_data(project)
+        out += [{"project": project, **{k: e[k] for k in ("kind", "at", "title", "detail", "page", "version", "id")}}
+                for e in data["events"] if e.get("roles") is None or role in e["roles"]]
+        gone = set(data["dismissed"].get(str(member.id)) or [])
+        out = [n for n in out if n["project"] != project or _nid(n) not in gone]
+    for n in out:
+        n["id"] = _nid(n)
     return sorted(out, key=lambda n: n["at"], reverse=True)
+
+
+def _nid(n: dict) -> str:
+    """알림 ID (확인한 것을 기억하는 데): 일 알림은 저장한 ID, 상태 알림은 종류·버전·시각"""
+    return n.get("id") or f"{n['kind']}:{n['version']}:{n['at']}"

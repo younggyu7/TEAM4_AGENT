@@ -6,7 +6,8 @@
   POST /projects/approval    최종본 승인 / 수정 지시 (팀장)
   GET  /projects/directives  끝나지 않은 수정 지시와 진행 (어느 버전에서 처리할지, 옛 ERD 잠금, 항목 처리)
   POST /projects/directives/resolve  지시 항목 처리: 반영함 / 그대로 둠(이유) — LLM 없음
-  GET  /notices              나에게 온 알림 (역할별 수정 지시·승인 요청·승인 대기)
+  GET  /notices              나에게 온 알림 (역할별 수정 지시·승인 요청·승인 대기·개발 대기 + 업로드 분석 완료·ERD 초안·개발 초안)
+  POST /notices/dismiss      알림 확인 (나에게서만 지운다)
 
 초안은 산출물 저장소의 프로젝트 파일 draft-v<버전>.json에 둔다 (서비스 DB가 있으면 project_files 테이블, 형식은
 services/drafts.py).
@@ -160,3 +161,14 @@ def resolve_directive(body: Resolve, member: users.Member = Depends(current_user
 @router.get("/notices", summary="나에게 온 알림")
 def get_notices(member: users.Member = Depends(current_user)):
     return {"notices": directives.notices(member)}
+
+
+class DismissBody(BaseModel):
+    project: str
+    id: str
+
+
+@router.post("/notices/dismiss", summary="알림 확인 (나에게서만 지운다)")
+def dismiss_notice(body: DismissBody, member: users.Member = Depends(current_user)):
+    directives.dismiss(_project(body.project), body.id[:200], member)
+    return {"ok": True}

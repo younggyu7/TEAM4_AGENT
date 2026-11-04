@@ -216,6 +216,11 @@ class _Runner:
         self.job.status, self.job.message = status, message
         self.job.finished_at = datetime.now().isoformat(timespec="seconds")
         self._save()
+        try:   # 일 알림 (업로드 분석 완료·ERD 초안·개발 초안). 알림 실패가 작업 결과를 바꾸지 않게 한다
+            from app.services import directives
+            directives.job_event(self.job)
+        except Exception as e:  # noqa: BLE001
+            log.warning("[알림] 남기지 못함 %s: %s", self.job.id, e)
         for f in self.temp:
             f.unlink(missing_ok=True)
 

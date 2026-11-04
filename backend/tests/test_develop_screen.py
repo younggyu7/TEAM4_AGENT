@@ -199,3 +199,21 @@ def test_code_browser_marks_what_ai_wrote():
         == [("a", True, False), ("b", False, True)]
     appfiles.save("sample", "backend/src/main/java/app/logic/L.java", logic.replace("if (x)", "if (y)"))
     assert appfiles.read("sample", "backend/src/main/java/app/logic/L.java")["ai_holes"] == 0, "사람이 고치면 AI 표시가 빠진다"
+
+
+def test_event_notices_go_to_roles_and_disappear_when_confirmed(sample_doc):
+    """일 알림: 업로드 분석 완료 → 모든 회원, ERD 초안 → 데이터 파트, 개발 초안 → 개발 파트. '확인'하면 그 회원에게서만 사라진다.
+    최종 개발하기는 개발 파트장만 (팀장도 아님)."""
+    from app.services import directives
+    _approved_final(sample_doc)   # 프로젝트가 있어야 알림을 모은다
+    for source, base, new in (("run", "", "1"), ("spec", "1", "1.1"), ("develop", "1.1.1", "1.1.1")):
+        directives.job_event(jobs.Job(id="j", project="sample", base=base, source=source, status="done", message="", new_version=new))
+    kinds = lambda c: sorted(n["kind"] for n in c.get("/api/v1/notices").json()["notices"] if n["kind"] in ("uploaded", "erd_draft", "developed"))  # noqa: E731
+    planner, data, dev, lead = (signed_in_client(r) for r in ("planner", "data", "dev", "lead"))
+    assert kinds(planner) == ["uploaded"] and kinds(data) == ["erd_draft", "uploaded"] and kinds(dev) == ["developed", "uploaded"]
+    assert kinds(lead) == ["uploaded"]
+    first = next(n for n in data.get("/api/v1/notices").json()["notices"] if n["kind"] == "erd_draft")
+    assert data.post("/api/v1/notices/dismiss", json={"project": "sample", "id": first["id"]}).json()["ok"]
+    assert kinds(data) == ["uploaded"], "확인한 알림은 사라진다"
+    assert kinds(signed_in_client("data_head")) == ["erd_draft", "uploaded"], "다른 회원에게는 그대로"
+    assert lead.get("/api/v1/develop/plan?project=sample&version=1.1").status_code == 403, "개발은 개발 파트장만"
