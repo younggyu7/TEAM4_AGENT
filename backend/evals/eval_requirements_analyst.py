@@ -1,4 +1,4 @@
-"""요구사항 Agent 평가: 고정 입력(ra_inputs)을 실제 LLM으로 추출하고 정답지로 채점한다.
+﻿"""요구사항 Agent 평가: 고정 입력(ra_inputs)을 실제 LLM으로 추출하고 정답지로 채점한다.
 
     python -m evals.eval_requirements_analyst run --label base --repeat 2 --model claude-haiku-5-5   # LLM 호출(유료), 고객요구사항3·5
     python -m evals.eval_requirements_analyst run --label base --repeat 2 --docs 1,2                 # 고를 문서 번호 (all = 모든 문서)
@@ -24,16 +24,19 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = Path(__file__).resolve().parent / "golden"
 # 문서별 고정 입력·정답지 (evals/golden/doc<번호>/ra_inputs.json, requirements_analyst.yaml)
-DOC_ORDER = ["5", "3", "1", "2", "6"]     # 결과의 문서 순서 (이전 결과와 같게, 새 문서는 뒤에)
+DOC_ORDER = ["5", "3", "1", "2", "6", "7", "8", "9", "12"]     # 결과의 문서 순서 (이전 결과와 같게, 새 문서는 뒤에)
 DEFAULT_DOCS = "3,5"
+EVAL_DOCS: list[str] = []     # 평가용 골든셋 (아직 없음): 실패를 보고 코드를 고치지 않는다. 'all'에서 빼고 '--docs eval'(또는 번호)로만 채점
 
 
 def doc_numbers(spec: str) -> list[str]:
     """'3,5' · 'all' → 문서 번호 목록 (항상 DOC_ORDER 순서)."""
-    wanted = DOC_ORDER if spec == "all" else [n.strip() for n in spec.split(",") if n.strip()]
+    spec = unicodedata.normalize("NFKC", spec).strip().lower()     # 한글 입력 상태의 전각 숫자·쉼표('２，３')도 받는다
+    wanted = ([n for n in DOC_ORDER if n not in EVAL_DOCS] if spec == "all" else EVAL_DOCS if spec == "eval"
+              else [n.strip() for n in spec.split(",") if n.strip()])
     unknown = [n for n in wanted if n not in DOC_ORDER]
     if unknown:
-        raise SystemExit(f"없는 문서 번호: {unknown} (쓸 수 있는 번호: {', '.join(sorted(DOC_ORDER))}, all)")
+        raise SystemExit(f"없는 문서 번호: {unknown} (쓸 수 있는 번호: {', '.join(sorted(DOC_ORDER, key=int))}, all=튜닝용 전체, eval=평가용)")
     return [n for n in DOC_ORDER if n in wanted]
 
 
@@ -83,7 +86,7 @@ def run(label: str, repeat: int, model: str | None, effort: str | None, docs: st
     override_settings(llm_provider="anthropic" if model else None, anthropic_model=model, anthropic_effort=effort)
     llm = get_llm()
     inputs = {"documents": load_inputs(docs)}
-    tag = "" if doc_numbers(docs) == doc_numbers(DEFAULT_DOCS) else "-docs" + "".join(sorted(doc_numbers(docs)))
+    tag = "-docs" + ",".join(sorted(doc_numbers(docs), key=int))     # 두 자리 번호(12)와 1·2가 섞이지 않게 쉼표로 구분
     folder = OUT / (datetime.now().strftime("%Y%m%d-%H%M%S") + tag + (f"-{label}" if label else ""))
     folder.mkdir(parents=True, exist_ok=True)
     for r in range(1, repeat + 1):

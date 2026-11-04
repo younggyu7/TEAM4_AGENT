@@ -89,3 +89,18 @@ def update_version(project: str, version, **fields) -> None:
         if record["design_version"] == label:
             save_version(project, {**record, **fields})
             return
+
+
+PROJECT_INFO = "project.json"
+
+
+def project_info(project: str) -> dict:
+    """버전과 관계없는 프로젝트 정보 (예: company = 개발한 서비스 화면에 보일 회사 이름. 없으면 프로젝트 이름을 쓴다)."""
+    text = get_store().read_project_file(project, PROJECT_INFO)
+    return json.loads(text) if text else {}
+
+
+def save_project_info(project: str, **fields) -> None:
+    """프로젝트 정보를 고친다 (빈 값은 지운다)."""
+    info = {k: v for k, v in {**project_info(project), **fields}.items() if v not in (None, "")}
+    get_store().write_project_file(project, PROJECT_INFO, json.dumps(info, ensure_ascii=False))

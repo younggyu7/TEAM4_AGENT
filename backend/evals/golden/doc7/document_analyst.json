@@ -1,0 +1,1797 @@
+{
+  "meta": {
+    "name": "document_analyst 튜닝용 골든셋 (고객요구사항7)",
+    "version": "0.1",
+    "split": "tuning",
+    "created_date": "2026-11-02",
+    "status": "draft_pending_domain_review",
+    "expected_outputs_reviewed_by_human": false,
+    "purpose": "파싱·논리 요구사항 단위·원문 품질·인용문 검증/복구 규칙 튜닝",
+    "total_cases": 45,
+    "total_reference_units": 25,
+    "case_counts": {
+      "전체 추출 목록": 1,
+      "요구사항 추출 및 내용 보존": 25,
+      "청킹 완결성": 4,
+      "정상 인용": 1,
+      "부정 표현의 정상 인용": 1,
+      "쪽을 넘어간 원문의 정상 인용": 1,
+      "다른 블록의 원문 복구": 2,
+      "숫자 변조": 2,
+      "대상 변조": 1,
+      "조건 변조": 1,
+      "문서에 없는 근거": 1,
+      "문서 품질 검사": 5
+    },
+    "evaluation_policy": "strict_quote_integrity_v1",
+    "provenance": "AI 작성. 정답 원문은 받은 원본 PDF(07.agv_재고관리_제안요청서.pdf, 28쪽)의 6~16쪽 글자. 정제본은 원본 6~16쪽과 글자가 같음을 확인(정제본 쪽 = 원본 쪽 - 5). 원본 4~5쪽 요구사항 목록은 정제본에 없음. PMR-002의 산출물 표는 쪽 이미지로 구조를 확인해 행 단위로 적음. 담당자 검수 전."
+  },
+  "documents": [
+    {
+      "document_id": "PDF7",
+      "file_name": "고객요구사항7.pdf",
+      "source_path": "data/고객요구사항7.pdf",
+      "sha256": "383a1602aacfb0e500c5fc4cfb493d1f86e41d0064273c20bdb3d75dac9f7117",
+      "format": "PDF",
+      "pdf_page_count": 11,
+      "expected_logical_units": 25,
+      "original_source": "07.agv_재고관리_제안요청서.pdf (6~16쪽)",
+      "locator_note": "pdf_page_1based=파일 기준 1부터, printed_page=쪽 아래 인쇄 번호"
+    }
+  ],
+  "normalization": {
+    "unicode": "NFC",
+    "ignore_whitespace": true,
+    "preserve": [
+      "숫자",
+      "단위",
+      "부정 표현",
+      "예외 조건",
+      "원문 ID",
+      "날짜/버전"
+    ]
+  },
+  "reference_units": [
+    {
+      "unit_key": "PDF7:ECR-001",
+      "document_id": "PDF7",
+      "requirement_id": "ECR-001",
+      "title": "시스템 구성 일반 사항",
+      "category_original": "시스템 장비구성(ECR)",
+      "locations": [
+        {
+          "pdf_page_1based": 1,
+          "printed_page": 4,
+          "anchor": "ECR-001 시스템 구성 일반 사항"
+        }
+      ],
+      "reference_text": "정의 ❏ 시스템 구축 및 구성 일반조건\n❍ 본 사업은 사단법인 한국금형산업진흥회 금형부품 재고관리를 효율화하기 위\n해 구축되어야 한다.\n❍ 본 사업의 시스템은 아래와 같은 방법으로 구성되어야 한다.\n- 자율주행 무인 AGV활용하여 창고 자동 입/출고 관리\n- AGV 자율주행 통신상태,무인차 주행표시\n- WMS를 통한 금형부품 입,출고,재고,CELL현황 관리\n- WMS를 통한 자재(소모품등)구매에 대한 관리\n- AGV 운영시스템과 WMS 시스템과의 실시간 연동\n❍ 사용증대를 위한 교육을 3회 이상 실시해야 함\n❍ 납품하는 제품이 제조사 단종 및 단종 예정 장비가 아니어야 하며, 검수 완료\n후 1년 이내에 단종 될 경우 동일 성능 이상의 신규 제품으로 교체\n❍ 납품하는 SW는 사용권 분쟁이 발생하지 않도록 하여야 한다.\n❍ 도입제품의 시스템 가동 및 운영에 필요한 기술지원\n❍ 도입제품의 목록 및 세부사항 제출\n❍ 모든 제품은 원제조사의 기술지원 및 상세규격을 충족하는 정품이어야 하며, 주요\n구성품이나 부품 또한 반드시 제조사의 정품으로 구성\n❍ 시스템의 확장성(본 시스템은 기능의 추가, 변경, 삭제가 용이하고 향후 증설\n및 적용업무의 확대가 용이한 구조로 설계되어야 한다.\n❍ 시스템은 서비스 안정화를 위해 이중화(Mirroring)로 구성되어야 한다.\n❍ 추후 확장성을 고려하여 설계되어야 한다.\n❍ 한국금형산업진흥회의 부품창고에 설치함\n산출정보 사업수행 계획서",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 6쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:ECR-002",
+      "document_id": "PDF7",
+      "requirement_id": "ECR-002",
+      "title": "라이선스 등의 제공",
+      "category_original": "시스템 장비구성(ECR)",
+      "locations": [
+        {
+          "pdf_page_1based": 1,
+          "printed_page": 4,
+          "anchor": "ECR-002 라이선스 등의 제공"
+        }
+      ],
+      "reference_text": "정의 ❏ 시스템 운용에 필요한 라이선스 제공\n❍ 도입 물품에 대한 라이선스 증서, 관리자 및 사용자 매뉴얼 제공\n산출정보 라이선스, 사용자 설명서",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 6쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:ECR-003",
+      "document_id": "PDF7",
+      "requirement_id": "ECR-003",
+      "title": "AGV 장비",
+      "category_original": "시스템 장비구성(ECR)",
+      "locations": [
+        {
+          "pdf_page_1based": 2,
+          "printed_page": 5,
+          "anchor": "ECR-003 AGV 장비"
+        }
+      ],
+      "reference_text": "정의 ❏ AGV 장비 규격 및 구성\n❍ AGV 1대\n- AGV SIZE : 폭1500*길이2400*높이2600 mm\n- 운 반 능 력 : Max 1000Kg\n- 차 체 하 중 : Max 1300kg\n- 주 행 방 식 : 전후진주행\n- 통 신 방 식 : Wifi\n- 구 동 방 식 : One Drive Steering\n- 제 어 방 식 : Micom & PLC Control\n- 조 작 방 식 : Display Board or Touch PC\n- 유 도 방 식 : SLAM 유도 자율주행\n- 마 크 방 식 : SLAM 유도 자율주행\n- 주 행 속 도 : Max : 0 – 60M/Min\n- 회 전 반 경 : Min : R 1200 mm\n- 등 판 능 력 : 1/40 ( 1.5°)\n- 정 지 정 도 : ±10mm\n- 운 행 시 간 : 연속: 5시간 통상: 8시간\n- 배터리 형식 : LI-ION 24V.104AH / 4HR\n- 충 전 방 식 : 자동 충전 ( PULL 충전 HR )\n○ FORK LIFT - FORK_LIFT UP-DOWN\n○ 안전시스템 - 안전범퍼 :접촉시 정지기능\n○ 베터리시스템\n- 리튬베터리 : DC24V, 100AH\n- 베터리 충전기 : BC-45A\n- 베터리 충전자동장치: BAC-A100\n○ MICOM & PLC Control\n산출정보 AGV 제조사 기술지원 확약서",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 7쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:ECR-004",
+      "document_id": "PDF7",
+      "requirement_id": "ECR-004",
+      "title": "서버 장비",
+      "category_original": "시스템 장비구성(ECR)",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": 6,
+          "anchor": "ECR-004 서버 장비"
+        }
+      ],
+      "reference_text": "정의 ❏ 서버 규격 및 구성\n❍ 서버 1대 ※ 동등이상\n중앙처리장치(CPU) Xeon-S 4114 2.2GHz 10Core\n주기억장치 32GB DDR4\n하드디스크 2TB HDD\n전원 1X500W Flex Slot\n제품보증 3년\n운영체제 Windows 2019 Server 포함\n산출정보 정품 라이선스",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 8쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:ECR-005",
+      "document_id": "PDF7",
+      "requirement_id": "ECR-005",
+      "title": "운영 DB S/W",
+      "category_original": "시스템 장비구성(ECR)",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": 6,
+          "anchor": "ECR-005 운영 DB S/W"
+        }
+      ],
+      "reference_text": "정의 ❏ WMS 시스템 운영 DB S/W\n❍ MS-SQL 2019\n- SQLSvrStd 2019 SNGL OLP NL - 1개\n- SQLCAL 2019 SNGL OLP NL UsrCAL - 5개\n산출정보 라이선스",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 8쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:ECR-006",
+      "document_id": "PDF7",
+      "requirement_id": "ECR-006",
+      "title": "RACK 장비 제작",
+      "category_original": "시스템 장비구성(ECR)",
+      "locations": [
+        {
+          "pdf_page_1based": 3,
+          "printed_page": 6,
+          "anchor": "ECR-006 RACK 장비 제작"
+        }
+      ],
+      "reference_text": "정의 ❏ RACK 장비제작 규격 및 구성\n❍ RACK 제작\n- 파렛트 RACK 제작\n- 2단 * 2열 구성\n- 1,100mm X 800 mm X 1,000mm 파렛트 규격 – 36개 파렛트 적재\n○ 설계-제작-조립-설치 포함",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 8쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:ECR-007",
+      "document_id": "PDF7",
+      "requirement_id": "ECR-007",
+      "title": "바코드 장비",
+      "category_original": "시스템 장비구성(ECR)",
+      "locations": [
+        {
+          "pdf_page_1based": 4,
+          "printed_page": 7,
+          "anchor": "ECR-007 바코드 장비"
+        }
+      ],
+      "reference_text": "정의 ❏ 바코드 장비 규격 및 구성\n❍ 바코드스캐너 2대 이상\n- 2D 무선바코드스캐너 QR코드스캐너 DS-2278 바코드리더기 블루투스\n○ 바코드프린터 1대\n- 전사&감열식, 출력기능:바코드, 2D 바코드, 출력대상:출력대상:롤 라벨지,\n용도:산업용, 인쇄 해상도:300dpi, 인쇄속도:인쇄속도:356mm/s, 용지 폭:\n25.4~114mm",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 9쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:ECR-008",
+      "document_id": "PDF7",
+      "requirement_id": "ECR-008",
+      "title": "운영PC 장비",
+      "category_original": "시스템 장비구성(ECR)",
+      "locations": [
+        {
+          "pdf_page_1based": 4,
+          "printed_page": 7,
+          "anchor": "ECR-008 운영PC 장비"
+        }
+      ],
+      "reference_text": "정의 ❏ 운영PC 장비 규격 및 구성\n❍ 운영PC 1대\n- 인텔,코어i3-10세대,코멧레이크S,i3-10100 (3.6GHz),(인텔)\nH470,DDR4,4GB,1TB,DVD 레코더,UHD 그래픽스 630,1Gbps\n유선,HDMI,DVI,D-SUB,USB 3.0,윈도우10 규격 이상",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 9쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:PER-001",
+      "document_id": "PDF7",
+      "requirement_id": "PER-001",
+      "title": "AGV 안전기능",
+      "category_original": "성능 요구사항(PER)",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": 8,
+          "anchor": "PER-001 AGV 안전기능"
+        }
+      ],
+      "reference_text": "정의 ❏ AGV 안전기능\n○ AGV 안전기능\n- 비 접촉 SENSOR 안전기능\n- 무인 차 운행 중 사람. 지게차. 장해물 Beam sensor\n- 접촉 범퍼 안전기능\n- 운행 중 BUMPER에 장해물이 접촉할 경우 정지기능\n- 주행 라인 이탈 정지 기능\n- 운행 중 무인 차 운행라인 중심으로 좌우 40mm이상 이탈 할 경우 정지 기능\n- 주행 램프 기능\n- 운행 시 주행방향의 lamp가 점등하므로 주행방향 확인\n- 비상정지 스위치\n- 무인 차 각모서리에 설치된 정지스위치를 누를 경우 정지\n- 경보 음 안전기능\n- 주행. 정지. 출발. 비상 .범퍼충돌. 밧데리 부족. 탈선 시 각각의 경보음 울림",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 10쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:PER-002",
+      "document_id": "PDF7",
+      "requirement_id": "PER-002",
+      "title": "AGV 인식 및 표식기능",
+      "category_original": "성능 요구사항(PER)",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": 8,
+          "anchor": "PER-002 AGV 인식 및 표식기능"
+        }
+      ],
+      "reference_text": "정의 ❏ AGV Error Display-Board상 인식 및 표식기능\n○ AGV 안전기능\n- 베터리 방전 시 Melody 및 LAMP 점등\n- 비상정지스위치 누름시 Melody 및 LAMP 점등\n- 주행 중 탈선 시 정지. Melody 및 LAMP 점등\n- Bumper 충돌 시 정지. Melody 및 LAMP 점등\n- Code error시 정지. Melody 및 LAMP 점등\n- 주행 중 error시 중요기기 체크 자기 진단 기능",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 10쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:PER-003",
+      "document_id": "PDF7",
+      "requirement_id": "PER-003",
+      "title": "AGV Control System 성능에 관한 사항",
+      "category_original": "성능 요구사항(PER)",
+      "locations": [
+        {
+          "pdf_page_1based": 5,
+          "printed_page": 8,
+          "anchor": "PER-003 AGV Control System 성능에 관한 사항"
+        }
+      ],
+      "reference_text": "정의 ❏ AGV Control System S/W 기능요구 사항\n○ AGV Control System\n- SLAM(Simultaneous localization and mapping) AGV 제어\n- 무인자동차 충돌방지\n- 무인차 통신상태 표시\n- 무인차 주행표시\n- CELL별 작업지시(입고,출고)\n- 자동충전 제어\n- PLC통신 표시\n- Touch Panel 구성\n○ MAP Program 운영\n- MAP&운영 PROGRAM\n○ WMS System과 연동\n- WMS System과 실시간 연",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 10쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌. 정제본 5~6쪽에 걸쳐 있음. 다음 쪽으로 넘어간 8줄 포함. 마지막 줄 'WMS System과 실시간 연'은 원문에서 잘린 그대로",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:PER-004",
+      "document_id": "PDF7",
+      "requirement_id": "PER-004",
+      "title": "WMS 시스템 성능에 관한 사항",
+      "category_original": "성능 요구사항(PER)",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": 9,
+          "anchor": "PER-004 WMS 시스템 성능에 관한 사항"
+        }
+      ],
+      "reference_text": "정의 ❏ WMS S/W 기능요구 사항\n○ WMS 시스템\n- 환경설정(사용자권한,부서,코드,공지사항관리)\n- 기초자료(제품,소모품,단가,창고,로케이션,입출고처)\n- 금형부품,소모품 등 구매 및 발주관련 업무관리\n- 입고관리(입고대기,입고,반입,반품,입고이력 및 현황조회,바코드연동)\n- 출고관리(출고지시,출고(바코드), 반품출고,폐기, 출고이력 및\n현황조회,바코드연동)\n- 재고관리(제품재고현황,제품위치변경,재고실사,재고마감, CELL 별 재고현황 )\n- 모니터링 (CELL별,제품별 재고현황, 입고 , 재고 , 공지사항 등 )\n- AGV 운영시스템과 실시간 연동\n- 기타(관련업무)요구사항\n- 확장성을 고려하여 설계하여야 함",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 11쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:SIR-001",
+      "document_id": "PDF7",
+      "requirement_id": "SIR-001",
+      "title": "시스템 간 연동",
+      "category_original": "인터페이스 요구사항(SIR)",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": 9,
+          "anchor": "SIR-001 시스템 간 연동"
+        }
+      ],
+      "reference_text": "정의 ❏ AGV 시스템 연동\n❍ AGV 운영시스템과 WMS 상호 연동\n- AGV 운영시스템과 WMS 상호 연동 동기화 구축",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 11쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:SIR-002",
+      "document_id": "PDF7",
+      "requirement_id": "SIR-002",
+      "title": "무선 바코드 연동",
+      "category_original": "인터페이스 요구사항(SIR)",
+      "locations": [
+        {
+          "pdf_page_1based": 6,
+          "printed_page": 9,
+          "anchor": "SIR-002 무선 바코드 연동"
+        }
+      ],
+      "reference_text": "정의 ❏ 바코드\n❍ 바코드 연동\n- 입/출고등 관련 모듈에 Bluetooth 연동",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 11쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:TER-001",
+      "document_id": "PDF7",
+      "requirement_id": "TER-001",
+      "title": "시험 운영 및 시스템 안정화",
+      "category_original": "테스트 요구사항(TER)",
+      "locations": [
+        {
+          "pdf_page_1based": 7,
+          "printed_page": 10,
+          "anchor": "TER-001 시험 운영 및 시스템 안정화"
+        }
+      ],
+      "reference_text": "정의 ❏ 시험운영을 위한 기술 지원 및 기간\n❍ 시험운영은 구축 초기부터 구축 완료까지 지속적으로 실시\n❍ 도입되는 장비(장비,H/W,S/W)에 대한 테스트 결과(오류사항, 미비점 등)는 즉시 보완\n❍ 보유장비 제품과 상호 연동 테스트 및 기술 지원",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 12쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:TER-002",
+      "document_id": "PDF7",
+      "requirement_id": "TER-002",
+      "title": "제품 설치",
+      "category_original": "테스트 요구사항(TER)",
+      "locations": [
+        {
+          "pdf_page_1based": 7,
+          "printed_page": 10,
+          "anchor": "TER-002 제품 설치"
+        }
+      ],
+      "reference_text": "정의 ❏ 사업수행 시 시스템 설치\n❍ 진흥회의 시스템 운영환경 사전 조사하여 장비 설치위치, 구성형태 등을 협의\n하여 설치\n❍ 납품대상 품목 설치 등 작업수행으로 인해 발생된 타 시설물의 피해 및 손상에\n대하여 원상복구 또는 보상하여야 하며, 제품설치에 필요한 전기, 통신 연결에\n필요한 케이블 등도 제공․설치",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 12쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:SER-001",
+      "document_id": "PDF7",
+      "requirement_id": "SER-001",
+      "title": "보안요구사항 일반",
+      "category_original": "보안(SER)",
+      "locations": [
+        {
+          "pdf_page_1based": 7,
+          "printed_page": 10,
+          "anchor": "SER-001 보안요구사항 일반"
+        }
+      ],
+      "reference_text": "정의 ❏ 보안요구사항 일반\n❍ 사업자는 사업수행과정에서 취득한 자료와 정보는 사업수행중은 물론 사업완료\n후에도 외부유출 금지\n❍ 사업자는 사업수행에 사용되는 문서, 인원, 장비 등에 대하여 물리적, 관리적,\n기술적 보안대책 및 누출금지 대상정보에 대한 보안관리계획을 사업제안서에\n기재하여야 함\n❍ 사업자는 개인정보처리 시 개인정보처리위탁 준수사항 및 개인정보보호법 등\n관련 규정에 따라 개인정보 관련 업무를 처리해야 함",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 12쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:SER-004",
+      "document_id": "PDF7",
+      "requirement_id": "SER-004",
+      "title": "시스템 접근강화를 위한 방안",
+      "category_original": "보안(SER)",
+      "locations": [
+        {
+          "pdf_page_1based": 8,
+          "printed_page": 11,
+          "anchor": "SER-004 시스템 접근강화를 위한 방안"
+        }
+      ],
+      "reference_text": "정의 ❏ 시스템 접근강화를 위한 방안\n❍ 비인가자의 접근 및 시스템에의 불법적인 접근을 차단하기 위해\n의심 IP 자동 차단 기능 제공\n❍ 관련 서비스 이외의 포트 차단 및 비활성화\n❍ 로그인 아이디·패스워드는 암호화 구축\n❍ 관리자 비밀번호는 주기적으로 변경하도록 설정기능 제공\n❍ 모든 개인정보 유출방지를 위한 암호화 조치 등 관리 철저",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 13쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:QUR-001",
+      "document_id": "PDF7",
+      "requirement_id": "QUR-001",
+      "title": "시스템 운영의 사용성 및 신뢰성",
+      "category_original": "품질(QUR)",
+      "locations": [
+        {
+          "pdf_page_1based": 8,
+          "printed_page": 11,
+          "anchor": "QUR-001 시스템 운영의 사용성 및 신뢰성"
+        }
+      ],
+      "reference_text": "정의 ❏ 시스템 사용성 유지방안\n❍ 구축되는 시스템은 365일 무 중단으로 장애 없이 가동되어야 함.\n❍ 시스템 장애발생에 따른 지원 계획을 수립하고, 제조사 및 공급사의 업그레이\n드 패치 등을 실시하여야 함.\n❍ 계약업체는 보안상황 발생 시 적극 협조하여야 하며 지정된 처리절차에 따라\n신속히 조치하여야 한다.\n산출정보 사업수행 계획서",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 13쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:COR-001",
+      "document_id": "PDF7",
+      "requirement_id": "COR-001",
+      "title": "계약목적물의 지적재산권등 관련 사항",
+      "category_original": "제약(COR)",
+      "locations": [
+        {
+          "pdf_page_1based": 8,
+          "printed_page": 11,
+          "anchor": "COR-001 계약목적물의 지적재산권등 관련 사항"
+        }
+      ],
+      "reference_text": "정의 ❏ 재산권 소유 및 기능사용\n❍ 본 과업의 결과물에 대한 저작재산권 일체와 2차적 저작물 또는 편집저작물의\n작성권한은 발주기관이 소유하며, 발주기관은 필요시 용역결과물의 내용을 일\n부 보완 또는 수정할 수 있다.\n❍ 납품되는 모든 제품은 과업지시서에 명시된 모든 기능을 사용함에 있어 지식\n재산권에 위배되지 않아야 하며, 이로 인해 발생되는 모든 문제는 계약업체의\n책임으로 함.",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 13쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:COR-002",
+      "document_id": "PDF7",
+      "requirement_id": "COR-002",
+      "title": "검사 및 검수",
+      "category_original": "제약(COR)",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": 12,
+          "anchor": "COR-002 검사 및 검수"
+        }
+      ],
+      "reference_text": "정의 ❏ 검사 및 검수\n❍ 계약업체는 계약기간 이내에 본 사업에 포함된 모든 절차를 완료하고, 검사\n및 검수요청을 하여야 함\n❍ 사업자는 검사ㆍ검수 시 발견되는 문제점, 시스템 수정ㆍ보완요구 등에 대해\n전면 수용하고 즉시 조치하여야 함\n❍ 검사 및 검수의 대상범위는 본 사업에 포함된 모든 물품의 납품․설치와 시스\n템의 정상 가동 여부 포함\n❍ 계약업체는 물품의 검사 및 시험 등을 수행하기 위해 필요한 인원 및 장비를\n제공해야 하며, 이에 소요되는 경비는 계약업체가 부담\n❍ 계약업체는 납품되는 제품에 대하여 제조사 기술지원확약서 제출\n산출정보 AGV 제조사 기술지원확약서",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 14쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:PMR-001",
+      "document_id": "PDF7",
+      "requirement_id": "PMR-001",
+      "title": "사업 수행 조직",
+      "category_original": "프로젝트관리(PMR)",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": 12,
+          "anchor": "PMR-001 사업 수행 조직"
+        }
+      ],
+      "reference_text": "정의 ❏ 사업 수행 조직 및 단계별 인력 투입\n❍ 프로젝트의 수행 조직에 대한 구성 및 투입인력의 역할 및 책임을 명확히 수립\n❍ 사업 추진 조직, 인력 구성, 단계별 인력투입계획 등을 명시\n❍ 사업 인력이 부적당하다고 판단되어, 교체를 요청할 경우 교체 조치\n❍ 사업 기간 중 투입인력에 대한 변경이 불가피할 경우 발주자의 사전 승인을\n받아야 함.\n산출정보 사업수행 계획서",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 14쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:PMR-002",
+      "document_id": "PDF7",
+      "requirement_id": "PMR-002",
+      "title": "산출물에 관한 사항",
+      "category_original": "프로젝트관리(PMR)",
+      "locations": [
+        {
+          "pdf_page_1based": 9,
+          "printed_page": 12,
+          "anchor": "PMR-002 산출물에 관한 사항"
+        }
+      ],
+      "reference_text": "정의 ❏ 사업 착수 및 완료 시 산출물 제출 기한\n❍ 계약업체는 아래에 제시된 내역을 참조하여 사업 기간 중의 보고 및 산출물을\n제출하여야 한다.\n❍ 계약업체는 아래 사항을 포함한 정보시스템 운영관리 매뉴얼을 제출하여야\n- 장애복구 시나리오, 시스템구성도 등\n단계 | 산출물 종류 | 제출 기한 | 비고\n착수\n- 사업수행 계획서\n- 보안관리 계획서\n- AGV 제조사기술지원확약서\n- 보안서약서(설치인력, 대표자)\n- 대표자 비밀유지계획서\n- 보안특약서\n계약 후 10일 이내\n완료\n- 납품물품 상세명세서 1부\n- 사업완료보고서 1부 (시스템 설치내역, 기술지원 인력현황 및 비상 연락망이 포함된 유지관리체계도, 하자보수계획, 교육계획 등 포함)\n- 대표자보안확약서\n- 운영관리 매뉴얼, 라이선스, 제품 매뉴얼\n- 검수에 필요한 서류\n사업완료\n산출정보 운영관리 매뉴얼",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 14쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌. 정제본 9~10쪽에 걸쳐 있음. 다음 쪽 산출물 표는 쪽 이미지로 구조를 확인해 행 단위로 적음",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:PSR-001",
+      "document_id": "PDF7",
+      "requirement_id": "PSR-001",
+      "title": "시스템 운영 지원",
+      "category_original": "프로젝트 지원 요구사항(PSR)",
+      "locations": [
+        {
+          "pdf_page_1based": 10,
+          "printed_page": 13,
+          "anchor": "PSR-001 시스템 운영 지원"
+        }
+      ],
+      "reference_text": "정의 ❏ 하자담보 책임기간 및 장애발생 대응 방안\n❍ 하자담보 책임기간은 검수 완료일로부터 1년\n❍ 사업자는 다음 사항을 하자담보 책임기간 동안 지원하여야 함\n- 각종 장비, H/W, S/W의 설정 작업\n- 공급된 상용 제품에 대한 패치\n- 장애발생에 대한 처리(Trouble Shooting) 및 오류 사항 개선\n- 기타 시스템의 정상 운영을 위한 기술 지원 등\n❍ 장애 발생 시 즉시 조치(접수 후 2시간 이내 현장 도착, 4시간 이내 장애조치\n완료, 24시간 이내 복구)\n❍ 장비 납품 시 파손 또는 시험운영 중 3회 이상 유사한 장애가 발생 하였을\n경우, 동일 사양 이상의 신규 제품으로 교체하여야 함\n❍ 평시 및 취약시기(공휴일, 야간) 등 장애 대응 체계 구성",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 15쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    },
+    {
+      "unit_key": "PDF7:PSR-002",
+      "document_id": "PDF7",
+      "requirement_id": "PSR-002",
+      "title": "교육 및 기술지원 방안",
+      "category_original": "프로젝트 지원 요구사항(PSR)",
+      "locations": [
+        {
+          "pdf_page_1based": 11,
+          "printed_page": 14,
+          "anchor": "PSR-002 교육 및 기술지원 방안"
+        }
+      ],
+      "reference_text": "정의 ❏ 시스템 운영에 필요한 기술교육 및 운영교육 지원\n❍ 납품한 제품 운영에 필요한 기술 교육계획서를 제출하여야 하며, 교육관련 제\n반 비용(교재, 기자재 등)은 본 사업에 포함\n❍ 사업자는 본 사업완료 후 업무 담당자를 대상으로 장비에 대한 기술교육 실시\n❍ 기술교육 실시 후에도 별도로 발주기관이 요구할 경우 해당 장비에 대한\n기술교육 무상 실시\n산출정보 사업완료보고서",
+      "reference_text_provenance": "받은 원본 PDF(07.agv_재고관리_제안요청서.pdf) 16쪽 글자 (pdfplumber). 표 왼쪽 칸 이름(요구사항 세부내용)은 뺌",
+      "logical_source_count": 1
+    }
+  ],
+  "cases": [
+    {
+      "id": "FULL-PDF7",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7",
+        "only": null,
+        "max_sources": null
+      },
+      "expected_output": {
+        "expected_unit_keys": [
+          "PDF7:ECR-001",
+          "PDF7:ECR-002",
+          "PDF7:ECR-003",
+          "PDF7:ECR-004",
+          "PDF7:ECR-005",
+          "PDF7:ECR-006",
+          "PDF7:ECR-007",
+          "PDF7:ECR-008",
+          "PDF7:PER-001",
+          "PDF7:PER-002",
+          "PDF7:PER-003",
+          "PDF7:PER-004",
+          "PDF7:SIR-001",
+          "PDF7:SIR-002",
+          "PDF7:TER-001",
+          "PDF7:TER-002",
+          "PDF7:SER-001",
+          "PDF7:SER-004",
+          "PDF7:QUR-001",
+          "PDF7:COR-001",
+          "PDF7:COR-002",
+          "PDF7:PMR-001",
+          "PDF7:PMR-002",
+          "PDF7:PSR-001",
+          "PDF7:PSR-002"
+        ],
+        "expected_logical_units": 25,
+        "preserve_original_ids": true,
+        "no_unlisted_requirement_units": true
+      },
+      "metadata": {
+        "type": "전체 추출 목록",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "counting_policy": "논리 요구사항 기준. 물리 블록/검색 청크 개수를 뜻하지 않음."
+      }
+    },
+    {
+      "id": "EXT-U001",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:ECR-001",
+        "requirement_id": "ECR-001",
+        "title": "시스템 구성 일반 사항",
+        "category_original": "시스템 장비구성(ECR)",
+        "locations": [
+          {
+            "pdf_page_1based": 1,
+            "printed_page": 4,
+            "anchor": "ECR-001 시스템 구성 일반 사항"
+          }
+        ],
+        "content_reference_key": "PDF7:ECR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U002",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:ECR-002",
+        "requirement_id": "ECR-002",
+        "title": "라이선스 등의 제공",
+        "category_original": "시스템 장비구성(ECR)",
+        "locations": [
+          {
+            "pdf_page_1based": 1,
+            "printed_page": 4,
+            "anchor": "ECR-002 라이선스 등의 제공"
+          }
+        ],
+        "content_reference_key": "PDF7:ECR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U003",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:ECR-003",
+        "requirement_id": "ECR-003",
+        "title": "AGV 장비",
+        "category_original": "시스템 장비구성(ECR)",
+        "locations": [
+          {
+            "pdf_page_1based": 2,
+            "printed_page": 5,
+            "anchor": "ECR-003 AGV 장비"
+          }
+        ],
+        "content_reference_key": "PDF7:ECR-003",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U004",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:ECR-004",
+        "requirement_id": "ECR-004",
+        "title": "서버 장비",
+        "category_original": "시스템 장비구성(ECR)",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": 6,
+            "anchor": "ECR-004 서버 장비"
+          }
+        ],
+        "content_reference_key": "PDF7:ECR-004",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U005",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:ECR-005",
+        "requirement_id": "ECR-005",
+        "title": "운영 DB S/W",
+        "category_original": "시스템 장비구성(ECR)",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": 6,
+            "anchor": "ECR-005 운영 DB S/W"
+          }
+        ],
+        "content_reference_key": "PDF7:ECR-005",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U006",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:ECR-006",
+        "requirement_id": "ECR-006",
+        "title": "RACK 장비 제작",
+        "category_original": "시스템 장비구성(ECR)",
+        "locations": [
+          {
+            "pdf_page_1based": 3,
+            "printed_page": 6,
+            "anchor": "ECR-006 RACK 장비 제작"
+          }
+        ],
+        "content_reference_key": "PDF7:ECR-006",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U007",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:ECR-007",
+        "requirement_id": "ECR-007",
+        "title": "바코드 장비",
+        "category_original": "시스템 장비구성(ECR)",
+        "locations": [
+          {
+            "pdf_page_1based": 4,
+            "printed_page": 7,
+            "anchor": "ECR-007 바코드 장비"
+          }
+        ],
+        "content_reference_key": "PDF7:ECR-007",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U008",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:ECR-008",
+        "requirement_id": "ECR-008",
+        "title": "운영PC 장비",
+        "category_original": "시스템 장비구성(ECR)",
+        "locations": [
+          {
+            "pdf_page_1based": 4,
+            "printed_page": 7,
+            "anchor": "ECR-008 운영PC 장비"
+          }
+        ],
+        "content_reference_key": "PDF7:ECR-008",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U009",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PER-001",
+        "requirement_id": "PER-001",
+        "title": "AGV 안전기능",
+        "category_original": "성능 요구사항(PER)",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": 8,
+            "anchor": "PER-001 AGV 안전기능"
+          }
+        ],
+        "content_reference_key": "PDF7:PER-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U010",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PER-002",
+        "requirement_id": "PER-002",
+        "title": "AGV 인식 및 표식기능",
+        "category_original": "성능 요구사항(PER)",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": 8,
+            "anchor": "PER-002 AGV 인식 및 표식기능"
+          }
+        ],
+        "content_reference_key": "PDF7:PER-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U011",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PER-003",
+        "requirement_id": "PER-003",
+        "title": "AGV Control System 성능에 관한 사항",
+        "category_original": "성능 요구사항(PER)",
+        "locations": [
+          {
+            "pdf_page_1based": 5,
+            "printed_page": 8,
+            "anchor": "PER-003 AGV Control System 성능에 관한 사항"
+          }
+        ],
+        "content_reference_key": "PDF7:PER-003",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U012",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PER-004",
+        "requirement_id": "PER-004",
+        "title": "WMS 시스템 성능에 관한 사항",
+        "category_original": "성능 요구사항(PER)",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": 9,
+            "anchor": "PER-004 WMS 시스템 성능에 관한 사항"
+          }
+        ],
+        "content_reference_key": "PDF7:PER-004",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U013",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:SIR-001",
+        "requirement_id": "SIR-001",
+        "title": "시스템 간 연동",
+        "category_original": "인터페이스 요구사항(SIR)",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": 9,
+            "anchor": "SIR-001 시스템 간 연동"
+          }
+        ],
+        "content_reference_key": "PDF7:SIR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U014",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:SIR-002",
+        "requirement_id": "SIR-002",
+        "title": "무선 바코드 연동",
+        "category_original": "인터페이스 요구사항(SIR)",
+        "locations": [
+          {
+            "pdf_page_1based": 6,
+            "printed_page": 9,
+            "anchor": "SIR-002 무선 바코드 연동"
+          }
+        ],
+        "content_reference_key": "PDF7:SIR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U015",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:TER-001",
+        "requirement_id": "TER-001",
+        "title": "시험 운영 및 시스템 안정화",
+        "category_original": "테스트 요구사항(TER)",
+        "locations": [
+          {
+            "pdf_page_1based": 7,
+            "printed_page": 10,
+            "anchor": "TER-001 시험 운영 및 시스템 안정화"
+          }
+        ],
+        "content_reference_key": "PDF7:TER-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U016",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:TER-002",
+        "requirement_id": "TER-002",
+        "title": "제품 설치",
+        "category_original": "테스트 요구사항(TER)",
+        "locations": [
+          {
+            "pdf_page_1based": 7,
+            "printed_page": 10,
+            "anchor": "TER-002 제품 설치"
+          }
+        ],
+        "content_reference_key": "PDF7:TER-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U017",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:SER-001",
+        "requirement_id": "SER-001",
+        "title": "보안요구사항 일반",
+        "category_original": "보안(SER)",
+        "locations": [
+          {
+            "pdf_page_1based": 7,
+            "printed_page": 10,
+            "anchor": "SER-001 보안요구사항 일반"
+          }
+        ],
+        "content_reference_key": "PDF7:SER-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U018",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:SER-004",
+        "requirement_id": "SER-004",
+        "title": "시스템 접근강화를 위한 방안",
+        "category_original": "보안(SER)",
+        "locations": [
+          {
+            "pdf_page_1based": 8,
+            "printed_page": 11,
+            "anchor": "SER-004 시스템 접근강화를 위한 방안"
+          }
+        ],
+        "content_reference_key": "PDF7:SER-004",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U019",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:QUR-001",
+        "requirement_id": "QUR-001",
+        "title": "시스템 운영의 사용성 및 신뢰성",
+        "category_original": "품질(QUR)",
+        "locations": [
+          {
+            "pdf_page_1based": 8,
+            "printed_page": 11,
+            "anchor": "QUR-001 시스템 운영의 사용성 및 신뢰성"
+          }
+        ],
+        "content_reference_key": "PDF7:QUR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U020",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:COR-001",
+        "requirement_id": "COR-001",
+        "title": "계약목적물의 지적재산권등 관련 사항",
+        "category_original": "제약(COR)",
+        "locations": [
+          {
+            "pdf_page_1based": 8,
+            "printed_page": 11,
+            "anchor": "COR-001 계약목적물의 지적재산권등 관련 사항"
+          }
+        ],
+        "content_reference_key": "PDF7:COR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U021",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:COR-002",
+        "requirement_id": "COR-002",
+        "title": "검사 및 검수",
+        "category_original": "제약(COR)",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": 12,
+            "anchor": "COR-002 검사 및 검수"
+          }
+        ],
+        "content_reference_key": "PDF7:COR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U022",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PMR-001",
+        "requirement_id": "PMR-001",
+        "title": "사업 수행 조직",
+        "category_original": "프로젝트관리(PMR)",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": 12,
+            "anchor": "PMR-001 사업 수행 조직"
+          }
+        ],
+        "content_reference_key": "PDF7:PMR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U023",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PMR-002",
+        "requirement_id": "PMR-002",
+        "title": "산출물에 관한 사항",
+        "category_original": "프로젝트관리(PMR)",
+        "locations": [
+          {
+            "pdf_page_1based": 9,
+            "printed_page": 12,
+            "anchor": "PMR-002 산출물에 관한 사항"
+          }
+        ],
+        "content_reference_key": "PDF7:PMR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U024",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PSR-001",
+        "requirement_id": "PSR-001",
+        "title": "시스템 운영 지원",
+        "category_original": "프로젝트 지원 요구사항(PSR)",
+        "locations": [
+          {
+            "pdf_page_1based": 10,
+            "printed_page": 13,
+            "anchor": "PSR-001 시스템 운영 지원"
+          }
+        ],
+        "content_reference_key": "PDF7:PSR-001",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "EXT-U025",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PSR-002",
+        "requirement_id": "PSR-002",
+        "title": "교육 및 기술지원 방안",
+        "category_original": "프로젝트 지원 요구사항(PSR)",
+        "locations": [
+          {
+            "pdf_page_1based": 11,
+            "printed_page": 14,
+            "anchor": "PSR-002 교육 및 기술지원 방안"
+          }
+        ],
+        "content_reference_key": "PDF7:PSR-002",
+        "preserve_all_content": true,
+        "must_not_merge_other_unit_keys": true
+      },
+      "metadata": {
+        "type": "요구사항 추출 및 내용 보존",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "reference_units의 reference_text와 내용·조건·예외를 대조. 공백 차이는 허용."
+      }
+    },
+    {
+      "id": "C26",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PER-003",
+        "must_include_together": [
+          "무인차 주행표시",
+          "CELL별 작업지시(입고,출고)",
+          "자동충전 제어",
+          "MAP&운영 PROGRAM",
+          "WMS System과 실시간 연"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "5쪽에서 6쪽으로 넘어간 8줄(번호·제목 없이 이어짐)이 PER-003에 남아야 함. 다음 요구사항 PER-004에 붙으면 실패",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C27",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PMR-002",
+        "must_include_together": [
+          "장애복구 시나리오, 시스템구성도",
+          "계약 후 10일 이내",
+          "보안특약서",
+          "검수에 필요한 서류",
+          "운영관리 매뉴얼"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "9쪽 본문과 10쪽 산출물 표가 한 요구사항에 유지",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C28",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:PSR-001",
+        "must_include_together": [
+          "접수 후 2시간 이내 현장 도착",
+          "4시간 이내 장애조치",
+          "24시간 이내 복구",
+          "3회 이상 유사한 장애"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "장애 대응 시간 조건 세 개와 교체 조건이 한 요구사항에 유지",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "C29",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "unit_key": "PDF7:ECR-004",
+        "must_include_together": [
+          "Xeon-S 4114 2.2GHz 10Core",
+          "32GB DDR4",
+          "2TB HDD",
+          "Windows 2019 Server 포함"
+        ],
+        "logical_source_count": 1
+      },
+      "metadata": {
+        "type": "청킹 완결성",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "셀 안 서버 규격 표의 값이 빠짐없이 유지",
+        "strict_string_match": false
+      }
+    },
+    {
+      "id": "R54",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF7",
+        "quote": "로그인 아이디·패스워드는 암호화 구축",
+        "original_locator": {
+          "requirement_id": "SER-004",
+          "locations": [
+            {
+              "pdf_page_1based": 8,
+              "printed_page": 11,
+              "anchor": "SER-004 시스템 접근강화를 위한 방안"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF7:SER-004"
+        ],
+        "expected_quote": "로그인 아이디·패스워드는 암호화 구축",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "정상 인용",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R55",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF7",
+        "quote": "납품하는 제품이 제조사 단종 및 단종 예정 장비가 아니어야 하며",
+        "original_locator": {
+          "requirement_id": "ECR-001",
+          "locations": [
+            {
+              "pdf_page_1based": 1,
+              "printed_page": 4,
+              "anchor": "ECR-001 시스템 구성 일반 사항"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF7:ECR-001"
+        ],
+        "expected_quote": "납품하는 제품이 제조사 단종 및 단종 예정 장비가 아니어야 하며",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "부정 표현의 정상 인용",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R56",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF7",
+        "quote": "CELL별 작업지시(입고,출고)",
+        "original_locator": {
+          "requirement_id": "PER-003",
+          "locations": [
+            {
+              "pdf_page_1based": 5,
+              "printed_page": 8,
+              "anchor": "PER-003 AGV Control System 성능에 관한 사항"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "verified",
+        "allowed_target_unit_keys": [
+          "PDF7:PER-003"
+        ],
+        "expected_quote": "CELL별 작업지시(입고,출고)",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "쪽을 넘어간 원문의 정상 인용",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": false,
+        "evaluation": "PER-003이 6쪽으로 넘어간 부분의 원문. PER-003에서 그대로 확인돼야 하며 PER-004로 옮기면 실패."
+      }
+    },
+    {
+      "id": "R57",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF7",
+        "quote": "Bumper 충돌 시 정지. Melody 및 LAMP 점등",
+        "original_locator": {
+          "requirement_id": "PER-001",
+          "locations": [
+            {
+              "pdf_page_1based": 5,
+              "printed_page": 8,
+              "anchor": "PER-001 AGV 안전기능"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "PDF7:PER-002"
+        ],
+        "expected_quote": "Bumper 충돌 시 정지. Melody 및 LAMP 점등",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "다른 블록의 원문 복구",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R58",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF7",
+        "quote": "의심 IP 자동 차단 기능 제공",
+        "original_locator": {
+          "requirement_id": "SIR-001",
+          "locations": [
+            {
+              "pdf_page_1based": 6,
+              "printed_page": 9,
+              "anchor": "SIR-001 시스템 간 연동"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "relinked",
+        "allowed_target_unit_keys": [
+          "PDF7:SER-004"
+        ],
+        "expected_quote": "의심 IP 자동 차단 기능 제공",
+        "must_flag_unconfirmed": false,
+        "must_not_auto_verify": false,
+        "preserve_original_quote": false
+      },
+      "metadata": {
+        "type": "다른 블록의 원문 복구",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "R59",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF7",
+        "quote": "장애 발생 시 즉시 조치(접수 후 3시간 이내 현장 도착",
+        "original_locator": {
+          "requirement_id": "PSR-001",
+          "locations": [
+            {
+              "pdf_page_1based": 10,
+              "printed_page": 13,
+              "anchor": "PSR-001 시스템 운영 지원"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "숫자 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "원문은 '2시간'."
+      }
+    },
+    {
+      "id": "R60",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF7",
+        "quote": "운 반 능 력 : Max 1500Kg",
+        "original_locator": {
+          "requirement_id": "ECR-003",
+          "locations": [
+            {
+              "pdf_page_1based": 2,
+              "printed_page": 5,
+              "anchor": "ECR-003 AGV 장비"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "숫자 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "원문은 'Max 1000Kg'."
+      }
+    },
+    {
+      "id": "R61",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF7",
+        "quote": "편집저작물의 작성권한은 계약업체가 소유하며",
+        "original_locator": {
+          "requirement_id": "COR-001",
+          "locations": [
+            {
+              "pdf_page_1based": 8,
+              "printed_page": 11,
+              "anchor": "COR-001 계약목적물의 지적재산권등 관련 사항"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "대상 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "원문은 '발주기관이 소유'. 권리를 갖는 주체가 바뀐 경우."
+      }
+    },
+    {
+      "id": "R62",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF7",
+        "quote": "관리자 비밀번호는 변경하지 않도록 설정기능 제공",
+        "original_locator": {
+          "requirement_id": "SER-004",
+          "locations": [
+            {
+              "pdf_page_1based": 8,
+              "printed_page": 11,
+              "anchor": "SER-004 시스템 접근강화를 위한 방안"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "조건 변조",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "원문은 '주기적으로 변경하도록'."
+      }
+    },
+    {
+      "id": "R63",
+      "input": {
+        "mode": "research",
+        "document_id": "PDF7",
+        "quote": "AGV는 5G 통신으로 관제 서버와 실시간 연결",
+        "original_locator": {
+          "requirement_id": "ECR-003",
+          "locations": [
+            {
+              "pdf_page_1based": 2,
+              "printed_page": 5,
+              "anchor": "ECR-003 AGV 장비"
+            }
+          ]
+        }
+      },
+      "expected_output": {
+        "action": "unconfirmed",
+        "allowed_target_unit_keys": [],
+        "expected_quote": null,
+        "must_flag_unconfirmed": true,
+        "must_not_auto_verify": true,
+        "preserve_original_quote": true
+      },
+      "metadata": {
+        "type": "문서에 없는 근거",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "synthetic_input": true,
+        "evaluation": "검증 상태와 실제 연결 위치를 함께 채점. 후보 검색 성공과 최종 연결 성공을 구분."
+      }
+    },
+    {
+      "id": "Q18",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "issue_type": "identifier_gap",
+        "affected_unit_keys": [
+          "PDF7:SER-004"
+        ],
+        "expectation": "review",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "보안 요구사항 번호가 SER-001 다음 SER-004로 건너뜀(SER-002·003 없음). 원본 4~5쪽 요구사항 목록에는 같은 요구사항이 SER-002로 적혀 있음. 누락인지 번호 오류인지 확인 요청 경고가 나와야 함. 원문 번호는 고치지 않음."
+      }
+    },
+    {
+      "id": "Q19",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "issue_type": "category_label_variants",
+        "affected_unit_keys": [],
+        "expectation": "negative",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "분류 칸 표기가 '시스템 장비구성(ECR)'·'보안(SER)'·'프로젝트관리(PMR)'처럼 목차 제목('가. 시스템 장비 구성 요구사항' 등)과 글자만 다름. 분류·제목 불일치 경고를 만들지 않음."
+      }
+    },
+    {
+      "id": "Q20",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "issue_type": "continuation_is_not_duplicate",
+        "affected_unit_keys": [
+          "PDF7:PER-003"
+        ],
+        "expectation": "negative",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "PER-003의 6쪽 부분은 번호 없이 이어지는 내용. 별도 요구사항이나 중복으로 만들지 않음."
+      }
+    },
+    {
+      "id": "Q21",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "issue_type": "no_duplicate_ids",
+        "affected_unit_keys": [],
+        "expectation": "negative",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "25개 번호가 한 번씩만 쓰임. 중복 경고를 만들지 않음."
+      }
+    },
+    {
+      "id": "Q22",
+      "input": {
+        "mode": "full",
+        "document_id": "PDF7"
+      },
+      "expected_output": {
+        "issue_type": "no_text_layer_absent_pages",
+        "affected_unit_keys": [],
+        "expectation": "negative",
+        "preserve_original": true
+      },
+      "metadata": {
+        "type": "문서 품질 검사",
+        "split": "tuning",
+        "human_review_status": "pending",
+        "evaluation": "11쪽 모두 텍스트층이 있음. 텍스트층 없음 경고를 만들지 않음."
+      }
+    }
+  ],
+  "coverage_limits": [
+    "기능 요구사항(SFR)이 없는 장비 도입 사업 문서. PER-003·004는 분류가 '성능'이지만 내용은 S/W 기능 목록임.",
+    "원문 그대로 둔 표기 문제: PER-003 마지막 줄 'WMS System과 실시간 연'(잘림), ECR-003 '마 크 방 식'이 '유 도 방 식'과 같은 값, ECR-007 '출력대상:출력대상:'·'인쇄속도:인쇄속도:' 반복, PMR-002 '운영관리 매뉴얼을 제출하여야'(문장 끝 빠짐).",
+    "원본 요구사항 목록과 상세 표의 명칭 차이(정제본에는 목록이 없어 채점하지 않음): ECR-004 '서버 장비(OS포함)'↔'서버 장비', ECR-006 'RACK 장비'↔'RACK 장비 제작', TER-001 '시험운영 방안 및 시스템 안정화'↔'시험 운영 및 시스템 안정화'."
+  ]
+}

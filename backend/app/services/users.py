@@ -193,7 +193,7 @@ def update_member(user_id: int, *, role: str | None = None, status: str | None =
 
 # ---------------------------------------------------------------- [임시] 시연용 계정 (나중에 지운다)
 # 계정은 git이 아니라 각 PC의 DB에 있어서, 다른 PC에서도 같은 계정으로 로그인하려고 코드에 둔다.
-# 회원이 한 명도 없을 때만 만든다 (이미 쓰는 DB는 건드리지 않음). 끄기: .env SEED_TEST_ACCOUNTS=false
+# 서버가 시작할 때 목록에서 빠진 계정만 만든다 (있는 계정·다른 회원은 건드리지 않음). 끄기: .env SEED_TEST_ACCOUNTS=false
 TEST_PASSWORD = "Team4!2026"
 TEST_ACCOUNTS = [   # (이메일, 이름, 역할, 관리자)
     ("admin@team4.local", "김관리", "lead", True),
@@ -203,6 +203,9 @@ TEST_ACCOUNTS = [   # (이메일, 이름, 역할, 관리자)
     ("data.head@team4.local", "정데이터", "data_head", False),
     ("data1@team4.local", "강데이터", "data", False),
     ("data2@team4.local", "조데이터", "data", False),
+    ("dev.head@team4.local", "한개발", "dev_head", False),
+    ("dev1@team4.local", "윤개발", "dev", False),
+    ("dev2@team4.local", "임개발", "dev", False),
 ]
 
 

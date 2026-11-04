@@ -16,6 +16,7 @@ from app.services import drafts, output_store
 
 SPEC_STAGE = "function_designer"
 PLANNERS, DATA = {"planner", "planner_head", "lead"}, {"data", "data_head", "lead"}
+DEV = {"dev", "dev_head", "lead"}
 
 
 class Tree:
@@ -171,7 +172,14 @@ def notices(member) -> list[dict]:
                     out.append({"project": project, "kind": "request", "at": req["at"], "page": stage, "version": label,
                                 "title": f"{req['by']['name']}님의 수정 완료 승인 요청 ({'기능 명세' if stage == 'spec' else 'ERD'} v{label})",
                                 "detail": req.get("note") or ""})
-            if stage == "final" and role == "lead" and not r.get("approval") and not tree.after(r.get("created_at") or "", "final", tree.spec_of(label)):
+            # 개발 파트: 팀장이 승인했는데 아직 개발하지 않은(또는 승인 뒤 다시 개발하지 않은) 최종본
+            approval = r.get("approval") or {}
+            if r.get("stage") == "final" and role in DEV and approval.get("decision") == "approve" \
+                    and (r.get("develop") or {}).get("at", "") < approval.get("at", ""):
+                out.append({"project": project, "kind": "develop", "at": approval.get("at", ""), "page": "develop", "version": label,
+                            "title": f"최종본 v{label} 승인됨 — 개발 대기",
+                            "detail": f"{(approval.get('by') or {}).get('name', '팀장')} 승인 · 산출물 보기에서 '최종 개발하기'"})
+            if r.get("stage") == "final" and role == "lead" and not r.get("approval") and not tree.after(r.get("created_at") or "", "final", tree.spec_of(label)):
                 out.append({"project": project, "kind": "decide", "at": r.get("created_at") or "", "page": "final", "version": label,
                             "title": f"최종본 v{label} 승인 대기", "detail": "최종 승인 또는 수정 지시"})
     return sorted(out, key=lambda n: n["at"], reverse=True)

@@ -22,13 +22,13 @@ from app.schemas.function import FunctionSpec
 from app.schemas.requirement import Question
 from app.agents.tools.api_shape import AUDIT_COLUMNS, NUMBER_COLUMN, USER_TABLE, main_table, table_of
 from app.agents.tools.convention import apply_profile, ddl_model, profile_of
-from app.agents.tools.ddl import q
+from app.agents.tools.ddl import mysql_reserved, q, render_script
 from app.agents.tools.dev_spec import FILES as SPEC_FILES, Names, Spec, rule_tag
-from app.agents.tools.sample_data import load_words, mock_data, sample_rows, seed_sql
+from app.agents.tools.sample_data import ROWS, load_words, mock_data, sample_rows, seed_sql
 from app.agents.tools.screens import (SECRET_COLUMN, build_screens, label_column, op_kind, op_table, path_params,
                                       screens_md)
 from app.agents.storage import get_store
-from app.agents.tools.versions import find_version, project_name, version_label
+from app.agents.tools.versions import find_version, project_info, project_name, version_label
 from app.core.config import get_settings
 
 log = logging.getLogger(__name__)
@@ -42,7 +42,6 @@ SPRING = {"GET": "GetMapping", "POST": "PostMapping", "PUT": "PutMapping", "PATC
 AUDIT_NOW = ("created_at", "updated_at")
 JAVA_WORDS = {"abstract", "assert", "boolean", "break", "case", "catch", "class", "default", "delete", "do", "double", "else", "enum",
               "final", "for", "if", "import", "new", "package", "public", "return", "switch", "this", "throw", "try", "void", "while"}
-SPRING_STACK = re.compile(r"spring|전자정부|egov", re.I)   # 백엔드 뼈대가 있는 스택
 
 
 class AppError(RuntimeError):
@@ -67,7 +66,10 @@ def load_spec(project: str, version: str) -> Spec:
     model = DataModel.model_validate_json(read("data_model.json"))
     record = find_version(project, label) or {}
     title = re.search(r"^- 사업: (.+)$", read("AGENTS.md") or "", re.M)
-    options = {"standard": record.get("standard"), "title": title.group(1).strip() if title else ""}
+    # 회사 이름: 따로 정하지 않았으면 업로드할 때 넣은 프로젝트 이름 (로그인 표지·메뉴에 보인다)
+    options = {"standard": record.get("standard"), "title": title.group(1).strip() if title else "",
+               "company": project_info(project).get("company") or project_name(project),
+               "theme": project_info(project).get("theme", "")}   # 화면 스타일 (최종 개발하기에서 고름, tools/themes.py)
     profile = profile_of(options)
     physical, conv = model, None
     if profile and profile.renames:
@@ -81,6 +83,8 @@ def load_spec(project: str, version: str) -> Spec:
     spec = Spec(state, project, label, model, ddl_model(physical, profile), Names(conv, profile),
                 tech_stack(design.get("api_design"), questions, chosen=chosen), profile)
     spec.meta = design.get("meta") or {}
+    from app.agents.tools import stacks
+    spec.parts = stacks.parts_of(spec.stack.get("backend", ""), (record.get("tech_stack") or {}).get("parts"))
     spec.read = read
     spec.words = store.read_project_file(project, "sample_words.json")
     spec.filled_reads = filled
@@ -155,9 +159,28 @@ def fill_read_responses(api: dict, model: DataModel) -> list[str]:
     return filled
 
 
+def stack_parts(spec: Spec) -> dict[str, str]:
+    """개발할 세 층 {frontend, backend, database}: 버전 기록의 tech_stack.parts(기능 명세에서 고름), 없으면 스택 문장에서 짐작"""
+    from app.agents.tools import stacks
+    return getattr(spec, "parts", None) or stacks.parts_of(spec.stack.get("backend", ""))
+
+
 def has_backend(spec: Spec) -> bool:
-    """이 스펙의 기술 스택에 맞는 백엔드 뼈대가 있는가. 없으면 화면·DB·스펙만 만든다."""
-    return bool(SPRING_STACK.search(spec.stack.get("backend", "")))
+    """이 스펙의 서버 스택에 개발 틀이 있는가. 없으면 화면·DB·스펙만 만든다 (틀 없는 스택은 AI가 뼈대부터: develop --scratch)."""
+    from app.agents.tools import stacks
+    return stack_parts(spec)["backend"] in stacks.TEMPLATED["backend"]
+
+
+def db_dialect(spec: Spec) -> str:
+    """앱이 쓸 DB 문법: mysql 또는 postgresql (틀이 없는 DB는 설계 기준인 PostgreSQL로 만든다)."""
+    return "mysql" if stack_parts(spec)["database"] == "mysql" else "postgresql"
+
+
+def _q(spec: Spec, name: str) -> str:
+    """Java 코드의 SQL 이름. MySQL은 서버가 sql_mode ANSI라 같은 큰따옴표로 감싸고, MySQL 예약어(rank·key 등)도 감싼다."""
+    if db_dialect(spec) == "mysql" and mysql_reserved(name):
+        return f'"{name}"'
+    return q(name)
 
 
 # ------------------------------------------------------------------ 이름
@@ -203,7 +226,7 @@ def _pg(spec: Spec, table: str, column: str) -> str:
 
 
 def _col(spec: Spec, table: str, field: str, column: str) -> str:
-    return f'new Col({_text(field)}, {_text(q(spec.names.column(table, column)))}, {_text(_pg(spec, table, column))})'
+    return f'new Col({_text(field)}, {_text(_q(spec, spec.names.column(table, column)))}, {_text(_pg(spec, table, column))})'
 
 
 def _cols(spec: Spec, table: str, fields: list[dict], *, writable: bool = False) -> list[tuple[str, str]]:
@@ -235,7 +258,7 @@ def _joined(spec: Spec, table: str, fields: list[dict]) -> tuple[list[str], list
     자식 테이블·계산 값처럼 한 행으로 읽을 수 없는 필드는 빼고, 업무 로직 자리가 채운다."""
     cols, joins, aliases, seen = [], [], {}, set()
     entity = next(e for e in spec.model.entities if e.entity_id == table)
-    physical = q(spec.names.table(table))
+    physical = _q(spec, spec.names.table(table))
     for f in fields:
         t, _, column = (f.get("column") or "").partition(".")
         attr = spec.columns.get((t, column))
@@ -250,11 +273,11 @@ def _joined(spec: Spec, table: str, fields: list[dict]) -> tuple[list[str], list
                 continue
             if t not in aliases:
                 aliases[t] = f"j{len(aliases) + 1}"
-                joins.append(f"LEFT JOIN {q(spec.names.table(t))} {aliases[t]} ON {aliases[t]}.{q(spec.names.column(t, parent.pk()[0].name))}"
-                             f" = {physical}.{q(spec.names.column(table, fk.name))}")
+                joins.append(f"LEFT JOIN {_q(spec, spec.names.table(t))} {aliases[t]} ON {aliases[t]}.{_q(spec, spec.names.column(t, parent.pk()[0].name))}"
+                             f" = {physical}.{_q(spec, spec.names.column(table, fk.name))}")
             source = aliases[t]
         seen.add(f["name"])
-        cols.append(f'new Col({_text(f["name"])}, {_text(source + "." + q(spec.names.column(t, column)))}, {_text(_pg(spec, t, column))})')
+        cols.append(f'new Col({_text(f["name"])}, {_text(source + "." + _q(spec, spec.names.column(t, column)))}, {_text(_pg(spec, t, column))})')
     return cols, joins
 
 
@@ -304,7 +327,7 @@ def _defaults(spec: Spec, table: str, given: set[str], op: dict | None = None) -
     for a in entity.attributes:
         if a.nullable or a.primary_key or a.name in given or a.name in AUDIT_NOW:
             continue
-        name = q(spec.names.column(table, a.name))
+        name = _q(spec, spec.names.column(table, a.name))
         source = sources.get(f"{table}.{a.name}")
         initial = spec.initial_of(table, a.name)
         if initial:   # 상태 컬럼은 전환표의 초기 상태
@@ -348,11 +371,11 @@ def _table_decl(spec: Spec, table: str) -> str:
     entity = next(e for e in spec.model.entities if e.entity_id == table)
     pk = entity.pk()[0]
     names = {a.name for a in entity.attributes}
-    created = [q(spec.names.column(table, c)) for c in AUDIT_NOW if c in names]
-    updated = [q(spec.names.column(table, c)) for c in AUDIT_NOW[1:] if c in names]
+    created = [_q(spec, spec.names.column(table, c)) for c in AUDIT_NOW if c in names]
+    updated = [_q(spec, spec.names.column(table, c)) for c in AUDIT_NOW[1:] if c in names]
     as_list = lambda xs: "List.of(" + ", ".join(_text(x) for x in xs) + ")"   # noqa: E731
-    return (f"    private static final Table {_table_const(table)} = new Table({_text(q(spec.names.table(table)))}, "
-            f"{_text(q(spec.names.column(table, pk.name)))}, {_text(_pg(spec, table, pk.name))}, {as_list(created)}, {as_list(updated)});")
+    return (f"    private static final Table {_table_const(table)} = new Table({_text(_q(spec, spec.names.table(table)))}, "
+            f"{_text(_q(spec, spec.names.column(table, pk.name)))}, {_text(_pg(spec, table, pk.name))}, {as_list(created)}, {as_list(updated)});")
 
 
 def _roles_of(spec: Spec, op: dict) -> list[str]:
@@ -422,16 +445,16 @@ def _crud_call(spec: Spec, op: dict, table: str, constants: list[str], prefill: 
     if by_parent and kind not in ("list", "report", "create", "add", "get"):
         return f"{{ throw {what}; }}"
     if by_parent and kind == "get":
-        items = [f'new Col({_text(f)}, {_text(q(spec.names.table(table)) + "." + q(spec.names.column(table, c)))}, {_text(_pg(spec, table, c))})'
+        items = [f'new Col({_text(f)}, {_text(_q(spec, spec.names.table(table)) + "." + _q(spec, spec.names.column(table, c)))}, {_text(_pg(spec, table, c))})'
                  for f, c in parents]
         constants.append(f"    private static final List<Col> FILTER_{name} = {_java_list(items)};")
         return f"db.first({t}, OUT_{name}, FILTER_{name}, input)"
     if kind == "report" and id_var and _snake(id_var) == pk:   # /orders/{orderId}/print: 그 행 하나
         return f"db.one({t}, OUT_{name}, input.get({_text(id_var)}))"
     if kind in ("list", "report"):
-        physical = q(spec.names.table(table))
+        physical = _q(spec, spec.names.table(table))
         filters = _unique([*_cols(spec, table, op.get("request") or [], writable=True), *parents])
-        items = [f'new Col({_text(f)}, {_text(physical + "." + q(spec.names.column(table, c)))}, {_text(_pg(spec, table, c))})' for f, c in filters]
+        items = [f'new Col({_text(f)}, {_text(physical + "." + _q(spec, spec.names.column(table, c)))}, {_text(_pg(spec, table, c))})' for f, c in filters]
         constants.append(f"    private static final List<Col> FILTER_{name} = {_java_list(items)};")
         return f"db.{'page' if kind == 'list' else 'first'}({t}, OUT_{name}, FILTER_{name}, input)"
     if kind == "get":
@@ -460,13 +483,13 @@ def _crud_call(spec: Spec, op: dict, table: str, constants: list[str], prefill: 
     target = next((f["name"] for f in op.get("request") or [] if move and f.get("column") == f"{table}.{move['column']}"), "")
     if move and target and id_var and len(move["moves"]) > 1:   # API 하나가 여러 상태로 보낸다: 요청 값이 목표이고 전환표가 허용한 경우만 바꾼다
         allowed = ", ".join(f"{_text(to)}, List.of({', '.join(_text(x) for x in froms)})" for to, froms in move["moves"].items())
-        return (f"db.moveTo({t}, {_text(q(spec.names.column(table, move['column'])))}, Map.of({allowed}), input.get({_text(target)}), "
+        return (f"db.moveTo({t}, {_text(_q(spec, spec.names.column(table, move['column'])))}, Map.of({allowed}), input.get({_text(target)}), "
                 f"input.get({_text(id_var)}), OUT_{name}{extra or ', List.of(), Map.of()'})")
     if sets and id_var and sets.get("from"):   # 전환표에 있는 처리: 허용된 상태에서만 바꾼다
         allowed = ", ".join(_text(v) for v in sets["from"])
-        return f"db.move({t}, {_text(q(sets['column']))}, List.of({allowed}), {_text(sets['value'])}, input.get({_text(id_var)}), OUT_{name}{extra})"
+        return f"db.move({t}, {_text(_q(spec, sets['column']))}, List.of({allowed}), {_text(sets['value'])}, input.get({_text(id_var)}), OUT_{name}{extra})"
     if sets and id_var:
-        return f"db.set({t}, {_text(q(sets['column']))}, {_text(sets['value'])}, input.get({_text(id_var)}), OUT_{name}{extra})"
+        return f"db.set({t}, {_text(_q(spec, sets['column']))}, {_text(sets['value'])}, input.get({_text(id_var)}), OUT_{name}{extra})"
     written = _cols(spec, table, op.get("request") or [], writable=True)
     if op["method"] in ("PUT", "PATCH") and id_var and written:   # PATCH /employees/{id}/employment-status: 그 값만 바꾼다
         decl("IN", written)
@@ -540,11 +563,12 @@ def _lookup_controller(spec: Spec, data: dict) -> str:
         if entity and entity.pk():
             pk = spec.names.column(entity.entity_id, entity.pk()[0].name)
             label = spec.names.column(entity.entity_id, label_column(entity))
-            rows.append(f"        Map.entry({_text(ref)}, new Lookup({_text(q(ref))}, {_text(q(pk))}, {_text(q(label))}))")
+            rows.append(f"        Map.entry({_text(ref)}, new Lookup({_text(_q(spec, ref))}, {_text(_q(spec, pk))}, {_text(_q(spec, label))}))")
     entries = ",\n".join(rows)
     tables, reads = _form_reads(spec, data)
     decls = "\n".join(_table_decl(spec, t) for t in tables)
     read_entries = ",\n".join(reads)
+    text = "char" if db_dialect(spec) == "mysql" else "text"   # MySQL CAST에는 text 타입이 없다
     return f"""// 코드가 만든 파일 (스펙에서 생성). 화면 보조 API다: 선택 목록, 수정 폼의 처음 값.
 package app.api;
 
@@ -587,7 +611,7 @@ public class LookupController {{
         if (found == null) {{
             throw ApiError.notFound();
         }}
-        return db.query("SELECT CAST(" + found.pk() + " AS text) AS \\"value\\", CAST(" + found.label() + " AS text) AS \\"label\\" FROM " + found.table()
+        return db.query("SELECT CAST(" + found.pk() + " AS {text}) AS \\"value\\", CAST(" + found.label() + " AS {text}) AS \\"label\\" FROM " + found.table()
                 + " ORDER BY " + found.pk() + " LIMIT 500", Map.of());
     }}
 
@@ -707,64 +731,438 @@ def owned_operations(spec: Spec) -> tuple[dict[str, list[dict]], list[str]]:
     return out, skipped
 
 
+ALL_ROLES = "전체 보기"   # 모든 화면을 보는 시연 역할 (CurrentUser.java, App.tsx와 같은 이름)
+
+
+def demo_accounts(data: dict) -> list[dict]:
+    """임시 계정 두 개: admin(모든 역할의 권한 = '전체 보기') + user(스펙의 첫 일반 역할, 이름에 '관리자'가 없는 첫 역할).
+    userId는 예시 데이터 행 ID(1…ROWS)에 맞춰 결재자·신청자 같은 업무 데이터와 이어지게 한다."""
+    out = [{"loginId": "admin", "role": ALL_ROLES, "userId": "1", "name": "관리자 (전체 권한)"}]
+    roles = data["roles"]
+    general = next((r for r in roles if "관리자" not in r["name"]), roles[0] if roles else None)
+    if general:
+        out.append({"loginId": "user", "role": general["name"], "userId": str(min(2, ROWS)), "name": general["name"]})
+    return out
+
+
+def _brand(spec: Spec) -> str:
+    """화면에 보일 이름: 회사 이름, 없으면 사업 이름."""
+    return spec.options.get("company") or spec.options.get("title") or spec.project
+
+
+def _first_tasks(data: dict, role: str, limit: int = 3) -> str:
+    """역할이 처음 해 볼 업무 (그 역할이 쓰는 메뉴 앞쪽)."""
+    usable = {s["screen_id"] for s in data["screens"] if role == ALL_ROLES or not s["roles"] or role in s["roles"]}
+    names = [p["name"] for m in data["menu"] for p in m["pages"] if usable & set(p["screens"])]
+    return ", ".join(list(dict.fromkeys(names))[:limit]) or "-"
+
+
 def _readme(spec: Spec, data: dict, skipped: list[str]) -> str:
     backend = has_backend(spec)
-    lines = [f"# {spec.project} — 서비스 코드", "",
-             f"개발 스펙 v{spec.version}에서 코드로 만든 프로젝트다 ({APP_FORMAT}). 화면 {len(data['screens'])}개 · 자동 실행 {len(data['autos'])}개.",
-             "화면 목록은 [spec/SCREENS.md](spec/SCREENS.md), 스펙 문서는 [spec/](spec/)에 있다.", "",
-             "## 화면만 보기 (서버·DB 필요 없음)", "", "```bash", "cd frontend", "npm install", "npm run dev", "```", "",
-             "예시 데이터로 모든 화면이 동작한다. 고객에게 화면 단위로 보여 줄 때 쓴다. 새로고침하면 처음 데이터로 돌아간다.",
-             "오른쪽 위 '검토 모드'를 켜면 화면마다 업무 규칙과 고객 확인이 필요한 항목이 보인다.", "",
-             *(["## 서버까지 띄우기", "", "```bash", "docker compose up -d          # 예시 데이터가 들어간 PostgreSQL (포트 5433)",
-                "cd backend && mvn spring-boot:run", "cd frontend && VITE_API=server npm run dev", "```", ""] if backend else
-               ["## 백엔드", "", f"기술 스택 '{spec.stack.get('backend') or '미정'}'의 뼈대는 아직 없어 화면·DB·스펙만 만들었다.", ""]),
-             "## 어디를 고치나", "",
-             "| 위치 | 내용 | 고쳐도 되나 |", "|---|---|---|",
-             "| `backend/.../logic/` | 기능별 업무 로직 (`// <hole>` 안) | 예. 고친 파일은 다시 생성해도 그대로 둔다 |",
-             "| `backend/.../api/` | 스펙에서 만든 API | 아니오. 스펙을 고치고 다시 생성한다 |",
-             "| `frontend/src/generated/` | 스펙에서 만든 화면 설계·예시 데이터 | 아니오. 스펙을 고치고 다시 생성한다 |",
-             "| `backend/src/test/.../acceptance/` | 수용 기준 테스트 틀 (`@Disabled`) | 예. 채우면 그대로 둔다 |", ""]
+    mysql = db_dialect(spec) == "mysql"
+    python = backend and stack_parts(spec)["backend"] == "fastapi"
+    nest = backend and stack_parts(spec)["backend"] == "nestjs"
+    lines = [f"# {_brand(spec)} 업무 포털", "",
+             f"{spec.options.get('title') or spec.project} 개발 스펙 v{spec.version}에서 코드로 만든 서비스다 ({APP_FORMAT}). "
+             f"업무 {sum(len(m['pages']) for m in data['menu'])}개 · 화면 {len(data['screens'])}개 · 자동 실행 {len(data['autos'])}개.",
+             "구현 범위와 고객 답을 기다리는 규칙은 [IMPLEMENTATION.md](IMPLEMENTATION.md), 화면 목록은 [spec/SCREENS.md](spec/SCREENS.md), "
+             "스펙 문서는 [spec/](spec/)에 있다.", ""]
+    if backend:
+        lines += ["## 바로 실행 (Docker만 있으면 된다)", "", "```bash", "docker compose up --build", "```", "",
+                  "처음에는 이미지와 라이브러리를 내려받느라 몇 분 걸린다. 다 뜨면 브라우저에서 **http://localhost:8080** 을 연다 "
+                  "(포트가 겹치면 `APP_PORT=8081 docker compose up --build`처럼 바꾼다. DB 포트는 `DB_PORT`).",
+                  ("DB(MySQL 8)에는 스펙의 데이터 모델을 MySQL 문법으로 옮긴 db/schema.sql과 예시 데이터(seed.sql)가 들어간다. "
+                   if mysql else "DB에는 스펙의 schema.sql과 예시 데이터(seed.sql)가 들어간다. ") + "저장한 데이터는 다시 시작해도 남는다 "
+                  "(`docker compose down -v`로 처음 상태로 돌린다).", "",
+                  "### 계정", "",
+                  "처음 실행할 때 역할마다 시연 계정을 만들고 비밀번호를 **`local/accounts.txt`** 에 적는다 (로그에는 남기지 않는다). "
+                  "모두 같은 비밀번호로 하려면 실행 전에 환경 변수 `DEMO_PASSWORD`를 정한다. "
+                  "비밀번호를 새로 만들려면 `RESET_PASSWORDS=true`로 한 번 실행한다.", "",
+                  "| 아이디 | 역할 | 처음 해 볼 업무 |", "|---|---|---|",
+                  *[f"| {a['loginId']} | {a['name']} | {_first_tasks(data, a['role'])} |" for a in data["accounts"]], ""]
+    lines += ["## 화면만 보기 (서버·DB 없이 예시 데이터)", "", "```bash", "cd frontend", "npm install", "npm run dev", "```", "",
+              "로그인 대신 역할을 골라 들어간다. 새로고침하면 처음 데이터로 돌아간다. 오른쪽 위 '검토 모드'를 켜면 화면마다 업무 규칙과 "
+              "고객 확인이 필요한 항목이 보인다. LLM이 구현한 기능 화면은 서버가 있어야 동작한다.", ""]
+    if python:
+        from app.agents.tools.scaffold_fastapi import dev_steps
+
+        lines += ["## 고치면서 띄우기 (Python 3.12 · Node 20)", "", "```bash", *dev_steps(mysql), "```", ""]
+    elif nest:
+        from app.agents.tools import scaffold_nestjs
+
+        lines += ["## 고치면서 띄우기 (Node 20 · NestJS)", "", "```bash", *scaffold_nestjs.dev_steps(mysql), "```", ""]
+    elif backend:
+        lines += ["## 고치면서 띄우기 (Java 17 · Maven · Node 20)", "", "```bash",
+                  "docker compose up -d db                 # MySQL만 (포트 3307)" if mysql else "docker compose up -d db                 # PostgreSQL만 (포트 5433)",
+                  "cd backend && mvn spring-boot:run       # 서버 8080 (계정 파일은 backend/local/accounts.txt)",
+                  "cd frontend && VITE_API=server npm run dev", "```", ""]
+    else:
+        lines += ["## 백엔드", "", f"기술 스택 '{spec.stack.get('backend') or '미정'}'의 뼈대는 아직 없어 화면·DB·스펙만 만들었다.", ""]
+    lines += ["## 어디를 고치나", "",
+              "| 위치 | 내용 | 고쳐도 되나 |", "|---|---|---|"]
+    if python:
+        lines += ["| `backend/app/feature/` · `frontend/src/pages/` | LLM이 구현한 기능 (develop --build) | 예. 고친 파일은 다시 생성해도 그대로 둔다 |",
+                  "| `backend/app/logic/` | 기능별 업무 로직 (`# <hole>` 안) | 예. 고친 파일은 다시 생성해도 그대로 둔다 |",
+                  "| `backend/app/api/` | 스펙에서 만든 API | 아니오. 스펙을 고치고 다시 생성한다 |",
+                  "| `frontend/src/generated/` | 스펙에서 만든 화면 설계·예시 데이터 | 아니오. 스펙을 고치고 다시 생성한다 |",
+                  "| `backend/tests/acceptance/` | 수용 기준 테스트 틀 (`pytest.mark.skip`) | 예. 채우면 그대로 둔다 |", ""]
+    elif nest:
+        lines += ["| `backend/src/feature/` · `frontend/src/pages/` | LLM이 구현한 기능 (develop --build) | 예. 고친 파일은 다시 생성해도 그대로 둔다 |",
+                  "| `backend/src/logic/` | 기능별 업무 로직 (`// <hole>` 안) | 예. 고친 파일은 다시 생성해도 그대로 둔다 |",
+                  "| `backend/src/api/` | 스펙에서 만든 API | 아니오. 스펙을 고치고 다시 생성한다 |",
+                  "| `frontend/src/generated/` | 스펙에서 만든 화면 설계·예시 데이터 | 아니오. 스펙을 고치고 다시 생성한다 |",
+                  "| `backend/test/acceptance/` | 수용 기준 테스트 틀 (`skip`, `npm test`) | 예. 채우면 그대로 둔다 |", ""]
+    else:
+        lines += [
+              "| `backend/.../feature/` · `frontend/src/pages/` | LLM이 구현한 기능 (develop --build) | 예. 고친 파일은 다시 생성해도 그대로 둔다 |",
+              "| `backend/.../logic/` | 기능별 업무 로직 (`// <hole>` 안) | 예. 고친 파일은 다시 생성해도 그대로 둔다 |",
+              "| `backend/.../api/` | 스펙에서 만든 API | 아니오. 스펙을 고치고 다시 생성한다 |",
+              "| `frontend/src/generated/` | 스펙에서 만든 화면 설계·예시 데이터 | 아니오. 스펙을 고치고 다시 생성한다 |",
+              "| `backend/src/test/.../acceptance/` | 수용 기준 테스트 틀 (`@Disabled`) | 예. 채우면 그대로 둔다 |", ""]
+    lines += ["## 다시 만들기", "",
+              "같은 스펙으로 `develop`을 다시 실행하면 LLM을 부르지 않고 같은 파일이 나온다 (LLM 결과는 `.req-agent/`에 저장). "
+              "스펙이 바뀐 기능만 다시 만든다. 이 폴더를 git에 커밋해 두면 확정본으로 고정된다.", ""]
     if any(_system_caller(op) for _, op in spec.operations()):
-        lines += ["## 외부 시스템 호출", "", "외부 시스템이 호출하는 API는 `X-Api-Key` 헤더로 확인한다. 서버 환경 변수 `SYSTEM_API_KEY`에 키를 정한다 (정하지 않으면 모두 막힌다).", ""]
+        lines += ["## 외부 시스템 호출", "", "외부 시스템이 호출하는 API는 `X-Api-Key` 헤더로 확인한다. "
+                  "서버 환경 변수 `SYSTEM_API_KEY`에 키를 정한다 (정하지 않으면 모두 막힌다).", ""]
     if skipped:
         lines += ["## 경로가 겹쳐 만들지 않은 API", "", *[f"- {s}" for s in skipped], ""]
     return "\n".join(lines)
 
 
-def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict[str, dict] | None = None) -> tuple[dict[str, str], dict]:
-    """프로젝트 파일 전체 {상대 경로: 내용}과 화면 설계. logic은 기능별 채운 자리 {기능 ID: {메서드: 본문}}."""
-    logic = logic or {}
+def _todo_text(todo) -> str:
+    """LLM이 남긴 TODO 한 줄."""
+    if isinstance(todo, dict):   # builder.TodoOut {rule, reason}
+        head = str(todo.get("rule") or "").strip()
+        body = str(todo.get("reason") or "").strip() or json.dumps(todo, ensure_ascii=False)
+        return f"{head} — {body}" if head else body
+    return str(todo)
+
+
+def _implementation(spec: Spec, data: dict, owned: dict[str, list[dict]], built: dict[str, dict], logic: dict[str, dict],
+                    records: dict[str, dict], skipped: list[str]) -> str:
+    """구현 범위: 기능마다 누가 만들었나(LLM 구현 / 코드 틀), API 수, 고객 답을 기다리는 규칙. 코드가 만든 파일."""
     backend = has_backend(spec)
+    autos = {a["function_id"] for a in data["autos"]}
+
+    def how(fid: str) -> str:
+        if not backend:
+            return "화면만 (백엔드 뼈대 없음)"
+        if fid in built:
+            return "LLM 구현"
+        if records.get(fid, {}).get("status") == "실패":
+            return "코드 틀 (LLM 구현 실패)"
+        if not owned.get(fid):
+            return "자동 실행" if fid in autos else "API 없음"
+        return "코드 틀 + 업무 로직" if logic.get(fid) else "코드 틀"
+
+    held: list[tuple[str, str, list[str]]] = []
+    rows, kinds = [], {}
+    for f in spec.functions:
+        kind = how(f.function_id)
+        kinds[kind] = kinds.get(kind, 0) + 1
+        waits = [(text, qids) for tag, text, qids in (rule_tag(r) for r in f.business_rules) if tag == "보류"]
+        held += [(f.function_id, text, qids) for text, qids in waits]
+        todos = len((built.get(f.function_id) or {}).get("todos") or [])
+        rows.append(f"| {f.function_id} | {f.name} | {kind} | {len(owned.get(f.function_id) or [])} | "
+                    f"{', '.join(sorted({q for _, qs in waits for q in qs})) or '-'} | {todos or '-'} |")
+    total_ops = sum(len(v) for v in owned.values())
+    built_ops = sum(len(owned.get(fid) or []) for fid in built)
+    lines = ["# 구현 범위", "",
+             f"{_brand(spec)} · {spec.options.get('title') or spec.project} 개발 스펙 v{spec.version}. "
+             f"기능 {len(spec.functions)}개 · API {total_ops}개 (LLM 구현 {built_ops}개). 코드가 만든 파일이다 (develop을 다시 실행하면 갱신).", "",
+             "| 구현 | 기능 수 |", "|---|---|", *[f"| {k} | {v} |" for k, v in sorted(kinds.items(), key=lambda kv: -kv[1])], "",
+             "- **LLM 구현**: 개발 스펙(AGENTS·TASKS·API·BEHAVIOR·수용 기준·schema.sql)을 기능별로 잘라 LLM이 서버 API와 화면을 썼다 "
+             "(`develop --build`). 계약 검사와 컴파일을 통과한 것만 쓴다.",
+             "- **코드 틀**: 등록·조회·수정·삭제와 상태 바꾸기는 코드가 만든 기본 동작이다. 업무 규칙은 `logic/`의 자리에 들어간다.",
+             "- **고객 답 대기**: '확인 필요' 규칙은 구현하지 않고 `TODO(질문 ID)`로 둔다 (AGENTS.md 3절).", "",
+             "## 기능별", "", "| 기능 | 이름 | 구현 | API | 고객 답 대기 | LLM이 남긴 TODO |", "|---|---|---|---|---|---|", *rows, ""]
+    if held:
+        lines += ["## 고객 답을 기다리는 규칙", "", "| 기능 | 질문 | 규칙 |", "|---|---|---|",
+                  *[f"| {fid} | {', '.join(qids) or '-'} | {text.replace('|', '/')} |" for fid, text, qids in held], ""]
+    notes = [(fid, t) for fid, r in sorted(built.items()) for t in r.get("todos") or []]
+    if notes:
+        lines += ["## LLM이 남긴 TODO", "", "구현하며 스펙에서 정하지 않았다고 본 것이다. 고객 확인이나 스펙 보완이 필요하다.", "",
+                  *[f"- {fid}: {_todo_text(t)}" for fid, t in notes], ""]
+    if skipped:
+        lines += ["## 경로가 겹쳐 만들지 않은 API", "", *[f"- {s}" for s in skipped], ""]
+    return "\n".join(lines)
+
+
+DOCKERFILE = """# 한 번에 빌드: 화면(Node) → 서버(Maven, 화면을 함께 담음) → 실행 이미지(JRE). docker compose up --build가 쓴다.
+FROM node:20-alpine AS web
+WORKDIR /web
+COPY frontend/package.json ./
+RUN npm install --no-audit --no-fund
+COPY frontend/ ./
+ENV VITE_API=server
+RUN npm run build
+
+FROM maven:3.9-eclipse-temurin-17 AS server
+WORKDIR /src
+COPY backend/pom.xml ./
+RUN mvn -q -B dependency:go-offline
+COPY backend/src ./src
+COPY --from=web /web/dist ./src/main/resources/static
+RUN mvn -q -B -DskipTests package
+
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY --from=server /src/target/*.jar app.jar
+ENV LOCAL_DIR=/app/local
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+"""
+
+DOCKERIGNORE = "**/node_modules\n**/target\n**/dist\n**/dist-check\nlocal\n.req-agent\n.preview\n.git\n"
+
+COMPOSE = """# 시연용 서비스: PostgreSQL(schema.sql + seed.sql) + 서버(화면 포함). 운영 설정이 아니다.
+# docker compose up --build → http://localhost:8080 (계정: local/accounts.txt). 포트가 겹치면 APP_PORT·DB_PORT로 바꾼다.
+# 다른 PC에서 열려면 APP_HOST=0.0.0.0 (이 PC의 모든 네트워크에 연다).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d app"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/app
+      DB_USER: app
+      DB_PASSWORD: app
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+      RESET_PASSWORDS: ${RESET_PASSWORDS:-false}
+      SYSTEM_API_KEY: ${SYSTEM_API_KEY:-}
+    ports:
+      - "${APP_HOST:-127.0.0.1}:${APP_PORT:-8080}:8080"
+    volumes:
+      - ./local:/app/local
+volumes:
+  db-data:
+"""
+
+# MySQL 8 (DB 스택 mysql). 서버는 연결마다 sql_mode ANSI를 켠다 (application.yml): 이름은 큰따옴표, ||는 문자열 잇기라
+# PostgreSQL과 같은 SQL 모양을 쓴다. schema.sql·seed.sql은 MySQL 문법(백틱)이라 이 모드와 무관하다.
+MYSQL_URL = "jdbc:mysql://{host}/app?characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true"
+COMPOSE_MYSQL = """# 시연용 서비스: MySQL 8(schema.sql + seed.sql) + 서버(화면 포함). 운영 설정이 아니다.
+# docker compose up --build → http://localhost:8080 (계정: local/accounts.txt). 포트가 겹치면 APP_PORT·DB_PORT로 바꾼다.
+# 다른 PC에서 열려면 APP_HOST=0.0.0.0 (이 PC의 모든 네트워크에 연다).
+services:
+  db:
+    image: mysql:8.4
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    environment:
+      MYSQL_DATABASE: app
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
+      MYSQL_ROOT_PASSWORD: app-root
+    ports:
+      - "127.0.0.1:${DB_PORT:-3307}:3306"
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+      - db-data:/var/lib/mysql
+    healthcheck:
+      # 초기화 중에는 TCP를 열지 않으므로, 127.0.0.1로 응답하면 schema·seed까지 끝난 것이다
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uapp -papp --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: "%s"
+      DB_USER: app
+      DB_PASSWORD: app
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+      RESET_PASSWORDS: ${RESET_PASSWORDS:-false}
+      SYSTEM_API_KEY: ${SYSTEM_API_KEY:-}
+    ports:
+      - "${APP_HOST:-127.0.0.1}:${APP_PORT:-8080}:8080"
+    volumes:
+      - ./local:/app/local
+volumes:
+  db-data:
+""" % MYSQL_URL.format(host="db:3306")
+
+# PostgreSQL 틀 → MySQL 틀: 바꿀 곳만 (틀 하나를 두 DB가 함께 쓴다. 틀이 바뀌어 바꿀 곳을 못 찾으면 AppError로 멈춘다)
+MYSQL_SWAPS: dict[str, list[tuple[str, str]]] = {
+    "backend/pom.xml": [(
+        "      <groupId>org.postgresql</groupId>\n      <artifactId>postgresql</artifactId>",
+        "      <groupId>com.mysql</groupId>\n      <artifactId>mysql-connector-j</artifactId>")],
+    "backend/src/main/resources/application.yml": [
+        ("jdbc:postgresql://localhost:5433/app", MYSQL_URL.format(host="localhost:3307")),
+        ("""      data-source-properties:
+        stringtype: unspecified   # 글자로 온 값(경로의 ID·날짜)을 DB가 컬럼 타입에 맞춘다 (업무 로직의 직접 쿼리가 bigint = varchar로 실패하지 않게)""",
+         """      # ANSI: 이름은 큰따옴표, ||는 문자열 잇기 (PostgreSQL과 같은 SQL 모양). STRICT: 맞지 않는 값은 잘라 넣지 않고 오류
+      connection-init-sql: "SET SESSION sql_mode = 'ANSI,STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'\"""")],
+    "backend/src/main/java/app/common/Db.java": [
+        ("import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;",
+         "import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;\n"
+         "import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;\n"
+         "import org.springframework.jdbc.support.GeneratedKeyHolder;"),
+        (' * 업무 로직에서 직접 쿼리가 필요하면 query·execute를 쓴다.\n */',
+         ' * 업무 로직에서 직접 쿼리가 필요하면 query·execute를 쓴다.\n'
+         ' * MySQL 8용: 연결마다 sql_mode ANSI(큰따옴표 이름, || 잇기)를 켜고(application.yml), 값은 MySQL이 컬럼 타입에 맞춘다.\n */'),
+        ('"CAST(" + c.column() + " AS text)"', '"CAST(" + c.column() + " AS char)"'),
+        ('''    private static String bind(String name, String type) {
+        return "CAST(:" + name + " AS " + ("yn".equals(type) ? "varchar" : type) + ")";
+    }''', '''    /** MySQL은 값을 컬럼 타입에 맞춰 넣고 비교한다 (CAST 타입 이름이 PostgreSQL과 달라 감싸지 않는다). JSON만 JSON으로 읽는다. */
+    private static String bind(String name, String type) {
+        return "jsonb".equals(type) ? "CAST(:" + name + " AS JSON)" : ":" + name;
+    }'''),
+        ('''        if ("jsonb".equals(c.type()) && cleaned instanceof String text) {''',
+         '''        if ("boolean".equals(c.type()) && cleaned instanceof String text) {   // 조회 조건 ?done=true: MySQL은 'true'를 0으로 본다
+            return Boolean.parseBoolean(text) || "1".equals(text) || "Y".equals(text);
+        }
+        if ("jsonb".equals(c.type()) && cleaned instanceof String text) {'''),
+        ('''marks.add("left(to_char(now(), 'YYMMDD') || '-' || substr(md5(random()::text), 1, 6), " + no.length() + ")");''',
+         '''marks.add("left(concat(date_format(now(), '%y%m%d'), '-', substr(md5(rand()), 1, 6)), " + no.length() + ")");'''),
+        ('''        Object id = jdbc.queryForObject("INSERT INTO " + t.name() + " (" + String.join(", ", columns) + ") VALUES ("
+                + String.join(", ", marks) + ") RETURNING " + t.pk(), params, Object.class);
+        return one(t, out, id);''', '''        // MySQL에는 RETURNING이 없다: 자동 번호 키는 JDBC로 받고, 키를 요청 값으로 정한 테이블은 그 값으로 다시 읽는다
+        GeneratedKeyHolder keys = new GeneratedKeyHolder();
+        jdbc.update("INSERT INTO " + t.name() + " (" + String.join(", ", columns) + ") VALUES (" + String.join(", ", marks) + ")",
+                new MapSqlParameterSource(params), keys);
+        Object id = keys.getKeyList().isEmpty() ? null : keys.getKeyList().get(0).values().iterator().next();
+        for (Col c : in) {
+            if (id == null && c.column().equals(t.pk())) {
+                id = params.get(c.field());
+            }
+        }
+        if (id == null) {
+            id = defaults.get(t.pk());
+        }
+        return one(t, out, id);'''),
+    ],
+    "backend/src/main/java/app/auth/Accounts.java": [
+        (" * - 계정은 업무 테이블과 섞이지 않게 app_auth 스키마에 둔다.",
+         " * - 계정은 업무 테이블과 섞이지 않게 app_auth_account 테이블에 둔다 (MySQL은 스키마가 곧 DB라 앱 DB 안에 둔다)."),
+        ('        db.execute("CREATE SCHEMA IF NOT EXISTS app_auth");\n', ""),
+        ("timestamptz NOT NULL DEFAULT now()", "datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)"),
+        ("app_auth.account", "app_auth_account"),
+    ],
+    "backend/src/main/java/app/common/ApiErrorHandler.java": [(
+        '''    @ExceptionHandler(HttpMessageNotReadableException.class)''',
+        '''    /** MySQL: 값 조건(CHECK 3819)·맞지 않는 값(1366)은 Spring이 분류하지 않는다. 다른 DB 오류는 500 그대로다. */
+    @ExceptionHandler(org.springframework.jdbc.UncategorizedSQLException.class)
+    public ResponseEntity<Map<String, String>> mysqlValue(org.springframework.jdbc.UncategorizedSQLException e) throws Exception {
+        int code = e.getSQLException() == null ? 0 : e.getSQLException().getErrorCode();
+        if (code == 3819 || code == 1366) {
+            return integrity(null);
+        }
+        return unexpected(e);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)''')],
+}
+
+
+def _for_mysql(rel: str, text: str) -> str:
+    """PostgreSQL 틀 파일을 MySQL용으로 바꾼다. 바꿀 곳(첫 값)은 파일에 꼭 있어야 한다 (모두 바꾼다)."""
+    for old, new in MYSQL_SWAPS.get(rel, []):
+        if old not in text:
+            raise AppError(f"MySQL 틀을 만들 수 없습니다: {rel}에 바꿀 곳이 없습니다 ({old.strip()[:60]})")
+        text = text.replace(old, new)
+    return text
+
+
+def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict[str, dict] | None = None,
+               built: dict[str, dict] | None = None) -> tuple[dict[str, str], dict]:
+    """프로젝트 파일 전체 {상대 경로: 내용}과 화면 설계. logic은 기능별 채운 자리 {기능 ID: {메서드: 본문}}.
+    built는 기능 구현 Agent(develop --build)가 기능 전체를 쓴 결과 {기능 ID: {controller, page}}: 그 기능은 코드가 만든 컨트롤러·업무 로직 대신
+    그 코드를 쓰고, 화면도 공통 틀 대신 그 화면을 쓴다."""
+    from app.agents.tools import scaffold_fastapi as fa
+    from app.agents.tools import scaffold_nestjs as ne
+
+    logic = logic or {}
+    records = built or {}
+    built = {fid: r for fid, r in records.items() if r.get("status") == "채움" and r.get("controller") and r.get("page")} if has_backend(spec) else {}
+    backend = has_backend(spec)
+    python = stack_parts(spec)["backend"] == "fastapi"   # FastAPI 틀: backend/는 scaffold_fastapi가 만든다 (Spring 틀은 쓰지 않는다)
+    nest = stack_parts(spec)["backend"] == "nestjs"   # NestJS 틀: backend/는 scaffold_nestjs가 만든다
+    if python:
+        built = {fid: r for fid, r in built.items() if fa.python_module(r["controller"])}
+    if nest:
+        built = {fid: r for fid, r in built.items() if ne.ts_module(r["controller"])}
+    own = python or nest   # Spring 틀(templates/app/backend)을 쓰지 않는 서버 틀
     menu = {**(spec.meta.get("group_names") or {}), **(menu_names or {})}
     data = build_screens(spec, menu)
+    data["accounts"] = demo_accounts(data)
     owned, skipped = owned_operations(spec)
     tasks = {s["function_id"]: s["task"] for s in [*data["screens"], *data["autos"]]}
     files: dict[str, str] = {}
+    mysql = db_dialect(spec) == "mysql"
     for path in sorted(p for p in TEMPLATES.rglob("*") if p.is_file()):
         rel = path.relative_to(TEMPLATES).as_posix()
-        if backend or not rel.startswith("backend/"):
+        if (backend and not own) or not rel.startswith("backend/"):
             files[rel] = path.read_text(encoding="utf-8")
+            if mysql:
+                files[rel] = _for_mysql(rel, files[rel])
     rows = sample_rows(spec.ddl, load_words(spec.words))
     files["frontend/src/generated/screens.json"] = json.dumps(data, ensure_ascii=False, indent=1) + "\n"
+    from app.agents.tools import themes
+    files["frontend/src/theme.css"] = themes.css(spec.options.get("theme"))
     files["frontend/src/generated/mock-data.json"] = json.dumps(mock_data(spec.model, spec.names, rows), ensure_ascii=False, indent=1) + "\n"
     root = "backend/src/main/java/app"
-    if backend:
+    if backend and not own:
         files[f"{root}/api/LookupController.java"] = _lookup_controller(spec, data)
-    for f in spec.functions if backend else []:
+    for f in spec.functions if own else []:   # 서버 코드는 아래 render_backend, 여기서는 LLM이 쓴 화면만
+        if f.function_id in built:
+            files[f"frontend/src/pages/{class_name(f.function_id)}.tsx"] = built[f.function_id]["page"]
+    for f in spec.functions if backend and not own else []:
         cls = class_name(f.function_id)
         ops = owned[f.function_id]
-        if ops:
+        if f.function_id in built:
+            files[f"{root}/feature/{cls}Controller.java"] = built[f.function_id]["controller"]
+            files[f"frontend/src/pages/{cls}.tsx"] = built[f.function_id]["page"]
+        elif ops:
             files[f"{root}/api/{cls}Controller.java"] = _controller(spec, f, ops)
-        files[f"{root}/logic/{cls}Logic.java"] = _logic(spec, f, ops, tasks.get(f.function_id, ""), logic.get(f.function_id) or {})
+        if f.function_id not in built:
+            files[f"{root}/logic/{cls}Logic.java"] = _logic(spec, f, ops, tasks.get(f.function_id, ""), logic.get(f.function_id) or {})
         files[f"backend/src/test/java/app/acceptance/{cls}AcceptanceTest.java"] = _acceptance_test(spec, f)
-    files["db/schema.sql"] = spec.read("schema.sql") or ""
-    files["db/seed.sql"] = seed_sql(spec.ddl, rows)
-    if backend:
-        files["docker-compose.yml"] = ("# 시연용 PostgreSQL (schema.sql + seed.sql). 운영에 쓰지 않는다.\nservices:\n  db:\n    image: postgres:16\n    environment:\n"
-                                       "      POSTGRES_USER: app\n      POSTGRES_PASSWORD: app\n      POSTGRES_DB: app\n    ports:\n      - \"5433:5432\"\n    volumes:\n"
-                                       "      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro\n      - ./db/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro\n")
-    files[".gitignore"] = "node_modules/\ndist/\ntarget/\n.env\n"
+    if built:
+        files["frontend/src/pages/index.ts"] = _pages_index(sorted(built))
+    # 설계 산출물 schema.sql은 PostgreSQL이다. MySQL이면 같은 모델(spec.ddl)에서 MySQL 문법으로 다시 만든다 (spec/schema.sql은 그대로)
+    files["db/schema.sql"] = render_script(spec.ddl, spec.version, "mysql") if mysql else spec.read("schema.sql") or ""
+    files["db/seed.sql"] = seed_sql(spec.ddl, rows, db_dialect(spec))
+    if python:
+        files.update(fa.render_backend(spec, data, owned, logic, built))
+        files["docker-compose.yml"] = fa.COMPOSE_MYSQL if mysql else fa.COMPOSE
+        files["Dockerfile"] = fa.DOCKERFILE
+        files[".dockerignore"] = fa.DOCKERIGNORE
+    elif nest:
+        files.update(ne.render_backend(spec, data, owned, built, logic))
+        files["docker-compose.yml"] = ne.COMPOSE_MYSQL if mysql else ne.COMPOSE
+        files["Dockerfile"] = ne.DOCKERFILE
+        files[".dockerignore"] = ne.DOCKERIGNORE
+    elif backend:
+        files["backend/src/main/resources/accounts.json"] = json.dumps(data["accounts"], ensure_ascii=False, indent=1) + "\n"
+        files["docker-compose.yml"] = COMPOSE_MYSQL if mysql else COMPOSE
+        files["Dockerfile"] = DOCKERFILE
+        files[".dockerignore"] = DOCKERIGNORE
+    files[".gitignore"] = "node_modules/\ndist/\ntarget/\n.env\nlocal/\n" + ("__pycache__/\n.venv/\n" if python else "")
     files["README.md"] = _readme(spec, data, skipped)
+    files["IMPLEMENTATION.md"] = _implementation(spec, data, owned, built, logic, records, skipped)
     files["spec/SCREENS.md"] = screens_md(spec, data)
     files["spec/SPEC_VERSION"] = json.dumps({"project": spec.project, "version": spec.version, "format": APP_FORMAT,
                                              "document": (spec.meta.get("document") or {}).get("document_version", "")},
@@ -772,7 +1170,49 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
     for name in (*SPEC_FILES, "schema.sql"):
         if (text := spec.read(name)) is not None:
             files[f"spec/{name}"] = text
+    if stack_parts(spec)["frontend"] == "nextjs":
+        files = _for_nextjs(files)
     return files, data
+
+
+NEXT_TEMPLATES = TEMPLATES.parent / "frontend-nextjs"
+VITE_ONLY = ("frontend/index.html", "frontend/vite.config.ts", "frontend/src/main.tsx", "frontend/package.json", "frontend/tsconfig.json")
+
+
+def _for_nextjs(files: dict[str, str]) -> dict[str, str]:
+    """화면 틀을 Next.js로: 화면 부품(React 틀의 src/)은 그대로 ui/로 옮기고(Next.js는 src/pages를 라우트로 본다)
+    Next.js 설정·진입점(templates/frontend-nextjs)을 더한다. 정적 내보내기(out/)를 서버가 함께 보여 준다."""
+    out: dict[str, str] = {}
+    for rel, text in files.items():
+        if rel in VITE_ONLY:
+            continue
+        if rel.startswith("frontend/src/"):
+            rel = "frontend/ui/" + rel[len("frontend/src/"):]
+        out[rel] = text
+    for path in sorted(p for p in NEXT_TEMPLATES.rglob("*") if p.is_file()):
+        out["frontend/" + path.relative_to(NEXT_TEMPLATES).as_posix()] = path.read_text(encoding="utf-8")
+    api = "frontend/ui/api.ts"
+    if "import.meta.env.VITE_API === 'server'" not in out.get(api, ""):
+        raise AppError("Next.js 틀로 바꿀 곳을 찾지 못했습니다 (ui/api.ts의 서버 모드 설정).")
+    out[api] = out[api].replace("import.meta.env.VITE_API === 'server'", "process.env.NEXT_PUBLIC_API === 'server'") \
+        .replace("VITE_API=server면", "NEXT_PUBLIC_API=server면")
+    if "Dockerfile" in out:
+        out["Dockerfile"] = out["Dockerfile"].replace("ENV VITE_API=server", "ENV NEXT_PUBLIC_API=server").replace("/web/dist", "/web/out")
+    for doc in ("README.md", "IMPLEMENTATION.md"):
+        if doc in out:
+            out[doc] = out[doc].replace("frontend/src/", "frontend/ui/").replace("VITE_API=server", "NEXT_PUBLIC_API=server")
+    out[".gitignore"] = out.get(".gitignore", "") + ".next/\nout/\n"
+    return out
+
+
+def _pages_index(function_ids: list[str]) -> str:
+    """기능 구현 Agent가 쓴 화면 목록 (기능 ID → 화면). App이 이 기능은 공통 틀 대신 이 화면으로 그린다."""
+    lines = ["import type { ComponentType } from 'react'", "import type { PageProps } from '../kit'"]
+    lines += [f"import {class_name(fid)}Page from './{class_name(fid)}'" for fid in function_ids]
+    lines += ["", "// 개발 Agent(LLM)가 기능 전체를 구현한 화면 (기능 ID → 화면). 여기 없는 기능은 공통 화면 틀(Screen.tsx)로 그린다. 코드가 만든 파일.",
+              "export const pages: Record<string, ComponentType<PageProps>> = {",
+              *[f"  '{fid}': {class_name(fid)}Page," for fid in function_ids], "}", ""]
+    return "\n".join(lines)
 
 
 def _sha(text: str) -> str:

@@ -81,13 +81,18 @@ def test_version_without_data_design_is_refused(sample_doc, capsys):
 
 def test_other_stack_gets_screens_without_backend(sample_doc):
     spec = _spec(sample_doc)
-    spec.stack = {**spec.stack, "backend": "Python 3.12 · FastAPI · PostgreSQL 16"}
+    from app.agents.tools import stacks
+    spec.stack = {**spec.stack, "backend": "Java 17 · 전자정부 표준프레임워크 4 · PostgreSQL 16"}
+    spec.parts = stacks.parts_of(spec.stack["backend"])
     files, _ = scaffold.render_app(spec)
     assert "frontend/src/generated/screens.json" in files and "db/seed.sql" in files
     assert not [p for p in files if p.startswith("backend/")], "스펙과 다른 스택의 코드를 내지 않는다"
     assert developer.targets(spec) == [], "채울 자리도 없다"
     assert "뼈대는 아직 없어" in files["README.md"]
-    spec.stack = {**spec.stack, "backend": "Java · 전자정부 표준프레임워크 4.2"}
+    assert not scaffold.has_backend(spec), "전자정부는 아직 틀이 없다 (Spring 틀과 같지 않음)"
+    spec.parts = stacks.parts_of("TypeScript · NestJS")
+    assert scaffold.has_backend(spec), "NestJS는 틀이 있다"
+    spec.parts = stacks.parts_of("Java 17 · Spring Boot 3")
     assert scaffold.has_backend(spec)
 
 
@@ -605,3 +610,32 @@ def test_logic_bodies_use_null_safe_parameter_maps():
     body = 'var rows = ctx.db().query("SELECT 1 FROM t WHERE d >= CAST(:from AS date)", java.util.Map.of("from", input.get("from")));\nreturn crud.get();'
     out = scaffold.hole("listT", body)
     assert "Map.of(" not in out and 'app.common.Db.values("from", input.get("from"))' in out, "비워 둔 조건(null)도 받는다"
+
+
+def test_nextjs_frontend_uses_same_screens_under_ui_and_static_export(sample_doc):
+    """화면 Next.js: React 틀의 화면 부품을 ui/로 옮기고(Next.js는 src/pages를 라우트로 본다) 정적 내보내기(out/)를 서버가 보여 준다."""
+    spec = _spec(sample_doc)
+    spec.parts = {**spec.parts, "frontend": "nextjs"}
+    files, _ = scaffold.render_app(spec)
+    assert not [p for p in files if p.startswith("frontend/src/")] and "frontend/ui/App.tsx" in files
+    assert "frontend/next.config.mjs" in files and "frontend/app/page.tsx" in files and "frontend/vite.config.ts" not in files
+    assert "process.env.NEXT_PUBLIC_API === 'server'" in files["frontend/ui/api.ts"]
+    assert "NEXT_PUBLIC_API=server" in files["Dockerfile"] and "/web/out" in files["Dockerfile"] and "/web/dist" not in files["Dockerfile"]
+    assert '"next"' in files["frontend/package.json"] and ".next/" in files[".gitignore"]
+    assert files == scaffold.render_app(spec)[0], "같은 스펙이면 같은 결과"
+
+
+def test_theme_changes_only_color_tokens_and_is_kept_for_next_develop(sample_doc):
+    """화면 스타일: styles.css의 색 토큰만 바꾸는 theme.css (기본은 주석만). --theme은 프로젝트에 저장해 다음 개발도 같은 스타일"""
+    from app.agents.tools import themes
+    out = _start(sample_doc)
+    assert cli.main(["develop", "sample", "--from", FINAL]) == 0
+    app = _app(out)
+    assert "import './theme.css'" in (app / "frontend/src/main.tsx").read_text(encoding="utf-8")
+    assert "--accent" not in (app / "frontend/src/theme.css").read_text(encoding="utf-8"), "기본 스타일은 바꾸는 토큰 없음"
+    assert cli.main(["develop", "sample", "--from", FINAL, "--theme", "navy"]) == 0
+    css = (app / "frontend/src/theme.css").read_text(encoding="utf-8")
+    assert "--side: #1b2a4a;" in css and ':root[data-theme="dark"]' in css
+    assert cli.main(["develop", "sample", "--from", FINAL]) == 0 and "--side: #1b2a4a;" in (app / "frontend/src/theme.css").read_text(encoding="utf-8")
+    assert cli.main(["develop", "sample", "--from", FINAL, "--theme", "nope"]) == 2
+    assert len(themes.choices()) == 9 and all(set(t["preview"]) >= {"bg", "side", "accent"} for t in themes.choices())

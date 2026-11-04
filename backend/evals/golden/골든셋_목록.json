@@ -1,6 +1,20 @@
 {
-  "name": "요구사항 분석 Agent 튜닝용 골든셋",
-  "generated_at": "2026-10-28",
+  "name": "요구사항 분석 Agent 골든셋",
+  "generated_at": "2026-11-03",
+  "splits": {
+    "tuning": [
+      "doc1",
+      "doc2",
+      "doc3",
+      "doc5",
+      "doc6",
+      "doc7",
+      "doc8",
+      "doc9",
+      "doc12"
+    ],
+    "evaluation": []
+  },
   "generated_by": "python -m evals.build_golden_docs",
   "documents": [
     {
@@ -212,13 +226,172 @@
         "questions_needed": 0,
         "questions_optional": 3
       }
+    },
+    {
+      "folder": "doc7",
+      "document_id": "PDF7",
+      "file": "data/고객요구사항7.pdf",
+      "format": "PDF",
+      "sha256": "383a1602aacfb0e500c5fc4cfb493d1f86e41d0064273c20bdb3d75dac9f7117",
+      "original_source": "07.agv_재고관리_제안요청서.pdf",
+      "project": "AGV 스마트자동화 재고관리 시스템 구축",
+      "split": "tuning",
+      "status": "draft_pending_domain_review",
+      "document_analyst": {
+        "file": "doc7/document_analyst.json",
+        "version": "0.1",
+        "reference_units": 25,
+        "cases": 45,
+        "case_counts": {
+          "전체 추출 목록": 1,
+          "요구사항 추출 및 내용 보존": 25,
+          "청킹 완결성": 4,
+          "정상 인용": 1,
+          "부정 표현의 정상 인용": 1,
+          "쪽을 넘어간 원문의 정상 인용": 1,
+          "다른 블록의 원문 복구": 2,
+          "숫자 변조": 2,
+          "대상 변조": 1,
+          "조건 변조": 1,
+          "문서에 없는 근거": 1,
+          "문서 품질 검사": 5
+        }
+      },
+      "requirements_analyst": {
+        "answers": "doc7/requirements_analyst.yaml",
+        "inputs": "doc7/ra_inputs.json",
+        "version": "0.1",
+        "units": 25,
+        "statements": 129,
+        "questions_needed": 1,
+        "questions_optional": 3
+      }
+    },
+    {
+      "folder": "doc8",
+      "document_id": "DOCX8",
+      "file": "data/고객요구사항8.docx",
+      "format": "DOCX",
+      "sha256": "6c1ba6fe5f74f6645bb62c52f1f670685a6c6dbe340b5b19c00c043b1fe2c60c",
+      "original_source": "08.공공구매_플랫폼구축_제안요청서.pdf",
+      "project": "공공구매 플랫폼 재구축 및 통합 주문관리",
+      "split": "tuning",
+      "status": "draft_pending_domain_review",
+      "document_analyst": {
+        "file": "doc8/document_analyst.json",
+        "version": "0.1",
+        "reference_units": 65,
+        "cases": 84,
+        "case_counts": {
+          "전체 추출 목록": 1,
+          "요구사항 추출 및 내용 보존": 65,
+          "청킹 완결성": 4,
+          "정상 인용": 1,
+          "예외 조건의 정상 인용": 1,
+          "다음 쪽 표 원문의 정상 인용": 1,
+          "다른 블록의 원문 복구": 1,
+          "여러 위치에 있는 원문 복구": 1,
+          "숫자 변조": 2,
+          "제외/포함 변조": 1,
+          "조건 변조": 1,
+          "문서에 없는 근거": 1,
+          "문서 품질 검사": 4
+        }
+      },
+      "requirements_analyst": {
+        "answers": "doc8/requirements_analyst.yaml",
+        "inputs": "doc8/ra_inputs.json",
+        "version": "0.1",
+        "units": 35,
+        "statements": 121,
+        "questions_needed": 0,
+        "questions_optional": 4
+      }
+    },
+    {
+      "folder": "doc9",
+      "document_id": "DOCX9",
+      "file": "data/고객요구사항9.docx",
+      "format": "DOCX",
+      "sha256": "8fdc147dc5b1e11fa87b6af6b82e43b3e362daa8e710460aa1b21e257cdb2e97",
+      "original_source": "09.기계연_통합정보시스템_제안요청서.pdf",
+      "project": "한국기계연구원 통합정보시스템 기능개선 및 AI 서비스 구축",
+      "split": "tuning",
+      "status": "draft_pending_domain_review",
+      "document_analyst": {
+        "file": "doc9/document_analyst.json",
+        "version": "0.1",
+        "reference_units": 89,
+        "cases": 108,
+        "case_counts": {
+          "전체 추출 목록": 1,
+          "요구사항 추출 및 내용 보존": 89,
+          "청킹 완결성": 4,
+          "정상 인용": 1,
+          "예외 조건의 정상 인용": 1,
+          "글상자 안 원문의 정상 인용": 1,
+          "다른 블록의 원문 복구": 2,
+          "숫자 변조": 2,
+          "부정 표현 변조": 1,
+          "문서에 없는 근거": 1,
+          "문서 품질 검사": 5
+        }
+      },
+      "requirements_analyst": {
+        "answers": "doc9/requirements_analyst.yaml",
+        "inputs": "doc9/ra_inputs.json",
+        "version": "0.1",
+        "units": 89,
+        "statements": 311,
+        "questions_needed": 0,
+        "questions_optional": 3
+      }
+    },
+    {
+      "folder": "doc12",
+      "document_id": "DOCX12",
+      "file": "data/고객요구사항12.docx",
+      "format": "DOCX",
+      "sha256": "f6c84d86e67530a5cb5374ca3d24b829c2d776fc0a7e162ea03aecffdb28a310",
+      "original_source": "12.한국항공우주연구원_전산장비_제안요청서.pdf",
+      "project": "한국항공우주연구원 전산장비 유지보수 용역",
+      "split": "tuning",
+      "status": "draft_pending_domain_review",
+      "document_analyst": {
+        "file": "doc12/document_analyst.json",
+        "version": "0.1",
+        "reference_units": 17,
+        "cases": 34,
+        "case_counts": {
+          "전체 추출 목록": 1,
+          "요구사항 추출 및 내용 보존": 17,
+          "청킹 완결성": 4,
+          "정상 인용": 1,
+          "부정 표현의 정상 인용": 1,
+          "다른 블록의 원문 복구": 2,
+          "숫자 변조": 2,
+          "금지/허용 변조": 1,
+          "대상 변조": 1,
+          "문서에 없는 근거": 1,
+          "문서 품질 검사": 3
+        }
+      },
+      "requirements_analyst": {
+        "answers": "doc12/requirements_analyst.yaml",
+        "inputs": "doc12/ra_inputs.json",
+        "version": "0.1",
+        "units": 11,
+        "statements": 165,
+        "questions_needed": 0,
+        "questions_optional": 3
+      }
     }
   ],
   "totals": {
-    "documents": 5,
-    "reference_units": 257,
-    "document_analyst_cases": 357,
-    "requirements_analyst_statements": 1731
+    "documents": 9,
+    "reference_units": 453,
+    "document_analyst_cases": 628,
+    "requirements_analyst_statements": 2457
   },
-  "note": "모든 문서가 튜닝용이다. 튜닝에 쓰지 않은 문서(예: 고객요구사항4, 7~12)로 만든 평가용 골든셋이 따로 필요하다."
+  "note": "튜닝용(tuning)은 실패를 보고 규칙을 고치는 문서, 평가용(evaluation)은 실패를 보고 고치지 않고 일반 성능만 보는 문서다. 채점기의 '--docs all'은 튜닝용만, '--docs eval'은 평가용만 채점한다. 평가용 후보: 고객요구사항4, 10, 11."
 }

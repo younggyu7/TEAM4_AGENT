@@ -649,7 +649,7 @@ def _semantic_md(state: dict, issues: list[Issue]) -> list[str]:
     return head + [body, "", *notes, *([""] if notes else [])]
 
 
-def confirm_tech_stack(project: str, version: str, stack: str) -> dict:
+def confirm_tech_stack(project: str, version: str, stack: str, parts: dict | None = None) -> dict:
     """최종본의 기술 스택을 사람이 정한 값으로 확정하고 개발 스펙 10개를 다시 쓴다 (LLM 없음, 화면 '개발 스펙 파일'에서 선택).
 
     같은 최종본 안에서 개발 스펙 문서와 design.json(TQ-001 답·meta.dev_spec)만 바꾼다. 설계 산출물(기능 명세·ERD·DDL·API 설계)은
@@ -679,7 +679,8 @@ def confirm_tech_stack(project: str, version: str, stack: str) -> dict:
                         "stack": result["backend"], "stack_basis": result["basis"], "stack_from_answer": False}
     design.update(meta=meta, questions=state["questions"])
     store.write(project, version, "design.json", json.dumps(design, ensure_ascii=False, separators=(",", ":")))
-    update_version(project, version, tech_stack={"stack": result["backend"], "basis": result["basis"]})
+    update_version(project, version, tech_stack={"stack": result["backend"], "basis": result["basis"],
+                                                 **({"parts": parts} if parts else {})})
     return {**meta["dev_spec"], "written": len(files)}
 
 

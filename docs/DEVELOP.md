@@ -1,7 +1,9 @@
 # 개발 단계: 개발 스펙으로 서비스 코드 만들기 (`develop`)
 
 'ERD 최종 확정'으로 만든 최종본(개발 스펙 10개가 있는 버전, 예: `v1.1.1`)에서 웹 서비스 프로젝트를 만든다. **기본 실행은 LLM을 부르지 않아 토큰이 0이다.**
-고객에게 화면 단위로 보여 주는 데 서버·DB가 필요 없다. 지금은 CLI만 있다 (화면·API 없음).
+고객에게 화면 단위로 보여 주는 데 서버·DB가 필요 없다.
+
+**화면에서** (검토 중): 기술 스택은 기능 명세의 확인 질문 TQ-001에서 화면·서버·DB를 하나씩 고른다(원문에 있으면 원문, 개발 틀이 없으면 경고). 팀장이 승인한 최종본의 산출물 보기 → '최종 개발하기'(개발 파트장·팀장): 앱 틀(로그인 admin·user, 회사 이름=프로젝트 이름의 포털, 기본 동작, DB, Docker 파일)은 코드가, '업무 기능을 AI로 구현'(기본 켬, `--build`)을 고르면 모델·effort·예상 토큰·비용을 보고 AI가 기능별 서버 API·화면을 짠다(검사·컴파일 실패 기능은 코드 틀). 다 만들면 Docker로 켜 admin 로그인 + 모든 조회 API를 불러 자동 확인한다. 단계 표시줄 '최종 개발물 미리보기'는 1단계 개발(구현 방식·고객 답 대기·자동 확인, 파일 구성·코드 보기·고쳐 저장) · 2단계 실행(앱 자체 docker-compose로 독립 실행, 팀원 PC에서 `http://<서버>:<포트>`, 계정 비밀번호, 터미널, 10분 동안 요청이 없으면 끔) · 3단계 Git으로 나뉜다. 개발 틀(층마다 고름): 화면 React(`templates/app/frontend`)·Next.js(`templates/frontend-nextjs`, 같은 화면 부품을 `ui/`에), 서버 Spring Boot(`templates/app/backend`)·FastAPI(`templates/backend-fastapi` + `tools/scaffold_fastapi.py`)·NestJS(`templates/backend-nestjs` + `tools/scaffold_nestjs.py`), DB PostgreSQL·MySQL(`ddl.py`·`sample_data.py` 방언). AI 구현 규칙은 Spring `roles/builder.py`, FastAPI `roles/builder_fastapi.py`, NestJS `roles/builder_nestjs.py`. 빈 로직만 채우는 `--logic`은 `roles/developer.py`가 세 서버 틀 모두(Java·Python·TypeScript 규칙) 한다. 개발하기 창은 '기능 전체 AI'·'빈 로직만 AI'·'AI 안 씀' 중 하나를 고르고, 기능 전체 AI면 화면 스타일 9종(`tools/themes.py`) 중 하나를 고른다. 틀이 없는 층은 `roles/scaffolder.py`가 AI로 뼈대부터 만든다. 서버 쪽은 `app/services/develop.py`·`preview.py`·`gitpush.py`·`appfiles.py`, API는 `app/api/v1/develop.py`, 요구사항은 FR-038~044.
 만들어지는 폴더와 고쳐도 되는 파일은 [OUTPUTS.md 2-1](../OUTPUTS.md#2-1-개발-단계에서-생기는-폴더-develop).
 
 ```powershell

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, timedelta
 
 from app.schemas.data_model import Attribute, DataModel, Entity
@@ -183,7 +184,7 @@ def sample_rows(model: DataModel, words: tuple = ()) -> dict[str, list[dict]]:
     return out
 
 
-def _sql_value(value) -> str:
+def _sql_value(value, dialect: str = "postgresql") -> str:
     if value is None:
         return "NULL"
     if isinstance(value, bool):
@@ -191,21 +192,30 @@ def _sql_value(value) -> str:
     if isinstance(value, int | float):
         return str(value)
     if isinstance(value, dict):
-        return "'" + json.dumps(value, ensure_ascii=False).replace("'", "''") + "'"
-    return "'" + str(value).replace("'", "''") + "'"
+        value = json.dumps(value, ensure_ascii=False)
+    text = str(value)
+    if dialect == "mysql":   # 역슬래시는 이스케이프 문자. 시각은 시간대 없는 DATETIME이라 '2026-03-02 09:00:00'으로 쓴다
+        text = TIME_WITH_ZONE.sub(r"\1 \2", text).replace("\\", "\\\\")
+    return "'" + text.replace("'", "''") + "'"
 
 
-def seed_sql(model: DataModel, rows: dict[str, list[dict]]) -> str:
-    """seed.sql: 시연용 예시 행 (schema.sql 다음에 적용한다). model은 schema.sql의 실제 모델이고, 부모부터 넣는다."""
-    out = ["-- 코드가 만든 시연용 예시 데이터 (운영 DB에 넣지 않는다)", "BEGIN;", ""]
+TIME_WITH_ZONE = re.compile(r"^(\d{4}-\d\d-\d\d)T(\d\d:\d\d:\d\d)[+-]\d\d:\d\d$")
+
+
+def seed_sql(model: DataModel, rows: dict[str, list[dict]], dialect: str = "postgresql") -> str:
+    """seed.sql: 시연용 예시 행 (schema.sql 다음에 적용한다). model은 schema.sql의 실제 모델이고, 부모부터 넣는다.
+    MySQL은 AUTO_INCREMENT가 넣은 키 다음부터 이어 가므로 번호를 다시 맞추지 않는다."""
+    mysql = dialect == "mysql"
+    out = ["-- 코드가 만든 시연용 예시 데이터 (운영 DB에 넣지 않는다)", *(["SET NAMES utf8mb4;"] if mysql else []),
+           "START TRANSACTION;" if mysql else "BEGIN;", ""]
     for entity in table_order(model):
-        table = q(entity.entity_id)
+        table = q(entity.entity_id, dialect)
         columns = [a.name for a in entity.attributes]
-        physical = ", ".join(q(c) for c in columns)
+        physical = ", ".join(q(c, dialect) for c in columns)
         for row in rows[entity.entity_id]:
-            out.append(f"INSERT INTO {table} ({physical}) VALUES ({', '.join(_sql_value(row[c]) for c in columns)});")
+            out.append(f"INSERT INTO {table} ({physical}) VALUES ({', '.join(_sql_value(row[c], dialect) for c in columns)});")
         identity = [a for a in entity.pk() if a.data_type in ("bigint", "integer") and not a.references]
-        if identity:
+        if identity and not mysql:
             out.append(f"ALTER TABLE {table} ALTER COLUMN {q(identity[0].name)} RESTART WITH {ROWS + 1};")
         out.append("")
     return "\n".join([*out, "COMMIT;", ""])

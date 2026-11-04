@@ -162,9 +162,7 @@ class Spec:
         if s["basis"] == "원문":
             return f"{s['backend']} (원문)"
         if s["basis"] == "확정":
-            return f"{s['backend']} (확정 {s['question']})"
-        if s.get("from_answer"):
-            return f"{s['backend']} (가정 — 기능 명세에서 고른 값, 팀장 확정 전 {s['question']})"
+            return f"{s['backend']} (확정 — 기능 명세에서 고름 {s['question']})" if s.get("from_answer") else f"{s['backend']} (확정 {s['question']})"
         return f"{s['backend']} (가정 — 추천안, 확인 필요 {s['question']})" if s["question"] else f"{s['backend']} (가정)"
 
 

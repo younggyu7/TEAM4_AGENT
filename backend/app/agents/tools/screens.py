@@ -266,7 +266,8 @@ def build_screens(spec: Spec, menu_names: dict[str, str] | None = None) -> dict:
     known = {r["name"] for r in roles}
     roles += [{"name": n, "scope": ""} for n in sorted({r for s in screens for r in s["roles"]} - known)]   # 역할 목록에 없는 행위자도 고를 수 있게
     return {
-        "project": spec.project, "title": spec.options.get("title") or spec.project, "version": spec.version, "stack": spec.stack.get("backend", ""),
+        "project": spec.project, "title": spec.options.get("title") or spec.project, "company": spec.options.get("company") or "",
+        "version": spec.version, "stack": spec.stack.get("backend", ""),
         "menu": _menu(spec, screens, menu_names),
         "roles": roles, "screens": screens, "autos": autos,
     }

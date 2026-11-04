@@ -1,4 +1,4 @@
-"""골든셋 설명 파일 4개를 문서별 폴더(evals/golden/doc*/)에서 다시 만든다.
+﻿"""골든셋 설명 파일 4개를 문서별 폴더(evals/golden/doc*/)에서 다시 만든다.
 
     python -m evals.build_golden_docs
 
@@ -24,7 +24,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = Path(__file__).resolve().parent / "golden"
-DOC_ORDER = ["1", "2", "3", "5", "6"]
+DOC_ORDER = ["1", "2", "3", "5", "6", "7", "8", "9", "12"]
 
 # 문서별 원본과 특이점 (사람이 확인한 사실. 정답 데이터에서 계산할 수 없는 것)
 SOURCES = {
@@ -54,6 +54,38 @@ SOURCES = {
            "SFT-068: 마지막 3줄 위에 다른 표(산출물 목록)가 겹쳐 있다. 글자는 파일에 있으므로 정답에 넣었다 (Q15).",
            "SFT-069: 첫 행(요구사항 분류)이 앞 쪽(14쪽) 맨 아래에 따로 떨어져 있다.",
            "원문에 '입주차포털'(SFT-059·065·066)과 '입주자포털'(SFT-063)이 섞여 있다. 원문 그대로 둔다."]),
+    "7": ("07.agv_재고관리_제안요청서.pdf", "AGV 스마트자동화 재고관리 시스템 구축",
+          ["정제본(11쪽)은 원본 28쪽 중 6~16쪽(상세 요구사항)을 그대로 잘라 낸 것이다. 원본 4~5쪽 요구사항 목록은 정제본에 없다.",
+           "PER-003이 5쪽에서 6쪽으로 넘어가며 번호 없이 8줄이 이어진다. 다음 요구사항 PER-004에 붙이면 안 된다 (EXT·C26·R56).",
+           "보안 요구사항 번호가 SER-001 다음 SER-004로 건너뛴다. 원본 요구사항 목록에는 SER-002로 적혀 있다 (Q18).",
+           "PMR-002의 산출물 표가 다음 쪽(10쪽)으로 이어진다. 쪽 이미지로 구조를 확인해 행 단위로 정답을 적었다.",
+           "모든 요구사항에 응락수준 '필수'가 있어 우선순위 정답은 모두 MUST다. 장비 도입 사업이라 기능 요구사항(SFR)이 없고, "
+           "PER-003·004는 분류가 성능이지만 내용은 S/W 기능 목록이다.",
+           "ECR-001은 이중화(Mirroring) 구성을 요구하지만 ECR-004 서버는 1대다 (확인 질문 후보)."]),
+    "8": ("08.공공구매_플랫폼구축_제안요청서.pdf", "공공구매 플랫폼 재구축 및 통합 주문관리",
+          ["첫 DOCX 문서. DOCX는 원본 54쪽 중 11~20쪽(4. 상세 요구사항)을 옮긴 것이다. 원본 9~10쪽 요구사항 목록과 21쪽 검수 기준은 없다.",
+           "요구사항 65개(기능 20 + 비기능 45). 원본 8쪽 요구사항 요약의 합계와 같다.",
+           "비기능 요구사항은 원본 18~20쪽의 한 표가 쪽마다 끊겨 DOCX 표 3개가 됐다. 다음 쪽 첫 행은 분류 칸이 비어 있고(SIR-007, TER-003·004), "
+           "TER-002의 마지막 말 '기준 인수시험'은 다음 표 첫 행으로 떨어져 있다 (C30, Q24).",
+           "파서는 첫 표(ECR·PER·SIR-001~006)만 요구사항으로 읽고, 이어진 표 둘을 요구사항 목록표로 오인한다 (요구사항 30개 누락, 목록·상세 불일치 오탐 51건, Q23).",
+           "DOCX 셀 글자에 단어 중간 공백('운영관 리자')과 탭('사\\t용\\t자')이 섞여 있다. 정답 이름은 원본 목록 표기를 쓴다.",
+           "requirements_analyst 고정 입력은 이 날 파서가 만든 35개 단위뿐이라 정답지도 35개만 다룬다."]),
+    "9": ("09.기계연_통합정보시스템_제안요청서.pdf", "한국기계연구원 통합정보시스템 기능개선 및 AI 서비스 구축",
+          ["DOCX는 원본 93쪽 중 15~51쪽(3. 상세 요구사항)을 옮긴 것이다. 요구사항 89개는 원본 12~14쪽 요구사항 목록과 같다.",
+           "요구사항 표 89개가 DOCX 표 96개로 들어 있다. 쪽이 넘어가며 고유번호 없는 조각 표 7개가 생겼다 "
+           "(SFR-003·005·008·015·018·020). 정답은 앞 요구사항에 이어 붙였다 (C35·C36, Q29).",
+           "ECR-001의 GPU 서버 규격 표는 셀 안 글상자(text box)에 들어 있다. 정답에는 넣었다 (C34, R76).",
+           "SFR-010~013은 원본에서도 '요구사항 분류' 칸이 비어 있다 (Q27). 다른 기능 요구사항의 분류 칸에는 업무 이름이 들어 있다.",
+           "DOCX로 바뀌며 항목 기호(○)가 목록 서식으로 사라졌다. requirements_analyst 정답지의 진술은 줄 단위로 나눴다."]),
+    "12": ("12.한국항공우주연구원_전산장비_제안요청서.pdf", "한국항공우주연구원 전산장비 유지보수 용역",
+           ["DOCX는 원본 51쪽 중 7~23쪽(3. 세부수행내용)을 옮긴 것이다. 요구사항 17개는 원본 7쪽 목록과 같다.",
+            "DOCX 글자는 단어 중간에 공백이 마구 섞여 있다('전 산장비', 'MS R- 001', '요구사항 고유번 호'). 정답 원문은 깨끗한 원본 PDF 글자를 쓰고, "
+            "모든 줄이 DOCX 셀 글자에 있음을 공백을 지우고 확인했다.",
+            "파서는 이 공백 때문에 요구사항 표를 하나도 알아보지 못하고 목차 묶음(C01~C11)으로 나눈다 (요구사항 사례 0/17, Q32). "
+            "requirements_analyst 고정 입력도 이 묶음 단위라, 정답지 진술을 그 묶음에 담았다.",
+            "MSR-001 업무보고체계 표와 PMR-001 필수 산출물 표·산출정보는 표 밖 본문의 글상자에 들어 있다.",
+            "번호 접두어가 관례와 다르다: 제약사항이 RER, 유지보수 수행이 MSR, 인력이 MHR.",
+            "가운뎃점으로 '․'(U+2024)과 '·'가 섞여 있다."]),
 }
 ACTION = {"verified": "기존 위치 확인", "relinked": "다른 올바른 위치에 재연결", "unconfirmed": "⚠미확인 유지 (확인 완료로 만들면 실패)"}
 EXPECT = {"required": "경고가 나와야 함", "review": "확인 요청 경고가 나와야 함", "negative": "경고가 나오면 안 됨"}
@@ -75,6 +107,8 @@ def load(n: str) -> dict:
 def where(loc: dict) -> str:
     if "pdf_page_1based" in loc:
         return f"PDF {loc['pdf_page_1based']}쪽" + (f" / 인쇄 {loc['printed_page']}쪽" if loc.get("printed_page") else "")
+    if "docx_table_0based" in loc:
+        return f"DOCX 표 T{loc['docx_table_0based']} / 원본 인쇄 {loc['printed_page']}쪽"
     return f"{loc.get('section', '').split('/')[-1]} T{loc.get('table_index_0based')}"
 
 
@@ -160,13 +194,17 @@ def index(docs: list[dict]) -> dict:
                                              "statements": sum(len(v or []) for v in ra_doc["units"].values()),
                                              "questions_needed": len(ra_doc["questions"].get("needed", [])),
                                              "questions_optional": len(ra_doc["questions"].get("optional", []))}})
-    return {"name": "요구사항 분석 Agent 튜닝용 골든셋", "generated_at": date.today().isoformat(),
+    tuning = [x["folder"] for x in out if x["split"] == "tuning"]
+    evaluation = [x["folder"] for x in out if x["split"] == "evaluation"]
+    return {"name": "요구사항 분석 Agent 골든셋", "generated_at": date.today().isoformat(),
+            "splits": {"tuning": tuning, "evaluation": evaluation},
             "generated_by": "python -m evals.build_golden_docs", "documents": out,
             "totals": {"documents": len(out),
                        "reference_units": sum(x["document_analyst"]["reference_units"] for x in out),
                        "document_analyst_cases": sum(x["document_analyst"]["cases"] for x in out),
                        "requirements_analyst_statements": sum(x["requirements_analyst"]["statements"] for x in out)},
-            "note": "모든 문서가 튜닝용이다. 튜닝에 쓰지 않은 문서(예: 고객요구사항4, 7~12)로 만든 평가용 골든셋이 따로 필요하다."}
+            "note": "튜닝용(tuning)은 실패를 보고 규칙을 고치는 문서, 평가용(evaluation)은 실패를 보고 고치지 않고 일반 성능만 보는 문서다. "
+                    "채점기의 '--docs all'은 튜닝용만, '--docs eval'은 평가용만 채점한다. 평가용 후보: 고객요구사항4, 10, 11."}
 
 
 # ------------------------------------------------------------------ 검토표
@@ -247,7 +285,9 @@ def guide(docs: list[dict], idx: dict) -> str:
     t = idx["totals"]
     L = ["# 골든셋 사용안내", "",
          f"**검수용 초안입니다.** 원문을 확인해 만든 정답 후보이며, 담당자 검수를 마친 확정 골든셋은 아닙니다. "
-         f"고객요구사항 {', '.join(d['n'] for d in docs)} 모두 **튜닝용**입니다.", "",
+         f"**튜닝용**: 고객요구사항 {', '.join(x['folder'][3:] for x in idx['documents'] if x['split'] == 'tuning')}. "
+         f"**평가용**: 고객요구사항 {', '.join(x['folder'][3:] for x in idx['documents'] if x['split'] == 'evaluation') or '없음'}. "
+         "평가용 문서의 실패를 보고 코드를 고치지 않습니다. 채점기 `--docs all`은 튜닝용만, `--docs eval`은 평가용만 채점합니다.", "",
          f"문서 {t['documents']}건, document_analyst 정답 단위 {t['reference_units']}개·사례 {t['document_analyst_cases']}개, "
          f"requirements_analyst 핵심 진술 {t['requirements_analyst_statements']}개입니다.", "",
          "## 파일 구성", "",
@@ -259,9 +299,9 @@ def guide(docs: list[dict], idx: dict) -> str:
          "| `정답_검토표.md` | 사람이 원문과 대조하며 검수할 표 |",
          "| `검증결과.json` | 골든셋 자체 검사 결과 |", "",
          "정답은 `doc<번호>/` 안의 파일이 원본입니다. 정답을 고친 뒤 `python -m evals.build_golden_docs`로 나머지 세 파일(목록·검토표·검증결과)과 이 안내를 다시 만듭니다.", "",
-         "| 폴더 | 문서 | 원본 | 정답 단위 / 사례 | 핵심 진술 |", "|---|---|---|---|---|"]
+         "| 폴더 | 용도 | 문서 | 원본 | 정답 단위 / 사례 | 핵심 진술 |", "|---|---|---|---|---|---|"]
     for x in idx["documents"]:
-        L.append(f"| `{x['folder']}` | {x['file'].split('/')[-1]} ({x['project']}) | {x['original_source']} | "
+        L.append(f"| `{x['folder']}` | {'평가용' if x['split'] == 'evaluation' else '튜닝용'} | {x['file'].split('/')[-1]} ({x['project']}) | {x['original_source']} | "
                  f"{x['document_analyst']['reference_units']} / {x['document_analyst']['cases']} | {x['requirements_analyst']['statements']} |")
     L += ["", "## 무엇을 시험하나요?", "", "### document_analyst", "", "| 시험 | 사례 수 | 확인할 내용 |", "|---|---:|---|",
           f"| 전체 추출 | {types['전체 추출 목록']} | 문서의 요구사항 목록이 빠짐없이, 중복 없이 구성되는가 |",
@@ -299,11 +339,12 @@ def guide(docs: list[dict], idx: dict) -> str:
         L += [f"### doc{d['n']} · {d['da']['documents'][0]['file_name']} (원본: {SOURCES[d['n']][0]})", ""]
         L += [f"- {s}" for s in SOURCES[d["n"]][2]] + [""]
     L += ["## 범위와 검수 상태", "",
-          "- 모든 문서가 튜닝용입니다. 이 문서들에 맞춰 규칙을 고치므로 일반 성능이라고 주장할 수 없습니다. "
-          "튜닝에 쓰지 않은 문서(예: 고객요구사항4, 7~12)로 평가용 골든셋을 따로 만들어야 합니다.",
+          "- 튜닝용 문서는 그 문서에 맞춰 규칙을 고치므로 그 점수를 일반 성능이라고 주장할 수 없습니다. 일반 성능은 평가용 문서 점수로 말합니다.",
+          "- 평가용 문서는 아직 없습니다. 튜닝에 쓰지 않은 문서(후보: 고객요구사항4, 10, 11)로 만들고, 정답 파일에 `split: evaluation`을 적고 "
+          "채점기의 `EVAL_DOCS`에 번호를 넣습니다. 평가용 문서는 실패를 보고 코드를 고치지 않고, 큰 개선 뒤에만 돌립니다.",
           "- doc3·doc5의 document_analyst 정답은 처음 받은 골든셋 v0.1(문서 3·5를 한 파일에 묶은 것)을 문서별로 나눈 것입니다. 받은 원본 파일은 2026-10-28에 지웠습니다.",
-          "- doc1·doc2·doc6의 document_analyst 정답과 모든 requirements_analyst 정답지는 AI가 작성한 초안입니다 (각 파일의 `provenance` 참고).",
-          "- TXT/DOCX 문서, 텍스트층 없는 PDF 양성 사례는 아직 없습니다.", "",
+          "- doc1·doc2·doc6~doc9·doc12의 document_analyst 정답과 모든 requirements_analyst 정답지는 AI가 작성한 초안입니다 (각 파일의 `provenance` 참고).",
+          "- DOCX 문서는 doc8·doc9·doc12입니다. TXT 문서, 텍스트층 없는 PDF 양성 사례는 아직 없습니다.", "",
           "## 변경 전후 기록 양식", "",
           "| 항목 | 변경 전 | 변경 후 |", "|---|---|---|",
           "| 코드/규칙 버전 | | |", "| 골든셋 (`골든셋_목록.json`의 generated_at) | | |",

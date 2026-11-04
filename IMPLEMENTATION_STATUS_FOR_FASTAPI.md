@@ -315,3 +315,47 @@ API 설계는 최종 확정에 남긴다. 호출이 크게 늘지 않는 범위�
 - 테스트를 이 흐름에 맞춤: 개발 스펙·업무 동작 테스트는 `run` 뒤 `review`로 만든 최종본 `v1.1`에서 본다. 조정 Agent 루프에 API 설계가 없음을 확인하는 줄로 바꿈(`test_fix_loops`).
 - 검증: DB 없이 `pytest` 310 passed · 9 skipped (새 파일 `test_behavior`·`test_develop`·`test_fix_loops`·`test_rule_basis`, 기존 파일에 병합된 테스트 포함). `ruff --select F`는 이번에 고친 파일에서 0건 (남은 9건은 main에 있던 것).
 - 미검증: `TEST_DATABASE_URL`·`TEST_PG_URL` 테스트(9 skipped), PostgreSQL 저장소에서 `develop`, 실제 LLM으로 최종 확정(업무 동작 요청) → `develop --logic`, 프론트 `tsc`·`vite build`(이 PC에 node_modules 없음). 원본에서는 13_test v4와 다른 문서 7건으로 서버 5xx 0을 확인했다.
+
+
+## 17. 화면의 최종 개발하기·미리보기·git 올리기 (2026-11-04)
+
+| 항목 | 내용 |
+| --- | --- |
+| 역할 | 개발 파트원 `dev`·개발 파트장 `dev_head`, 권한 `develop`(개발 파트장·팀장). 임시 계정 `dev.head`·`dev1`·`dev2`, 서버 시작 때 빠진 임시 계정만 추가 |
+| 알림 | 팀장 승인 → 개발 파트 '개발 대기' (`services/directives.notices`, 승인 뒤 개발하면 사라짐) |
+| 스택 | `agents/tools/stacks.py` CATALOG(화면·백엔드·DB, supported), `POST /projects/tech-stack`에 `parts`, 기록 `tech_stack.parts` |
+| 최종 개발하기 | `services/develop.py` (`develop` CLI 하위 프로세스 → `npm install`(package.json이 바뀔 때만) → `vite build --base ./` 예시 데이터 화면 → 기록 `develop`). 코드 템플릿 `frontend/src/api.ts`에 `VITE_API_ROOT`(미리보기 하위 경로용, 기본 빈 값) |
+| 실행 미리보기 | `services/preview.py`: 앱마다 compose `reqagent-app-<키>`(postgres:16 + Maven·JDK 17 빌드 이미지, 볼륨 `reqagent-app-<키>-db`), 127.0.0.1:18080~18199, 메모리 1GB·512MB, 10분 안 보면 stop, 동시 3개. 화면 서버 모드 빌드를 우리 백엔드가 보여 주고 `run/`을 httpx로 앱에 넘김 |
+| git | `services/gitpush.py`: 프로젝트 파일 `git.json`(토큰 Fernet 암호화, 키 `GIT_SECRET_KEY` 또는 `OUTPUT_DIR/.git-secret`), 작업 폴더 `app/.preview/git-<쪽>`, http.extraHeader로 토큰 전달·기록 가림, 원격 브랜치 위에 커밋(강제 push 없음) |
+| 검증 | `pytest` 314 passed · 9 skipped (새 `test_develop_screen` 4개: 승인·권한·알림, 미리보기 파일·로그인·폴더 밖, 스택 세 칸, git 두 저장소·토큰 가림·다시 올리기). 이 PC에서 실제로: 승인 최종본 `develop`(1초) → 화면 `npm install` 15초·빌드 1초, Spring 스택 앱의 Docker 첫 빌드 3분 12초 → 실행 15초(캐시) → 프록시로 앱 API 200·예시 데이터 확인 → 정지. 프론트 `tsc -b`·`vite build` |
+| 미검증 | 브라우저에서 버튼 조작, 실제 LLM `--logic`, 원격 GitHub push(토큰), 팀원 Windows PC의 Docker Desktop |
+
+## 18. 최종 개발하기 확장: 스택 확정·실제 서비스 앱·개발 틀 8조합·AI 뼈대 (2026-11-04, 검토 중)
+
+| 항목 | 내용 |
+| --- | --- |
+| 스택 확정 | 기능 명세 TQ-001에서 화면·서버·DB를 하나씩 고름(필수, 기능 명세 확정 = 스택 확정). 원문이 정했으면 원문. 틀 없는 층은 기능 명세 위·최종 산출물·개발하기 창에서 비용 경고. `tools/stacks.py`, `GET /projects/stack`. 최종 산출물은 보기만 |
+| 앱 틀 (팀원 생성기 반영) | 로그인 포털(admin = '전체 보기', user = 첫 일반 역할), 회사 이름 = 프로젝트 이름(`project.json`), 포털 화면, Dockerfile·docker-compose·IMPLEMENTATION.md. `--build`(기능 전체 AI, `roles/builder.py`) |
+| 개발 틀 | 화면 React·Next.js(`templates/frontend-nextjs`, 부품은 `ui/`) · 서버 Spring Boot·FastAPI(`templates/backend-fastapi`, `tools/scaffold_fastapi.py`, `roles/builder_fastapi.py`)·NestJS(`templates/backend-nestjs`, `tools/scaffold_nestjs.py`, `roles/builder_nestjs.py`) · DB PostgreSQL·MySQL 8(`ddl.py`·`sample_data.py` 방언). `stacks.TEMPLATED` |
+| 개발하기 창 | 'AI로 업무 기능 구현'(기본 켬) + 모델·effort, 예상 토큰·비용(기능당 출력 실측 평균 2.95만 × effort 배율 × 1.25). 시작하면 최종 개발물 1단계로 |
+| 개발 작업 | 코드 틀 → AI 구현(검사·컴파일·tsc, Maven 없으면 Docker) → 예시 데이터 화면 → Docker 자동 확인(admin 로그인 + 경로 변수 없는 GET 전부, 501 = 구현 대기). 기록 `develop.summary`·`develop.check` |
+| 실행 미리보기 | 앱 자체 docker-compose(`reqagent-app-<키>`), `PREVIEW_BIND`(기본 0.0.0.0)로 팀원 PC 접속, 앱 접근 기록으로 10분 유휴 끄기, 이 폴더 첫 실행·스키마 변경·계정 파일 없음이면 DB 새로. 계정 비밀번호 표시(`GET /preview/<p>/accounts`, 개발 파트·팀장) |
+| 코드 보기·터미널 | 1단계 파일 구성·코드(빈 업무 로직 `// <hole>`·`# <hole>` 표시)·고쳐 저장(`code_edit`), 2단계 터미널(빌드·실행 출력 + 앱 서버 로그) |
+| 틀 없는 층 | `roles/scaffolder.py`: AI가 뼈대(계약 CONTRACT) + 기능 파일 → docker build, 실패하면 오류가 난 곳만 두 번까지 다시 묻기 |
+
+**실측 (요구사항_test2 v1.1.1, 스크래치 폴더, Haiku 5.5 · medium)**
+
+| 조합 | 결과 |
+| --- | --- |
+| React+Spring+PostgreSQL, 기능 36개 AI 구현 | 36/36 채움, LLM 40회, 입력 26.5만 · 출력 100만 토큰(약 $0.53), 약 17분. 자동 확인 GET 30: 정상 18 · 400(필수 조회 조건) 12 · 5xx 0 |
+| React+Spring+PostgreSQL (코드 틀) | 실행 30초, LAN 주소 200, admin·user 로그인, GET 30: 200 27 · 501 3 · 5xx 0, 헤더 역할 401 |
+| React+Spring+MySQL / React+FastAPI+PostgreSQL / React+FastAPI+MySQL | 각각 GET 30: 200 27 · 501 3 · 5xx 0 (MySQL·FastAPI 작업에서 확인) |
+| Next.js+Spring+PostgreSQL / Next.js+FastAPI+MySQL (미리보기 경로) | 실행 27초, 예시 데이터 화면(하위 경로) 빌드, GET 30: 200 27 · 501 3 · 5xx 0 |
+| FastAPI 기능 3개 AI 구현 | 3/3, LLM 4회, 입력 2.9만 · 출력 9.5만 |
+| 기능 3개 AI 구현: Spring+MySQL / FastAPI+MySQL / Next.js+Spring / NestJS+PostgreSQL | 각 3/3, 실행·자동 확인 5xx 0. 출력 8.8만 / 7.2만 / 12.2만 / 8.0만 토큰 (각 약 $0.04~0.07) |
+| NestJS 틀 (코드 틀) PostgreSQL·MySQL, Next.js+NestJS+MySQL(미리보기 경로·접근 기록) | GET 30: 200 27 · 501 3 · 5xx 0, 등록·목록 왕복, 401·403·404·405·409 |
+| 틀 없는 서버 NestJS (AI 뼈대 + 기능 3개) | 첫 빌드 실패(뼈대 import 오류) → 오류 난 곳만 다시 물어 이미지 빌드 성공, LLM 8회 · 입력 14.7만 · 출력 16.4만(약 $0.10), 실행·admin·user 계정·로그인, 5xx 0 (구현한 3개 기능 외 API는 404) |
+
+**빈 로직만 AI (`--logic`, 기능 3개)**: FastAPI+PostgreSQL·NestJS+MySQL 각 3/3 채움, GET 30: 200 27 · 501 3 · 5xx 0, 채운 자리 PUT 200(이력 행 생성), 코드 보기에서 AI 자리 보라 표시 확인. LLM 17회 입력 1.7만 · 출력 5.6만(약 $0.03).
+
+**미검증**: 브라우저 클릭 조작, AI가 채운 업무 로직의 업무적 정확도(직접 검토 필요), FastAPI+MySQL `--build`, Next.js 조합의 `--build`, 원격 GitHub push, 팀원 Windows PC, 전자정부·Vue·Oracle 등 틀 없는 스택은 NestJS 서버로만 시험.

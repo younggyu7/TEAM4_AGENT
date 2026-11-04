@@ -118,7 +118,13 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET·POST /drafts` · `POST /drafts/request` | 버전의 수정 초안 함께 쓰기 (`{project, version, state, rev}`, 늦은 저장은 409, 응답에 변경 내역 `log`·승인 요청 `request`) · 파트원의 수정 완료 승인 요청 (파트장의 확정은 이 요청이 있어야, 팀장은 없이) |
 | `POST /projects/approval` | 최종본 승인 / 수정 지시 (`{project, version, decision: approve·changes, targets?: [spec, erd], items?: [{stage, target_id, label, note}], comment}`, 팀장만) |
 | `GET /projects/directives?project=` · `POST /projects/directives/resolve` | 끝나지 않은 수정 지시와 진행(처리할 버전, 기능 명세 대기, 옛 ERD 잠금) · 지시 항목 처리 반영함·그대로 둠(이유) |
-| `GET /notices` | 나에게 온 알림 (역할별: 수정 지시·기능 명세 대기·승인 요청·승인 대기) |
+| `GET /notices` | 나에게 온 알림 (역할별: 수정 지시·기능 명세 대기·승인 요청·승인 대기·개발 대기) |
+| `GET /develop/plan` · `POST /develop` | 승인 최종본의 최종 개발하기: 예상(화면·파일, 틀 없는 층 경고, AI 업무 기능 구현 예상 토큰) · 코드(+`build`·`model`·`effort`면 AI 구현) + 예시 데이터 화면 + Docker 자동 확인 → `202 {job}` (개발 파트장·팀장) |
+| `GET /preview/<프로젝트>/` (`mock/` · `status` · `start` · `stop` · `accounts`) | 최종 개발물 실행: 안내 페이지 → 앱 자체 docker-compose로 독립 실행 → 앱 주소 `http://<서버>:<포트>`(`PREVIEW_BIND`, 기본 0.0.0.0). 10분 동안 요청이 없으면 끔, 동시 3개. `accounts`는 admin·user 비밀번호(개발 파트·팀장) |
+| `GET /projects/stack` | 버전의 기술 스택 상태: 원문·확정(기능 명세 TQ-001)·미정, 개발 틀이 없는 층 경고 |
+| `GET /develop/files` · `GET·PUT /develop/file` | 최종 개발물 코드 파일 구성(빈 업무 로직·사람이 고친 파일 표시) · 내용 보기 · 고쳐 저장(개발 파트원·파트장·팀장) |
+| `GET /preview/<프로젝트>/terminal` | 실행 미리보기 터미널: 서버가 실행한 명령·출력 + 앱 서버 로그 |
+| `GET·POST /develop/git` · `POST /develop/git/push` | 프로젝트별 화면·백엔드 저장소 설정(토큰 암호화) · 서버 코드 폴더를 두 저장소에 커밋·push → `202 {job}` |
 
 역할별 권한(서버가 검사, `app/core/auth.py`): 업로드·기능 명세 수정 = 기획 파트원 이상 · 기능 명세 확정(내보내기) = 기획 파트장 · ERD 수정·저장 = 데이터 파트원 이상 · ERD 최종 확정 = 데이터 파트장 · 최종 승인·수정 지시·기술 스택 = 팀장(모든 단계 가능). 회원 테이블은 `alembic upgrade head`로 만든다 (서비스 DB가 없으면 `OUTPUT_DIR/service.sqlite`).
 

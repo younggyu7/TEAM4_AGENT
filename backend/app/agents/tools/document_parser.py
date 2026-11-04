@@ -273,7 +273,8 @@ def _parse_docx(path: Path) -> list[dict]:
         if tag == "p":
             para = Paragraph(child, doc)
             text = para.text.strip()
-            if not text:
+            # 인쇄용 쪽 번호('- 13 -')는 PDF처럼 버린다 (쪽이 넘어가며 잘린 요구사항 표 사이에 끼어 이어 붙이기를 막는다)
+            if not text or _PAGE_NUMBER_DASHED.match(text):
                 continue
             item = {"type": "paragraph", "section": 0, "text": text}
             level = _docx_heading_level(para.style.name if para.style is not None else "")
@@ -660,7 +661,8 @@ def parse_requirement_table(rows: list[list[str]]) -> dict[str, str]:
             continue
         for n, i in enumerate(positions):
             end = positions[n + 1] if n + 1 < len(positions) else len(cells)
-            put(keys[i], "\n".join(c for c in cells[i + 1:end] if c))
+            value = "\n".join(c for c in cells[i + 1:end] if c)
+            put(keys[i], (_code_value(value) or value) if keys[i] == "code" else value)
     return fields
 
 
@@ -679,8 +681,17 @@ _SYNTHETIC_LABELS = {"code": "요구사항 번호", "category": "요구사항 �
                      "details": "요구사항 내용", "outputs": "산출정보"}
 
 
+def _code_value(cell: str) -> str | None:
+    """요구사항 번호 칸의 값. 글자 사이에 공백이 섞인 변환본('MS R- 001', 'S ER- 001')은 공백을 지우고 본다."""
+    cell = cell.strip()
+    if REQ_CODE.match(cell):
+        return cell
+    compact = re.sub(r"\s+", "", cell)
+    return compact if len(cell) <= 16 and "-" in compact and REQ_CODE.match(compact) else None
+
+
 def _code_row(cells: list[str]) -> bool:
-    return any(FIELD_KEYS.get(_norm_key(c)) == "code" and REQ_CODE.match(cells[i + 1])
+    return any(FIELD_KEYS.get(_norm_key(c)) == "code" and _code_value(cells[i + 1])
                for i, c in enumerate(cells[:-1]))
 
 
@@ -796,13 +807,20 @@ def _split_requirement_table(rows: list[list[str]]) -> list[tuple[str, object]] 
 
 
 def _is_continuation(rows: list[list[str]]) -> bool:
-    """쪽 넘김으로 잘린 요구사항 표의 뒷부분: 첫 칸이 비어 있고, 번호 행은 없고, '산출정보'·'세부내용' 칸이 있다."""
+    """쪽 넘김으로 잘린 요구사항 표의 뒷부분: 첫 칸이 비어 있고, 번호 행은 없고, '산출정보'·'세부내용' 칸이 있다.
+
+    세 쪽 이상에 걸친 표의 가운데 조각은 칸 이름이 하나도 없다 (모든 행의 첫 칸이 비고 내용 칸만 있음). 이것도 이어짐으로 본다.
+    (붙일 앞 요구사항은 '산출정보 칸이 아직 없는 = 잘린' 요구사항으로 한정된다: cut_off_requirement)
+    """
     if not rows or not rows[0] or rows[0][0].strip():
         return False
     trimmed = [_trim(r) for r in rows]
     if any(_code_row(c) or _glued_cell(c) is not None for c in trimmed):
         return False
-    return any(c and FIELD_KEYS.get(_norm_key(c[0])) in ("outputs", "details") for c in trimmed)
+    if any(c and FIELD_KEYS.get(_norm_key(c[0])) in ("outputs", "details") for c in trimmed):
+        return True
+    no_labels = not any(FIELD_KEYS.get(_norm_key(c)) for r in rows for c in r)
+    return no_labels and all(not r[0].strip() for r in rows if r) and any(c.strip() for r in rows for c in r)
 
 
 def _continues_with_labels(rows: list[list[str]], head: list[list[str]]) -> bool:
@@ -830,14 +848,25 @@ def _repair_requirements(raw: list[dict]) -> list[dict]:
 
     def cut_off_requirement() -> int | None:
         """잘린 표의 뒷부분을 붙일 요구사항: 바로 앞 요구사항 3개 중 '산출정보' 칸이 없는(=잘린) 가장 가까운 것.
-        글상자 때문에 다른 요구사항이 사이에 끼는 경우가 있어 바로 앞 것만 보지 않는다."""
+        글상자 때문에 다른 요구사항이 사이에 끼는 경우가 있어 바로 앞 것만 보지 않는다.
+        쪽 번호 문단('- 13 -')은 잘린 표 사이에 끼어도 건너뛴다."""
         candidates = []
         for k in range(len(out) - 1, -1, -1):
+            if out[k]["type"] == "paragraph" and _PAGE_NUMBER_DASHED.match(out[k]["text"].strip()):
+                continue
             if not is_req(out[k]) or len(candidates) == 3:
                 break
             candidates.append(k)
         return next((k for k in candidates if not _has_outputs_row(out[k]["rows"])),
                     candidates[0] if candidates else None)
+
+    def list_table_before() -> int | None:
+        """바로 앞(쪽 번호 문단은 건너뜀)이 목록형 요구사항 표면 그 위치."""
+        for k in range(len(out) - 1, -1, -1):
+            if out[k]["type"] == "paragraph" and _PAGE_NUMBER_DASHED.match(out[k]["text"].strip()):
+                continue
+            return k if out[k]["type"] == "table" and _requirement_list_columns(out[k]["rows"]) else None
+        return None
 
     out: list[dict] = []
     i = 0
@@ -847,6 +876,10 @@ def _repair_requirements(raw: list[dict]) -> list[dict]:
         if item["type"] == "table":
             if not any(c.strip() for r in item["rows"] for c in r):
                 continue                        # 빈 표 (변환본의 틀만 남은 표)
+            j = list_table_before()
+            if j is not None and _continues_list(item["rows"], out[j]["rows"]):
+                out[j] = {**out[j], "rows": out[j]["rows"] + item["rows"]}
+                continue
             k = cut_off_requirement()
             if k is not None and (_is_continuation(item["rows"]) or _continues_with_labels(item["rows"], out[k]["rows"])):
                 out[k] = {**out[k], "rows": out[k]["rows"] + [r for r in map(_trim, item["rows"]) if r]}
@@ -877,6 +910,20 @@ def _repair_requirements(raw: list[dict]) -> list[dict]:
         else:
             out.append(item)
     return out
+
+
+def _continues_list(rows: list[list[str]], head: list[list[str]]) -> bool:
+    """쪽 넘김으로 잘린 목록형 요구사항 표(행 1개 = 요구사항 1개)의 뒷부분인지 (고객요구사항8 비기능 요구사항).
+
+    머리글이 없고, 칸 수가 앞 표 머리글과 같으며, 번호 칸에 요구사항 번호가 든 행이 있다.
+    """
+    columns = _requirement_list_columns(head)
+    if not columns or not rows or len(rows[0]) != len(head[0]):
+        return False
+    if any(_norm_key(c) in FIELD_KEYS for c in rows[0] if c.strip()):
+        return False                            # 머리글이 다시 나오면 새 표
+    code_col = next(i for i, f in columns.items() if f == "code")
+    return any(len(r) > code_col and REQ_CODE.match(r[code_col].strip()) for r in rows)
 
 
 def _has_outputs_row(rows: list[list[str]]) -> bool:
@@ -928,7 +975,7 @@ def _is_requirement_table(rows: list[list[str]]) -> bool:
     for row in rows[:2]:
         cells = [c.strip() for c in row]
         for i, cell in enumerate(cells[:-1]):
-            if FIELD_KEYS.get(_norm_key(cell)) == "code" and REQ_CODE.match(cells[i + 1]):
+            if FIELD_KEYS.get(_norm_key(cell)) == "code" and _code_value(cells[i + 1]):
                 return True
     return False
 
@@ -1002,10 +1049,20 @@ def _finalize(raw: list[dict], document_id: str, version: str) -> list[DocumentB
                 add(item, "requirement_table", render_requirement_table(fields), rows, fields)
             elif columns := _requirement_list_columns(rows):
                 # 목록형: 행마다 요구사항 블록 하나 (근거·추출 단위를 요구사항별로 나누기 위해)
+                # 쪽 넘김으로 이어 붙인 표는 분류 칸(세로 병합)이 비고, 앞 행의 마지막 말이 번호 없는 행으로 떨어져 있다
+                entries: list[tuple[list[str], dict[str, str]]] = []
                 for row in _align_rows(rows[1:], len(rows[0])):
                     fields = {f: row[i].strip() for i, f in columns.items() if row[i].strip()}
                     if REQ_CODE.match(fields.get("code", "")):
-                        add(item, "requirement_table", render_requirement_table(fields), [rows[0], row], fields)
+                        if "category" in columns.values() and "category" not in fields and entries:
+                            fields["category"] = entries[-1][1].get("category", "")
+                        entries.append((row, fields))
+                    elif entries and set(fields) <= {"details", "definition"} and fields:
+                        prev = entries[-1][1]
+                        for f, v in fields.items():
+                            prev[f] = f"{prev[f]} {v}" if prev.get(f) else v
+                for row, fields in entries:
+                    add(item, "requirement_table", render_requirement_table(fields), [rows[0], row], fields)
             else:
                 add(item, "table", render_table(rows), rows, {})
         else:

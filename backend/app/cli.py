@@ -46,7 +46,7 @@ from app.agents.tools.convention import ConventionError, list_profiles, load_pro
 from app.agents.tools.exporter import changes_md
 from app.agents.tools.trace_diff import compare_versions, load_previous
 from app.agents.storage import get_store
-from app.agents.tools.versions import (claim_next_version, find_version, load_versions, project_name, save_version,
+from app.agents.tools.versions import (claim_next_version, find_version, load_versions, project_name, save_project_info, save_version,
                                       update_version, version_key, version_label)
 
 log = logging.getLogger("req_agent")
@@ -165,7 +165,13 @@ def main(argv: list[str] | None = None) -> int:
     p_develop.add_argument("--from", dest="base", required=True, help="'ERD 최종 확정'으로 만든 최종본 (예: v1.1.1)")
     p_develop.add_argument("--plan", action="store_true", help="화면 수와 LLM 예상 비용만 보여 준다 (파일을 쓰지 않음)")
     p_develop.add_argument("--logic", action="store_true", help="LLM으로 업무 로직 자리를 채운다 (토큰 사용, 바뀐 기능만)")
-    p_develop.add_argument("--only", help="--logic을 이 기능 ID만 (쉼표로 구분)")
+    p_develop.add_argument("--build", action="store_true",
+                           help="LLM이 기능 전체(서버 API·화면)를 스펙 문서로 구현한다. --only로 기능을 고른다 (토큰 사용, 바뀐 기능만)")
+    p_develop.add_argument("--only", help="--logic·--build를 이 기능 ID만 (쉼표로 구분)")
+    p_develop.add_argument("--company", help="화면에 보일 회사 이름 (기본: 프로젝트 이름. 주면 프로젝트에 저장)")
+    p_develop.add_argument("--stack", metavar="층=값,…", help="개발할 세 층을 바꿔 만든다 (예: frontend=nextjs,backend=fastapi,database=mysql, 시험용)")
+    p_develop.add_argument("--theme", help="화면 스타일 id (tools/themes.py, 예: navy). 주면 프로젝트에 저장해 다음 개발도 같은 스타일")
+    p_develop.add_argument("--effort", choices=["low", "medium", "high"], help="--logic·--build의 LLM 생각 정도 (기본: 설정 dev_effort)")
     p_develop.add_argument("--menu", action="append", default=[], metavar="영역=이름", help="메뉴 이름 (예: SFR-001=재무회계, 여러 번 쓸 수 있음)")
     p_develop.add_argument("--title", help="화면에 보일 서비스 이름 (기본: 개발 스펙의 사업 이름)")
     p_develop.add_argument("--out", help="코드 폴더 (기본: output/<프로젝트>/app)")
@@ -789,6 +795,21 @@ def _develop(args) -> int:
         return 2
     if args.title:
         spec.options["title"] = args.title
+    if args.stack:
+        from app.agents.tools import stacks
+        given = dict(item.split("=", 1) for item in args.stack.split(",") if "=" in item)
+        spec.parts = {layer: given.get(layer) or spec.parts[layer] for layer in stacks.LAYERS}
+        print(f"개발할 층: {spec.parts}")
+    if args.theme is not None:
+        from app.agents.tools import themes
+        if args.theme and args.theme not in themes.BY_ID:
+            print(f"시작할 수 없습니다: 없는 화면 스타일 '{args.theme}' (고를 수 있는 것: {', '.join(themes.BY_ID)})")
+            return 2
+        save_project_info(project, theme=args.theme)
+        spec.options["theme"] = args.theme
+    if args.company is not None:
+        save_project_info(project, company=args.company.strip())
+        spec.options["company"] = args.company.strip() or project
     out_dir = Path(args.out) if args.out else scaffold.app_dir(project)
     only = {x.strip() for x in (args.only or "").split(",") if x.strip()} or None
     menu = dict(item.split("=", 1) for item in args.menu if "=" in item)
@@ -815,21 +836,101 @@ def _develop(args) -> int:
           + " / ".join(f"{name} 약 ${cost}" for name, cost in todo["cost"].items()))
     if args.plan:
         return 0
-    filled = None
-    if args.logic:
+    filled = built = None
+    if args.logic or args.build:
         if args.provider:
             override_settings(llm_provider=args.provider)
         if args.model:
             key = "anthropic_model" if resolve_provider() == "anthropic" else "openai_model"
             override_settings(**{key: args.model})
+        if args.effort:
+            override_settings(dev_effort=args.effort)
+    if args.logic:
         try:
             filled = developer.fill_logic(spec, out_dir, only)
         except LLMFatalError as e:
             print(f"업무 로직을 채우지 못했습니다: {e}")
             return 1
-    logic = {fid: r.get("hooks") or {} for fid, r in scaffold.load_logic(out_dir).items()}
-    files, _ = scaffold.render_app(spec, menu, logic)
-    report = scaffold.write_app(files, out_dir, force=args.force)
+    from app.agents.tools import stacks
+    if blocked := stacks.no_develop(spec.parts):
+        print(f"시작할 수 없습니다: {', '.join(m['name'] + ' ' + m['label'] for m in blocked)} — {stacks.NO_DEVELOP_NOTE}.")
+        return 2
+    missing = [m["layer"] for m in stacks.untemplated(spec.parts)]
+    # 틀이 없는 층: AI가 뼈대부터 (--build일 때만). DB에 틀이 없으면 서버 틀이 그 DB를 모르므로 서버를 AI가 만든다
+    scratch_layers = sorted({"backend" if layer == "database" else layer for layer in missing})
+    scratch = None
+    if missing and not args.build:
+        print(f"참고: 개발 틀이 없는 층 {', '.join(missing)}은(는) 만들지 않습니다. --build를 주면 AI가 뼈대부터 만듭니다 (토큰·비용이 더 듦).")
+    if args.build:
+        from app.agents.roles import builder
+
+        try:
+            built = builder.build(spec, out_dir, only)
+            if scratch_layers:
+                from app.agents.roles import scaffolder
+                print(f"개발 틀이 없는 층을 AI가 뼈대부터 만듭니다: {', '.join(scratch_layers)} ({scaffolder.labels(spec.parts)})")
+                scratch = scaffolder.build(spec, out_dir, spec.parts, scratch_layers, only=only)
+        except LLMFatalError as e:
+            print(f"기능을 구현하지 못했습니다: {e}")
+            return 1
+    logic = developer.hooks_of(spec, out_dir)   # 지금 서버 틀로 채운 자리만 (다른 틀의 본문은 넣지 않는다)
+
+    def write() -> dict:
+        records = builder.load_built(out_dir) if args.build else None
+        files, _ = scaffold.render_app(spec, menu, logic, records)
+        if scratch:
+            files = scaffolder.apply(files, scratch, spec, scratch_layers)
+        return scaffold.write_app(files, out_dir, force=args.force)
+
+    report = write()
+    if filled and filled["filled"]:   # FastAPI·NestJS: 쓴 뒤 불러오기·tsc로 본다. 틀린 기능은 자리를 기본 동작으로 되돌린다
+        errors, skipped = developer.verify(spec, out_dir, filled["filled"])
+        if errors:
+            developer.drop_hooks(out_dir, errors)
+            print(f"  업무 로직 {len(errors)}개 기능이 불러오기·타입 검사에 실패해 기본 동작으로 되돌립니다 (기록: .req-agent/logic/<기능 ID>.json의 rejected):")
+            for fid, errs in sorted(errors.items()):
+                print(f"    {fid}: {errs[0][:200]}" + (f" 외 {len(errs) - 1}개" if len(errs) > 1 else ""))
+            filled["failed"] = sorted(set(filled["failed"]) | set(errors))
+            filled["filled"] = sorted(set(filled["filled"]) - set(errors))
+            logic = developer.hooks_of(spec, out_dir)
+            report = write()
+        if skipped:
+            print(f"  업무 로직 검사 중 하지 못한 검사: {', '.join(skipped)}")
+    if scratch:   # 이미지가 만들어지는지 (docker build). 실패하면 오류가 난 곳만 오류를 붙여 다시 묻는다
+        errors, skipped = scaffolder.verify(out_dir)
+        for _ in range(2 if errors else 0):   # 오류가 난 곳만 두 번까지 다시 묻는다
+            if not errors:
+                break
+            first = next((e for e in errors if "error" in e.lower()), errors[-1])
+            print(f"  AI 뼈대 빌드 실패 — 오류가 난 곳(뼈대·기능 파일)만 오류를 붙여 다시 묻습니다: {first[:200]}")
+            again = scaffolder.build(spec, out_dir, spec.parts, scratch_layers, scaffolder.blame(errors, scratch, spec), only=only)
+            again["usage"] = {k: scratch["usage"].get(k, 0) + again["usage"].get(k, 0) for k in set(scratch["usage"]) | set(again["usage"])}
+            scratch.update(again)
+            report = write()
+            errors, skipped = scaffolder.verify(out_dir)
+        usage = scratch["usage"]
+        print(f"  AI 뼈대: 층 {', '.join(scratch_layers)} · 기능 파일 {len(scratch['filled'])}개 · 실패 {len(scratch['failed'])}개 · "
+              f"이미지 빌드 {'성공' if not errors else '실패'}{f' ({skipped})' if skipped else ''} · "
+              f"LLM {usage.get('calls', 0)}회, 입력 {usage.get('input_tokens', 0):,} · 출력 {usage.get('output_tokens', 0):,} 토큰")
+        if errors:
+            print("  빌드 오류 끝부분:\n    " + "\n    ".join(errors[-15:]))
+    if args.build and built and (built["filled"] or built["failed"]):   # 컴파일·타입 검사: 틀린 기능만 오류를 붙여 한 번 다시 묻고, 그래도 틀리면 코드 틀
+        errors, skipped = builder.verify(out_dir, builder.load_built(out_dir))
+        if errors:
+            print(f"  컴파일·타입 오류가 있는 기능 {len(errors)}개를 다시 묻습니다: {', '.join(sorted(errors))}")
+            again = builder.build(spec, out_dir, set(errors), feedback=errors)
+            for key in ("filled", "failed"):
+                built[key] = sorted(set(built[key]) - set(again["filled"]) - set(again["failed"]) | set(again[key]))
+            built["usage"] = {k: built["usage"].get(k, 0) + again["usage"].get(k, 0) for k in set(built["usage"]) | set(again["usage"])}
+            report = write()
+            errors, skipped = builder.verify(out_dir, builder.load_built(out_dir))
+            if errors:
+                builder.mark_failed(out_dir, errors)
+                built["failed"] = sorted(set(built["failed"]) | set(errors))
+                built["filled"] = sorted(set(built["filled"]) - set(errors))
+                report = write()
+        if skipped:
+            print(f"  하지 못한 검사: {', '.join(skipped)}")
     print(f"코드 폴더: {out_dir}")
     print(f"  새로 쓴 파일 {len(report['written'])}개 · 그대로 {report['same']}개 · 지운 파일 {len(report['removed'])}개")
     if report["kept"]:
@@ -838,6 +939,10 @@ def _develop(args) -> int:
     if filled:
         usage = filled["usage"]
         print(f"  업무 로직: 채움 {len(filled['filled'])}개 · 실패 {len(filled['failed'])}개 (기본 동작을 둠) · "
+              f"LLM {usage.get('calls', 0)}회, 입력 {usage.get('input_tokens', 0):,} · 출력 {usage.get('output_tokens', 0):,} 토큰")
+    if built:
+        usage = built["usage"]
+        print(f"  기능 구현(LLM): 채움 {len(built['filled'])}개 · 실패 {len(built['failed'])}개 (코드가 만든 기본 틀을 둠) · "
               f"LLM {usage.get('calls', 0)}회, 입력 {usage.get('input_tokens', 0):,} · 출력 {usage.get('output_tokens', 0):,} 토큰")
     print(f"화면 보기: cd {out_dir / 'frontend'} && npm install && npm run dev")
     return 0

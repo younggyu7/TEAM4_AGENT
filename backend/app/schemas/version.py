@@ -31,7 +31,8 @@ class TechStackUpdate(BaseModel):
     """최종본의 기술 스택 확정 (화면 '개발 스펙 파일'에서 선택·직접 입력). LLM 없이 개발 스펙 10개를 다시 쓴다."""
     project: str
     version: str
-    stack: str
+    stack: str = ""                  # 예전 화면: 한 줄 스택 문장
+    parts: dict[str, str] | None = None   # 화면 / 백엔드 / DB를 나눠 고른 값 {frontend, backend, database} (tools/stacks.py)
 
 
 # ERD 화면에서 정한 의미 검토 지적 처리: {이슈 ID: {"choice": applied|not_issue|later, "note": 메모}}

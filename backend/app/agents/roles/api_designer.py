@@ -490,8 +490,8 @@ def stack_question(requirements: list[Requirement], questions: list[Question], a
     if any(STACK_WORDS.search(f"{r.title} {r.description}") for r in requirements):
         return None
     notes = "\n".join(f"{i}. {o} — {n}" for i, (o, n) in enumerate(zip(STACK_OPTIONS, STACK_NOTES), start=1))
-    context = ("원문에서 개발 언어·프레임워크를 찾지 못했습니다. 최종 확정 때 만드는 개발 스펙(AGENTS·ARCHITECTURE·TASKS)에 "
-               "쓸 기술 스택을 정해 주세요. 답은 문서에만 쓰이고 기능 명세·ERD를 다시 설계하지 않습니다.\n" + notes)
+    context = ("원문에서 개발 언어·프레임워크를 찾지 못했습니다. 화면·서버·DB를 하나씩 골라 주세요. 기능 명세를 확정하면 스택도 확정되고, "
+               "개발 스펙(AGENTS·ARCHITECTURE·TASKS)과 최종 개발하기가 이 값을 씁니다. 기능 명세·ERD를 다시 설계하지 않습니다.\n" + notes)
     return Question(question_id=STACK_QUESTION, kind="MISSING", question="개발에 쓸 기술 스택을 무엇으로 할까요?",
                     context=context, options=list(STACK_OPTIONS), requirement_ids=[], blocking=True, stage=BY,
                     recommended=STACK_OPTIONS[0], status="PENDING" if ask else "DEFERRED")
@@ -549,8 +549,8 @@ def tech_stack(design: dict | None, questions: list[Question], chosen: bool = Fa
                 "question": "", "source": source}
     q = next((q for q in questions if q.question_id == STACK_QUESTION), None)
     if q and q.status == "ANSWERED" and q.answer:
-        return {"backend": q.answer, "basis": "확정" if chosen else "가정", "question": q.question_id,
-                "from_answer": not chosen, "source": source}
+        # 기능 명세에서 고른 값이 확정이다 (기능 명세를 확정할 때 함께 확정된다)
+        return {"backend": q.answer, "basis": "확정", "question": q.question_id, "from_answer": not chosen, "source": source}
     pick = q.recommended if q else STACK_OPTIONS[min(max(a.recommended_stack, 1), len(STACK_OPTIONS)) - 1]
     return {"backend": pick, "basis": "가정", "question": q.question_id if q else "", "from_answer": False, "source": source}
 

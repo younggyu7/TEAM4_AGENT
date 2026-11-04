@@ -26,4 +26,5 @@ alembic>=1.13
 # 테스트
 pytest>=8.0
 httpx>=0.27
+cryptography>=42   # git 토큰 암호화 (개발 단계 git 올리기)
 reportlab>=4.0

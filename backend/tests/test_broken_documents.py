@@ -91,6 +91,79 @@ def test_normal_requirement_table_is_untouched():
     assert _repair_requirements(raw) == raw
 
 
+def test_page_number_between_cut_table_parts_is_skipped():
+    """쪽 넘김으로 잘린 표 사이에 쪽 번호 문단이 끼어도 뒷부분을 앞 요구사항에 붙인다 (고객요구사항9 SFR-003 등)."""
+    raw = [{"type": "table", "rows": _req("SFR-03", "시내출장", "출장 신청 모바일 지원")},
+           {"type": "paragraph", "text": "- 13 -"},
+           {"type": "table", "rows": [["", "출장 내역 조회 및 통계 제공"], ["산출정보", ""]]}]
+    got = _fields(_repair_requirements(raw))
+    assert got["SFR-03"]["details"] == "출장 신청 모바일 지원\n출장 내역 조회 및 통계 제공"
+
+
+def test_docx_page_number_paragraph_is_dropped(tmp_path):
+    pytest.importorskip("docx")
+    from docx import Document
+
+    doc = Document()
+    head = doc.add_table(rows=3, cols=2)
+    for r, (k, v) in enumerate([("요구사항 고유번호", "SFR-003"), ("요구사항 명칭", "시내출장"), ("세부내용", "출장 신청 모바일 지원")]):
+        head.cell(r, 0).text, head.cell(r, 1).text = k, v
+    doc.add_paragraph("- 13 -")
+    tail = doc.add_table(rows=2, cols=2)
+    tail.cell(0, 1).text = "출장 내역 조회 및 통계 제공"
+    tail.cell(1, 0).text = "산출 정보"
+    path = tmp_path / "cut.docx"
+    doc.save(path)
+    blocks = parse_document(path)
+    assert not any(b.text.strip() == "- 13 -" for b in blocks), "인쇄용 쪽 번호는 블록으로 남기지 않음"
+    req = [b for b in blocks if b.block_type == "requirement_table"]
+    assert len(req) == 1 and "출장 내역 조회 및 통계 제공" in req[0].fields["details"]
+
+
+def test_spaced_code_and_labels_are_recognized():
+    """글자 사이에 공백이 섞인 변환본 (고객요구사항12): 칸 이름 '요구사항 고유번 호', 번호 'MS R- 001'."""
+    raw = [{"type": "table", "rows": [["요구사항 분류 ", "유지 보수 수행 요구사항"], ["요구사항 고유번 호", "MS R- 001"],
+                                      ["요구사항 명칭 ", "전 산장비 유지 보수"], ["", "세 부 내 용", "정기 점검 실시"],
+                                      ["산출 정 보", "월간보고서"]]}]
+    got = _fields(_repair_requirements(raw))
+    assert list(got) == ["MSR-001"], "번호 공백을 지우고 요구사항 표로 알아봄"
+    assert got["MSR-001"]["details"] == "정기 점검 실시" and got["MSR-001"]["outputs"] == "월간보고서"
+
+
+def test_middle_fragment_without_labels_is_joined():
+    """세 쪽에 걸친 표의 가운데 조각은 칸 이름이 없다 (고객요구사항9 SFR-018, 12 MSR-001)."""
+    raw = [{"type": "table", "rows": _req("SFR-18", "AI 회의록", "파일 업로드")},
+           {"type": "table", "rows": [["", "", "회의 정보 등록"]]},
+           {"type": "table", "rows": [["", "", "회의록 편집 및 공유"], ["산출정보", ""]]}]
+    got = _fields(_repair_requirements(raw))
+    assert got["SFR-18"]["details"] == "파일 업로드\n회의 정보 등록\n회의록 편집 및 공유"
+
+
+def test_list_table_cut_by_page_is_joined(tmp_path):
+    """쪽마다 잘린 목록형 요구사항 표 (고객요구사항8 비기능): 머리글 없는 뒷부분, 빈 분류 칸, 번호 없이 떨어진 마지막 말."""
+    pytest.importorskip("docx")
+    from docx import Document
+
+    doc = Document()
+    head = doc.add_table(rows=3, cols=4)
+    for r, row in enumerate([["분류", "고유번호", "요구사항명", "세부내용"],
+                             ["보안 (SER)", "SER-001", "인증·접근통제", "사용자 유형별 권한기반 접근통제와 세션관리"],
+                             ["테스트 (TER)", "TER-002", "사용자 인수시험", "발주기관 담당자 대상 실제 업무 시나리오"]]):
+        for c, text in enumerate(row):
+            head.cell(r, c).text = text
+    doc.add_paragraph("- 19 -")
+    tail = doc.add_table(rows=2, cols=4)
+    for r, row in enumerate([["", "", "", "기준 인수시험"], ["", "TER-003", "보안·성능 점검", "웹 취약점 점검과 부하 테스트 수행"]]):
+        for c, text in enumerate(row):
+            tail.cell(r, c).text = text
+    path = tmp_path / "list.docx"
+    doc.save(path)
+    req = {b.fields["code"]: b.fields for b in parse_document(path) if b.block_type == "requirement_table"}
+    assert list(req) == ["SER-001", "TER-002", "TER-003"], "머리글 없는 뒷부분도 요구사항으로 읽음"
+    assert req["TER-002"]["details"] == "발주기관 담당자 대상 실제 업무 시나리오 기준 인수시험", "떨어진 마지막 말을 앞 행에 붙임"
+    assert req["TER-003"]["category"] == "테스트 (TER)", "빈 분류 칸은 앞 행의 분류를 이어받음"
+
+
 def test_sub_table_rows_inside_details_are_kept():
     fields = parse_requirement_table([
         ["요구사항 번호", "SFR-04", "요구사항 분류", "시스템 기능 요구사항"], ["요구사항 이름", "솔루션 신청"],

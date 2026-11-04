@@ -1,4 +1,5 @@
 import { mockDelete, mockList, mockRow, mockSave, mockSet, refOptions } from './mock'
+import { authHeaders, expired } from './session'
 import type { Action, FormView, Option, Page, Row, Screen } from './types'
 
 // 화면이 쓰는 API 한곳. 기본은 예시 데이터(mock.ts), VITE_API=server면 백엔드를 부른다.
@@ -12,16 +13,34 @@ function url(path: string, values: Row, query?: Row): string {
   return BASE + filled + (search ? `?${search}` : '')
 }
 
-async function send(method: string, target: string, role: string, body?: Row): Promise<Row> {
+// role은 화면이 보이는 역할이다. 서버는 로그인 토큰으로 사용자와 역할을 정하고 이 값을 믿지 않는다.
+async function send(method: string, target: string, _role: string, body?: Row): Promise<Row> {
   const { __pk: _pk, ...fields } = body ?? {}
-  const res = await fetch(target, {
-    method,
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': '1', 'X-User-Role': encodeURIComponent(role) },   // 시연용 사용자 (TASK-003에서 실제 인증으로)
-    body: body ? JSON.stringify(fields) : undefined,
-  })
-  const data = res.status === 204 ? {} : await res.json()
-  if (!res.ok) throw new Error((data as { message?: string }).message ?? `요청을 처리하지 못했습니다 (${res.status})`)
+  const res = await fetch(target, { method, headers: authHeaders(), body: body ? JSON.stringify(fields) : undefined })
+  const data = res.status === 204 ? {} : await res.json().catch(() => ({}))
+  if (!res.ok) {
+    expired(res.status)
+    throw new Error((data as { message?: string }).message ?? `요청을 처리하지 못했습니다 (${res.status})`)
+  }
   return data as Row
+}
+
+/** 포털 로그인 (서버 모드) */
+export async function login(loginId: string, password: string): Promise<{ token: string; loginId: string; role: string; userId: string }> {
+  const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loginId, password }) })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { message?: string }).message ?? '로그인하지 못했습니다.')
+  return data as { token: string; loginId: string; role: string; userId: string }
+}
+
+/** 저장된 토큰이 아직 쓸 수 있는지 (서버를 다시 시작하면 다시 로그인한다) */
+export async function checkLogin(): Promise<boolean> {
+  const res = await fetch('/api/auth/me', { headers: authHeaders() }).catch(() => null)
+  return !!res && res.ok
+}
+
+export async function logout(): Promise<void> {
+  if (SERVER) await fetch('/api/auth/logout', { method: 'POST', headers: authHeaders() }).catch(() => undefined)
 }
 
 /** 경로에 필요한데 아직 고르지 않은 조회 조건 (서버는 값이 없으면 호출할 수 없다) */

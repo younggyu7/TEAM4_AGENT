@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 
-from app.api.v1 import artifacts, auth, drafts, jobs, projects, review, runs, versions
+from app.api.v1 import artifacts, auth, develop, drafts, jobs, projects, review, runs, versions
 from app.api.v1.deps import current_user
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
@@ -27,13 +27,15 @@ async def lifespan(_: FastAPI):
     # 서비스 DB가 있으면: 지난번 서버가 추적하던 '진행 중' 작업은 더 볼 수 없으므로 실패로 닫는다
     if closed := job_service.close_orphaned_jobs():
         log.info("서버 시작: 추적이 끊긴 진행 중 작업 %d건을 실패로 닫음", closed)
-    # [임시] 회원이 없는 DB(새 PC)면 시연용 계정을 만든다 (services/users.py TEST_ACCOUNTS, 끄기: SEED_TEST_ACCOUNTS=false)
+    # [임시] 시연용 계정 중 이 DB에 없는 것만 만든다 (services/users.py TEST_ACCOUNTS, 끄기: SEED_TEST_ACCOUNTS=false)
     if get_settings().seed_test_accounts:
         try:
-            if made := user_service.seed_test_accounts():
+            if made := user_service.seed_test_accounts(only_if_empty=False):
                 log.info("서버 시작: 시연용 계정 %d개를 만듦 (비밀번호 %s)", len(made), user_service.TEST_PASSWORD)
         except Exception as e:  # noqa: BLE001 — 회원 테이블이 아직 없으면(alembic 전) 서버는 그대로 띄운다
             log.warning("시연용 계정을 만들지 못함 (alembic upgrade head를 했는지 확인): %s", e)
+    from app.services import preview
+    preview.start_reaper()   # 10분 동안 안 본 실행 미리보기를 끈다
     yield
 
 
@@ -45,6 +47,7 @@ app = FastAPI(
     openapi_tags=[
         {"name": "auth", "description": "회원가입·로그인·회원 관리 (역할별 권한은 app/core/auth.py)"},
         {"name": "projects", "description": "프로젝트·설계 버전·산출물·새 버전 만들기 (로그인 필요)"},
+        {"name": "develop", "description": "승인한 최종본으로 최종 개발하기·미리보기 실행·git 올리기"},
         {"name": "health", "description": "서버 상태 확인"},
     ],
 )
@@ -68,3 +71,4 @@ app.include_router(review.router, prefix=API_PREFIX, dependencies=signed_in)    
 app.include_router(runs.router, prefix=API_PREFIX, dependencies=signed_in)        # 문서 업로드 → 기능 명세 초안 (작업)
 app.include_router(jobs.router, prefix=API_PREFIX, dependencies=signed_in)        # 작업 진행 상황
 app.include_router(drafts.router, prefix=API_PREFIX, dependencies=signed_in)      # 수정 초안 공유·팀장 승인
+app.include_router(develop.router, prefix=API_PREFIX, dependencies=signed_in)     # 최종 개발하기·미리보기·git

@@ -62,9 +62,13 @@ export interface Auto {
   rules: Rule[]
 }
 
+export interface Account { loginId: string; role: string; userId: string; name: string }
+
 export interface Design {
   project: string
   title: string
+  company: string
+  accounts: Account[]
   version: string
   stack: string
   menu: { group: string; name: string; short: string; pages: { name: string; screens: string[] }[] }[]

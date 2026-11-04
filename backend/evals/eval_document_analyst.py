@@ -1,4 +1,4 @@
-"""문서분석 Agent 평가: 골든셋으로 full·research 모드를 채점한다.
+﻿"""문서분석 Agent 평가: 골든셋으로 full·research 모드를 채점한다.
 
     python -m evals.eval_document_analyst                               # 고객요구사항3·5 채점, 결과는 output/eval/에 저장
     python -m evals.eval_document_analyst --docs 1,2                    # 고르고 싶은 문서 번호
@@ -31,16 +31,19 @@ from app.agents.tools.document_parser import document_codes, parse_document, tex
 ROOT = Path(__file__).resolve().parents[1]
 # 문서별 골든셋 (evals/golden/doc<번호>/document_analyst.json)
 GOLDEN_DIR = Path(__file__).resolve().parent / "golden"
-DOC_ORDER = ["5", "3", "1", "2", "6"]     # 결과 표의 문서 순서 (이전 결과와 같게, 새 문서는 뒤에)
+DOC_ORDER = ["5", "3", "1", "2", "6", "7", "8", "9", "12"]     # 결과 표의 문서 순서 (이전 결과와 같게, 새 문서는 뒤에)
 DEFAULT_DOCS = "3,5"
+EVAL_DOCS: list[str] = []     # 평가용 골든셋 (아직 없음): 실패를 보고 코드를 고치지 않는다. 'all'에서 빼고 '--docs eval'(또는 번호)로만 채점
 
 
 def doc_numbers(spec: str) -> list[str]:
     """'3,5' · 'all' → 문서 번호 목록 (항상 DOC_ORDER 순서)."""
-    wanted = DOC_ORDER if spec == "all" else [n.strip() for n in spec.split(",") if n.strip()]
+    spec = unicodedata.normalize("NFKC", spec).strip().lower()     # 한글 입력 상태의 전각 숫자·쉼표('２，３')도 받는다
+    wanted = ([n for n in DOC_ORDER if n not in EVAL_DOCS] if spec == "all" else EVAL_DOCS if spec == "eval"
+              else [n.strip() for n in spec.split(",") if n.strip()])
     unknown = [n for n in wanted if n not in DOC_ORDER]
     if unknown:
-        raise SystemExit(f"없는 문서 번호: {unknown} (쓸 수 있는 번호: {', '.join(sorted(DOC_ORDER))}, all)")
+        raise SystemExit(f"없는 문서 번호: {unknown} (쓸 수 있는 번호: {', '.join(sorted(DOC_ORDER, key=int))}, all=튜닝용 전체, eval=평가용)")
     return [n for n in DOC_ORDER if n in wanted]
 
 
@@ -151,7 +154,7 @@ def score_extraction(doc: Doc, unit: dict) -> dict:
     segs = segments(unit["reference_text"])
     if i is None:
         return {"unit_key": unit["unit_key"], "found": False, "content": 0.0, "critical": 0.0, "missing": segs[:5],
-                "ok": False}
+                "mixed_with": [], "ok": False}
     src, text = doc.sources[i], doc.src_text[i]
     missing = [s for s in segs if norm(s) not in text]
     crit = [s for s in segs if CRITICAL.search(s)]
@@ -167,7 +170,9 @@ def score_extraction(doc: Doc, unit: dict) -> dict:
             mixed.append(other["unit_key"])
     loc_ok = _location_ok(doc, unit, src)
     title_ok = _same_title(src.name, unit["title"])
-    category_ok = _same_title(src.category, unit.get("category_original", ""))
+    # 원문 분류 칸이 비어 있고 추출도 비어 있으면 맞은 것이다 (doc9 SFR-010~013: 빈칸끼리를 실패로 세던 채점 오류)
+    category_ok = (not norm(src.category) and not norm(unit.get("category_original", ""))) \
+        or _same_title(src.category, unit.get("category_original", ""))
     row = {"unit_key": unit["unit_key"], "found": True, "source": src.source_key,
            "id_ok": src.code == unit["requirement_id"], "title_ok": title_ok, "category_ok": category_ok,
            "content": 1 - len(missing) / (len(segs) or 1), "critical": 1 - len(crit_missing) / (len(crit) or 1),
@@ -178,7 +183,10 @@ def score_extraction(doc: Doc, unit: dict) -> dict:
 
 def _location_ok(doc: Doc, unit: dict, src: RequirementSource) -> bool | None:
     """PDF: source 첫 블록의 쪽이 정답 첫 위치의 쪽과 같고, 정답 쪽이 모두 source 블록 쪽에 들어 있는가.
-    HWPX: 쪽 정보가 없어 표 순서로 본다 (정답 단위의 표 순번 순서 = source 순서)."""
+    HWPX: 쪽 정보가 없어 표 순서로 본다 (정답 단위의 표 순번 순서 = source 순서).
+    정답과 다른 형식으로 채점하면(--format) 쪽·표 순번 기준이 달라 위치는 채점하지 않는다."""
+    if doc.meta.get("format_override"):
+        return None
     locs = unit.get("locations") or []
     pages = [l["pdf_page_1based"] for l in locs if "pdf_page_1based" in l]
     if pages:
@@ -222,8 +230,17 @@ def score_quality(doc: Doc, case: dict, unit_by_key: dict) -> dict:
         hit = any(exp["referenced_id"] in f.message for f in fired)
     elif kind == "no_duplicate_ids":
         hit = any(f.kind == "DOC_DUPLICATE_REQ_CODE" for f in fired)
-    elif kind == "overlapping_content":                   # 다른 표·그림이 글자를 덮음: 그 요구사항을 짚는 경고가 있어야 함
+    elif kind in ("overlapping_content",                  # 다른 표·그림이 글자를 덮음
+                  "identifier_gap",                       # 번호가 건너뜀 (SER-001 다음 SER-004)
+                  "empty_category",                       # 분류 칸이 비어 있음: 그 요구사항을 짚는 경고가 있어야 함
+                  "empty_detail"):                        # (negative) 세부내용이 다음 쪽에 있음: 그 요구사항을 짚는 경고가 없어야 함
         hit = any(f.target_id in codes | keys or any(c in f.message for c in codes) for f in fired)
+    elif kind == "category_label_variants":               # 분류 표기가 제목과 글자만 다름: 분류 불일치 경고가 없어야 함
+        hit = any(f.kind in ("DOC_HEADING_CATEGORY_MISMATCH", "DOC_CODE_CATEGORY_MISMATCH") for f in fired)
+    elif kind == "no_requirement_table_false_alarm":      # 요구사항 표가 있는 문서: '요구사항 표가 없음' 경고가 없어야 함
+        hit = any(f.kind == "DOC_NO_REQUIREMENT_TABLE" for f in fired)
+    elif kind == "no_list_detail_mismatch":               # 목록표가 없는 문서: 목록·상세 불일치 경고가 없어야 함
+        hit = any(f.kind in ("DOC_DETAIL_MISSING", "DOC_NOT_IN_LIST", "DOC_NAME_MISMATCH") for f in fired)
     elif kind == "no_text_layer_absent_pages":
         hit = any(f.kind in ("DOC_TEXTLESS_PAGES", "DOC_NO_TEXT") for f in fired)
     elif kind == "nested_table_is_not_requirement":
@@ -301,13 +318,34 @@ def delivery_cost(doc: Doc) -> dict:
 
 
 # ------------------------------------------------------------------ 실행·보고
-def evaluate(memory: bool = False, spec: str = DEFAULT_DOCS) -> dict:
+def _with_format(meta: dict, fmt: str | None) -> dict | None:
+    """정답은 그대로 두고 같은 내용의 다른 형식 파일(고객요구사항7.pdf → .docx)을 읽게 한다. 그 파일이 없으면 None."""
+    if not fmt or meta["file_name"].lower().endswith("." + fmt):
+        return meta
+    name = Path(meta["file_name"]).with_suffix("." + fmt).name
+    try:
+        _doc_path(name)
+    except FileNotFoundError:
+        return None
+    return {**meta, "file_name": name, "format_override": True}
+
+
+def evaluate(memory: bool = False, spec: str = DEFAULT_DOCS, fmt: str | None = None) -> dict:
     g = load_golden(spec)
     unit_by_key = {u["unit_key"]: u for u in g["reference_units"]}
-    docs = {d["document_id"]: Doc(d, [u for u in g["reference_units"] if u["document_id"] == d["document_id"]], memory)
-            for d in g["documents"]}
+    docs, skipped = {}, []
+    for d in g["documents"]:
+        meta = _with_format(d, fmt)
+        if meta is None:
+            skipped.append(Path(d["file_name"]).with_suffix("." + fmt).name)
+            continue
+        docs[d["document_id"]] = Doc(meta, [u for u in g["reference_units"] if u["document_id"] == d["document_id"]], memory)
+    if not docs:
+        raise SystemExit(f"data 폴더에 {fmt} 형식 파일이 없습니다: {', '.join(skipped)}")
     by_type: dict[str, list[dict]] = {}
     for c in g["cases"]:
+        if c["input"]["document_id"] not in docs:
+            continue
         by_type.setdefault("research" if c["input"]["mode"] == "research" else c["metadata"]["type"], []).append(c)
 
     extraction = [{"id": c["id"], **score_extraction(docs[c["input"]["document_id"]],
@@ -331,6 +369,7 @@ def evaluate(memory: bool = False, spec: str = DEFAULT_DOCS) -> dict:
     quality = [score_quality(docs[c["input"]["document_id"]], c, unit_by_key) for c in by_type.get("문서 품질 검사", [])]
     research = score_research(docs, by_type.get("research", []), unit_by_key)
     return {"golden": g["meta"]["version"], "docs": ",".join(doc_numbers(spec)), "at": datetime.now().isoformat(timespec="seconds"),
+            "format": fmt, "files": [doc.meta["file_name"] for doc in docs.values()], "skipped": skipped,
             "summary": summarize(full, extraction, chunks, research, quality),
             "full": full, "extraction": extraction, "chunks": chunks, "research": research, "quality": quality}
 
@@ -376,7 +415,11 @@ def summarize(full, extraction, chunks, research, quality) -> dict:
 
 def report(result: dict, previous: dict | None) -> str:
     docs = "고객요구사항" + "·".join(sorted(result.get("docs", "3,5").split(",")))
-    lines = [f"# document_analyst 평가 ({docs}, 골든셋 v{result['golden']}, {result['at']})", "", "| 지표 | 값 |" +
+    lines = [f"# document_analyst 평가 ({docs}, 골든셋 v{result['golden']}, {result['at']})", ""]
+    if result.get("format"):
+        lines += [f"읽은 파일 형식: **{result['format']}** ({', '.join(result['files'])}). 정답과 형식이 다른 문서는 위치를 채점하지 않음."
+                  + (f" 파일이 없어 건너뜀: {', '.join(result['skipped'])}" if result.get("skipped") else ""), ""]
+    lines += ["| 지표 | 값 |" +
              (" 이전 |" if previous else ""), "| --- | --- |" + (" --- |" if previous else "")]
     for k, v in result["summary"].items():
         lines.append(f"| {k} | {v} |" + (f" {previous['summary'].get(k, '-')} |" if previous else ""))
@@ -417,14 +460,21 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--label", default="")
     ap.add_argument("--memory", action="store_true", help="최대 메모리도 잰다 (느림)")
     ap.add_argument("--docs", default=DEFAULT_DOCS, help="채점할 문서 번호 (예: 3,5 · 1,2 · all). 기본 3,5")
+    ap.add_argument("--no-save", action="store_true", help="결과 파일을 만들지 않고 화면에만 보여준다")
+    ap.add_argument("--format", choices=["pdf", "hwpx", "docx"],
+                    help="정답은 그대로 두고 같은 내용의 이 형식 파일을 읽는다 (예: 고객요구사항7.docx). 정답과 형식이 다르면 위치는 채점하지 않음")
     args = ap.parse_args(argv)
-    result = evaluate(args.memory, args.docs)
+    result = evaluate(args.memory, args.docs, args.format)
     previous = json.loads(Path(args.compare).read_text(encoding="utf-8")) if args.compare else None
+    text = report(result, previous)
+    if args.no_save:
+        print(text)
+        return
     OUT.mkdir(parents=True, exist_ok=True)
-    tag = "" if doc_numbers(args.docs) == doc_numbers(DEFAULT_DOCS) else "-docs" + "".join(sorted(doc_numbers(args.docs)))
+    tag = "-docs" + ",".join(sorted(doc_numbers(args.docs), key=int))     # 두 자리 번호(12)와 1·2가 섞이지 않게 쉼표로 구분
+    tag += f"-{args.format}" if args.format else ""
     name = datetime.now().strftime("%Y%m%d-%H%M%S") + tag + (f"-{args.label}" if args.label else "")
     (OUT / f"{name}.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
-    text = report(result, previous)
     (OUT / f"{name}.md").write_text(text, encoding="utf-8")
     print(text)
     print(f"\n저장: {OUT / name}.json")
