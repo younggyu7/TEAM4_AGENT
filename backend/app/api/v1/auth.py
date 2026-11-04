@@ -1,11 +1,12 @@
 """회원가입·로그인·회원 관리.
 
-  POST /auth/signup     회원가입 (처음 가입자는 관리자·팀장, 그 뒤는 승인 대기)
+  POST /auth/signup     회원가입 (처음 가입자는 관리자·팀장, 그 뒤는 승인 대기, Slack 멤버 ID 선택)
   POST /auth/login      로그인 → httpOnly 쿠키 세션
   POST /auth/logout     로그아웃
   GET  /auth/me         로그인한 회원·권한
+  GET  /members         승인된 회원 (업로드 화면에서 Slack 채널에 초대할 담당자 고르기, 로그인한 회원)
   GET  /users           회원 목록 (관리자)
-  POST /users/update    역할·승인·중지·관리자 지정 (관리자)
+  POST /users/update    역할·승인·중지·관리자 지정·Slack 멤버 ID (관리자)
   POST /users/create    계정 바로 만들기 (관리자, 역할을 정해 승인된 상태)
   POST /users/password  비밀번호 초기화 (관리자)
 """
@@ -16,7 +17,7 @@ from pydantic import BaseModel
 
 from app.api.v1.deps import SESSION_COOKIE, admin_user, current_user
 from app.core.auth import ROLES
-from app.services import users
+from app.services import slack, users
 
 router = APIRouter(tags=["auth"])
 
@@ -26,6 +27,7 @@ class SignupBody(BaseModel):
     name: str
     password: str
     requested_role: str = ""   # 희망 역할 (관리자 참고용, 바로 주지 않음)
+    slack_id: str = ""         # Slack 멤버 ID (U…, 프로젝트 Slack 채널 초대·멘션에 씀)
 
 
 class LoginBody(BaseModel):
@@ -40,6 +42,7 @@ class MemberCreate(BaseModel):
     password: str
     role: str
     is_admin: bool = False
+    slack_id: str = ""
 
 
 class PasswordReset(BaseModel):
@@ -52,11 +55,12 @@ class MemberUpdate(BaseModel):
     role: str | None = None
     status: str | None = None     # active(승인) · disabled(중지) · pending
     is_admin: bool | None = None
+    slack_id: str | None = None   # Slack 멤버 ID (U…), 빈 값이면 지운다 (Slack 초대·멘션 안 함)
 
 
 @router.post("/auth/signup", summary="회원가입")
 def signup(body: SignupBody):
-    member = users.signup(body.email, body.name, body.password, body.requested_role)
+    member = users.signup(body.email, body.name, body.password, body.requested_role, body.slack_id)
     return {"user": member.to_dict(), "pending": member.status != "active"}
 
 
@@ -85,19 +89,28 @@ def roles():
     return {"roles": [{"id": k, "label": v} for k, v in ROLES.items()]}
 
 
+@router.get("/members", summary="승인된 회원 (Slack 담당자 고르기) + Slack 알림이 켜졌는지")
+def list_active_members(_: users.Member = Depends(current_user)):
+    return {"members": [{"id": m.id, "name": m.name, "role": m.role, "role_label": ROLES.get(m.role, "역할 없음"),
+                         "has_slack": bool(m.slack_id)} for m in users.list_members() if m.status == "active"],
+            "slack_enabled": slack.enabled()}
+
+
 @router.get("/users", summary="회원 목록 (관리자)")
 def list_users(_: users.Member = Depends(admin_user)):
     return {"users": [m.to_dict() for m in users.list_members()]}
 
 
-@router.post("/users/update", summary="회원 역할·승인·중지 (관리자)")
+@router.post("/users/update", summary="회원 역할·승인·중지·Slack 멤버 ID (관리자)")
 def update_user(body: MemberUpdate, _: users.Member = Depends(admin_user)):
-    return {"user": users.update_member(body.id, role=body.role, status=body.status, is_admin=body.is_admin).to_dict()}
+    member = users.update_member(body.id, role=body.role, status=body.status, is_admin=body.is_admin, slack_id=body.slack_id)
+    return {"user": member.to_dict()}
 
 
 @router.post("/users/create", summary="계정 바로 만들기 (관리자)")
 def create_user(body: MemberCreate, _: users.Member = Depends(admin_user)):
-    return {"user": users.create_member(body.email, body.name, body.password, body.role, body.is_admin).to_dict()}
+    return {"user": users.create_member(body.email, body.name, body.password, body.role, body.is_admin,
+                                        body.slack_id).to_dict()}
 
 
 @router.post("/users/password", summary="비밀번호 초기화 (관리자)")

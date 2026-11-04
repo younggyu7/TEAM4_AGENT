@@ -3,11 +3,13 @@
 초안 파일(프로젝트 파일 draft-v<버전>.json):
     {"state": 화면 초안, "rev": 저장 번호, "updated_at", "updated_by",
      "log": [{"by", "at", "changes": [{"target", "label", "what"}]}],   # 최신이 끝, LOG_LIMIT개까지
-     "request": {"by", "at", "note"} | null}                           # 파트원의 수정 완료 승인 요청
+     "request": {"by", "at", "note"} | null,                           # 파트원의 수정 완료 승인 요청
+     "rejection": {"by", "at", "reason", "request"} | null}            # 마지막 반려 (새 요청·확정이면 지움)
 
 - 변경 내역은 저장할 때 서버가 이전 초안과 비교해 만든다. 같은 사람이 MERGE_MINUTES 안에 이어 고치면 한 묶음에 합친다.
 - 파트원이 요청한 뒤 다시 고치면 요청은 취소된다 (고친 것을 보고 승인해야 하므로). 파트장·팀장이 고치는 것은 취소하지 않는다.
 - 파트장의 확정(기능 명세 내보내기·ERD 최종 확정)은 그 버전에 요청이 있어야 한다. 팀장은 요청 없이 확정할 수 있다.
+- 파트장·팀장은 요청을 반려할 수 있다 (사유 필수). 요청은 닫히고 파트원은 고친 뒤 다시 요청한다.
 """
 from __future__ import annotations
 
@@ -45,7 +47,8 @@ def read(project: str, version: str) -> dict:
     text = get_store().read_project_file(project, _name(version))
     doc = json.loads(text) if text else {}
     return {"state": doc.get("state"), "rev": doc.get("rev", 0), "updated_at": doc.get("updated_at"),
-            "updated_by": doc.get("updated_by"), "log": doc.get("log") or [], "request": doc.get("request")}
+            "updated_by": doc.get("updated_by"), "log": doc.get("log") or [], "request": doc.get("request"),
+            "rejection": doc.get("rejection")}
 
 
 def _write(project: str, version: str, doc: dict) -> None:
@@ -158,10 +161,26 @@ def request(project: str, version: str, member, note: str = "") -> dict:
     doc = read(project, version)
     at = _now()
     doc["request"] = {"by": _who(member), "at": at, "note": note.strip()[:500]}
+    doc["rejection"] = None
     doc["log"].append({"by": _who(member), "at": at, "event": "request",
                        "changes": [{"target": "", "label": "승인 요청", "what": f"수정 완료 승인 요청{f' — {note.strip()[:80]}' if note.strip() else ''}"}]})
     _write(project, version, doc)
     return doc["request"]
+
+
+def reject(project: str, version: str, member, reason: str) -> dict | None:
+    """파트장·팀장의 반려: 요청을 닫고 사유를 남긴다. 반려한 요청을 돌려준다 (요청이 없으면 None)"""
+    doc = read(project, version)
+    req = doc["request"]
+    if not req:
+        return None
+    at, reason = _now(), reason.strip()[:500]
+    doc["log"].append({"by": _who(member), "at": at, "event": "request_rejected",
+                       "changes": [{"target": "", "label": "승인 요청", "what": f"반려 — {reason[:80]}"}]})
+    doc["request"] = None
+    doc["rejection"] = {"by": _who(member), "at": at, "reason": reason, "request": req}
+    _write(project, version, doc)
+    return req
 
 
 def require_request(project: str, version: str, member, what: str) -> None:
@@ -172,9 +191,12 @@ def require_request(project: str, version: str, member, what: str) -> None:
         raise Forbidden(f"파트원의 '수정 완료 승인 요청'이 있어야 {what}할 수 있습니다.")
 
 
-def note_event(project: str, version: str, member, label: str, what: str) -> None:
-    """확정을 변경 내역에 남기고 승인 요청을 닫는다 (화면에서 누가 언제 확정했는지 보이게, 같은 요청이 알림에 남지 않게)"""
+def note_event(project: str, version: str, member, label: str, what: str) -> dict | None:
+    """확정을 변경 내역에 남기고 승인 요청을 닫는다 (화면에서 누가 언제 확정했는지 보이게, 같은 요청이 알림에 남지 않게).
+    확정으로 승인한 파트원의 요청을 돌려준다 (팀장이 요청 없이 확정했으면 None)"""
     doc = read(project, version)
+    req = doc["request"]
     doc["log"].append({"by": _who(member), "at": _now(), "event": "confirm", "changes": [{"target": "", "label": label, "what": what}]})
-    doc["request"] = None
+    doc["request"], doc["rejection"] = None, None
     _write(project, version, doc)
+    return req

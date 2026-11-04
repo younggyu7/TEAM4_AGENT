@@ -114,6 +114,9 @@ class Settings:
     cors_origins: tuple[str, ...] = DEFAULT_CORS_ORIGINS  # 브라우저 요청을 허용할 프론트 주소 (로컬 Vite 개발 서버는 proxy라 없어도 됨)
     behavior_max_questions: int = 5                      # 상태 전환·자동 처리에서 낼 고객 확인 질문 상한 (BQ-…)
     dev_effort: str = "medium"                           # 개발 단계(업무 로직 채우기) 요청의 생각 수준 (빈 값이면 실행 설정)
+    slack_bot_token: str = ""                            # 팀 Slack 워크스페이스 봇 토큰 (xoxb-…). 비우면 Slack 알림을 끈다 (services/slack.py)
+    slack_sync_seconds: int = 30                         # '나에게 온 알림'을 프로젝트 Slack 채널에 올릴 것이 있는지 확인하는 주기 (초)
+    app_base_url: str = "http://localhost:5173"          # Slack 메시지의 '화면에서 열기' 링크가 가리킬 프론트 주소
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -163,6 +166,9 @@ class Settings:
             or DEFAULT_CORS_ORIGINS,
             behavior_max_questions=_int("BEHAVIOR_MAX_QUESTIONS", cls.behavior_max_questions),
             dev_effort=os.getenv("DEV_EFFORT", cls.dev_effort).strip().lower(),
+            slack_bot_token=os.getenv("SLACK_BOT_TOKEN", "").strip(),
+            slack_sync_seconds=max(5, _int("SLACK_SYNC_SECONDS", cls.slack_sync_seconds)),
+            app_base_url=(os.getenv("APP_BASE_URL", "").strip() or cls.app_base_url).rstrip("/"),
         )
 
     def fix_attempts(self, agent: str) -> int:

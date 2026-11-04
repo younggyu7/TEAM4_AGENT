@@ -1,6 +1,7 @@
 """문서 업로드 실행 (작업).
 
-  POST /runs          문서 업로드(multipart file, project?, title?, model?, effort?) → 기능 명세 초안까지 실행 → {job}
+  POST /runs          문서 업로드(multipart file, project?, title?, model?, effort?, slack_members?)
+                      → (Slack이 켜져 있으면 프로젝트 비공개 채널을 만들고 담당자 초대) → 기능 명세 초안까지 실행 → {job, slack}
   GET  /llm-options   업로드 화면에서 고를 모델·생각 수준 (키가 있는 공급자만)
 """
 from __future__ import annotations
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from app.agents.tools.document_parser import UnsupportedFormatError, check_supported
 from app.api.v1.deps import _no_running_job, current_user, ensure
@@ -20,7 +22,7 @@ from app.core import guards
 from app.agents.llm.client import resolve_provider
 from app.core.config import ANTHROPIC_MODELS, EFFORTS, get_settings
 from app.core.exceptions import BadRequest, PayloadTooLarge
-from app.services import jobs, output_store, users
+from app.services import jobs, output_store, slack, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
 
@@ -59,9 +61,14 @@ async def create_run(
     title: Annotated[str, Form(description="사업 이름 (LLM에 사업 맥락으로 줌)")] = "",
     model: Annotated[str, Form(description="LLM 모델 ID (GET /llm-options의 models, 비우면 .env)")] = "",
     effort: Annotated[str, Form(description="생각 수준 low·medium·high (비우면 .env)")] = "",
+    slack_members: Annotated[str, Form(description="채널에 초대할 담당자 회원 ID (쉼표로 구분, GET /members)")] = "",
     member: users.Member = Depends(current_user),
 ):
     ensure(member, "upload")
+    try:
+        slack_ids = [int(x) for x in slack_members.split(",") if x.strip()]
+    except ValueError as e:
+        raise BadRequest("slack_members는 회원 ID를 쉼표로 이은 값입니다.") from e
     if model and model not in {m["id"] for m in llm_options()["models"]}:
         raise BadRequest(f"고를 수 없는 모델입니다: {model}")
     if effort and effort not in EFFORTS:
@@ -88,7 +95,15 @@ async def create_run(
     except UnsupportedFormatError as e:
         shutil.rmtree(folder, ignore_errors=True)
         raise BadRequest(str(e)) from e
+    # Slack(.env SLACK_BOT_TOKEN이 있을 때): 프로젝트 채널을 만들고 고른 담당자를 초대한다. 실패해도 분석은 하고,
+    # 고른 담당자를 남겨 두어 서버가 나중에 다시 만든다 (services/slack.ensure_channels)
+    connected = None
+    if slack.enabled():
+        try:
+            connected = await run_in_threadpool(slack.create_channel, project, slack_ids, member)
+        except slack.SlackError as e:
+            connected = {"error": f"Slack 채널을 만들지 못했습니다: {e} (서버가 잠시 뒤 다시 만들어 봅니다)"}
     job = jobs.start_run(output_dir=output_store.output_root(), document=target, project=project,
                          title=title.strip(), model=model, effort=effort,
                          on_done=lambda v: output_store.record_maker(project, v, member))
-    return {"job": job.to_dict()}
+    return {"job": job.to_dict(), "slack": connected}

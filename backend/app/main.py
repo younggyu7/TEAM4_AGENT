@@ -16,6 +16,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
 from app.core.security import add_cors
 from app.services import jobs as job_service
+from app.services import slack
 from app.services import users as user_service
 
 API_PREFIX = "/api/v1"
@@ -34,7 +35,11 @@ async def lifespan(_: FastAPI):
                 log.info("서버 시작: 시연용 계정 %d개를 만듦 (비밀번호 %s)", len(made), user_service.TEST_PASSWORD)
         except Exception as e:  # noqa: BLE001 — 회원 테이블이 아직 없으면(alembic 전) 서버는 그대로 띄운다
             log.warning("시연용 계정을 만들지 못함 (alembic upgrade head를 했는지 확인): %s", e)
+    # Slack 알림 (.env SLACK_BOT_TOKEN이 있을 때): 프로젝트마다 채널을 만들고 나에게 온 알림·승인·반려를 올린다 (services/slack.py)
+    if slack.start():
+        log.info("Slack 알림 켬: %d초마다 프로젝트 채널·'나에게 온 알림'을 확인", get_settings().slack_sync_seconds)
     yield
+    slack.stop()
 
 
 setup_logging(get_settings().log_level)

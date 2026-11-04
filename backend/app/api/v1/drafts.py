@@ -3,6 +3,7 @@
   GET  /drafts               버전의 수정 초안 (편집·체크·답·지적 처리) + 변경 내역(누가·언제·무엇을) + 승인 요청
   POST /drafts               수정 초안 저장 (rev가 다르면 409: 다른 사람이 먼저 저장)
   POST /drafts/request       파트원의 수정 완료 승인 요청 (파트장의 확정은 이 요청이 있어야 한다)
+  POST /drafts/request/reject  승인 요청 반려 (그 단계를 확정할 수 있는 파트장·팀장, 사유 필수)
   POST /projects/approval    최종본 승인 / 수정 지시 (팀장)
   GET  /projects/directives  끝나지 않은 수정 지시와 진행 (어느 버전에서 처리할지, 옛 ERD 잠금, 항목 처리)
   POST /projects/directives/resolve  지시 항목 처리: 반영함 / 그대로 둠(이유) — LLM 없음
@@ -11,6 +12,7 @@
 초안은 산출물 저장소의 프로젝트 파일 draft-v<버전>.json에 둔다 (서비스 DB가 있으면 project_files 테이블, 형식은
 services/drafts.py).
 기능 명세 버전의 초안은 기획 파트, ERD 버전의 초안은 데이터 파트가 고친다 (예전 전체 실행 버전은 둘 다).
+승인 요청·반려·팀장 결정은 Slack을 연결한 프로젝트면 그 채널에도 올린다 (services/slack.py).
 """
 from __future__ import annotations
 
@@ -25,7 +27,7 @@ from app.api.v1.deps import _project, current_user, ensure
 from app.core import guards
 from app.core.auth import allowed, denied_message
 from app.core.exceptions import BadRequest, Conflict, Forbidden, NotFound
-from app.services import directives, drafts, output_store, users
+from app.services import directives, drafts, output_store, slack, users
 
 router = APIRouter(tags=["projects"])
 MAX_DRAFT = 4 * 1024 * 1024   # 초안 하나의 최대 크기 (JSON 글자 수)
@@ -42,6 +44,12 @@ class ReviewRequest(BaseModel):
     project: str
     version: str
     note: str = Field("", max_length=500)
+
+
+class RejectRequest(BaseModel):
+    project: str
+    version: str
+    reason: str = Field(max_length=500)
 
 
 class ChangeItem(BaseModel):
@@ -118,7 +126,28 @@ def save_draft(body: DraftSave, member: users.Member = Depends(current_user)):
 def request_review(body: ReviewRequest, member: users.Member = Depends(current_user)):
     project, version = _project(body.project), guards.version(body.version)
     _can_edit(project, version, member)
-    return {"request": drafts.request(project, version, member, body.note), "log": drafts.read(project, version)["log"]}
+    req = drafts.request(project, version, member, body.note)
+    slack.kick()   # 파트장·팀장의 '나에게 온 알림'에 승인 요청이 생겼다 → Slack으로
+    return {"request": req, "log": drafts.read(project, version)["log"]}
+
+
+@router.post("/drafts/request/reject", summary="승인 요청 반려 (파트장·팀장 → 파트원)")
+def reject_request(body: RejectRequest, member: users.Member = Depends(current_user)):
+    project, version = _project(body.project), guards.version(body.version)
+    _record(project, version)
+    # 요청 알림을 받는 사람과 같게: 기능 명세 단계는 기획 파트장·팀장, ERD 단계는 데이터 파트장·팀장
+    stage = directives.Tree(project).stage_of(version)
+    if stage == "final":
+        raise BadRequest("최종본은 승인 요청이 없습니다. 팀장이 '수정 지시'로 돌려보냅니다.")
+    ensure(member, "spec_confirm" if stage == "spec" else "erd_confirm")
+    if not body.reason.strip():
+        raise BadRequest("반려 사유를 적어 주세요.")
+    req = drafts.reject(project, version, member, body.reason)
+    if req is None:
+        raise NotFound("반려할 승인 요청이 없습니다 (이미 확정·반려됐거나 파트원이 다시 고쳐 취소됨).")
+    slack.request_decided(project, version, stage, req, member, approved=False, reason=body.reason.strip())
+    doc = drafts.read(project, version)
+    return {"request": None, "rejection": doc["rejection"], "log": doc["log"]}
 
 
 @router.post("/projects/approval", summary="최종본 승인 / 수정 지시 (팀장)")
@@ -142,6 +171,8 @@ def decide(body: Approval, member: users.Member = Depends(current_user)):
                 "at": datetime.now().isoformat(timespec="seconds"),
                 "by": {"id": member.id, "name": member.name, "role": member.role}}
     update_version(project, version, approval=decision, approvals=[*(record.get("approvals") or []), decision])
+    slack.final_decided(project, version, decision, member)   # 관여한 회원에게 최종 승인 / 반려(수정 지시)
+    slack.kick()   # 수정 지시를 받은 파트의 '나에게 온 알림'
     return {"approval": decision}
 
 

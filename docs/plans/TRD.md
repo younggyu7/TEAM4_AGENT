@@ -1,6 +1,6 @@
 # TRD
 
-- 버전·최종 수정일: 2.1 · 2026-11-02
+- 버전·최종 수정일: 2.2 · 2026-11-04
 - 상태: 검토 중 (현재 코드 구조로 다시 씀)
 - 파일별 설명: [PROJECT_STRUCTURE.md](../../PROJECT_STRUCTURE.md) · 실행·API·설정: [프로젝트 README](../../README.md) · 변경 기록: [IMPLEMENTATION_STATUS_FOR_FASTAPI.md](../../IMPLEMENTATION_STATUS_FOR_FASTAPI.md)
 
@@ -34,6 +34,7 @@ LLM이 걸리는 작업(몇 분)은 서버 안에서 돌리지 않고 같은 코
 | 실행 체크포인트 | LangGraph `PostgresSaver` (DB 없으면 `SqliteSaver`) | rerun·review·resume는 기준 버전을 만든 실행의 마지막 상태에서 시작 |
 | 코드 도구 | `app/agents/tools/` (LLM 없음) | 문서 파서, 모델 검사, ERD·DDL 생성기, DB 검증, 산출물 쓰기, 개발 스펙(`dev_spec.py`, `spec-format v1`) |
 | 설정 | 루트 `.env` 하나, `app/core/config.py` | docker용 `POSTGRES_*`와 앱 설정을 함께 둔다. 상대 경로는 `backend/` 기준 |
+| Slack 알림 (제안) | `app/services/slack.py`, `app/models/notification.py` | 팀 워크스페이스 봇 토큰 하나(`.env` `SLACK_BOT_TOKEN`). 프로젝트마다 비공개 채널·담당자를 `slack_projects`에 둔다: 업로드(`POST /runs`의 `slack_members`) 때 만들고, 채널이 없는 프로젝트는 백그라운드가 만든다(`auth.test` → `conversations.create`(`is_private`) → `conversations.invite`, 실패하면 10분 뒤 다시). 담당자 바꾸기는 `POST /projects/slack/members` → `conversations.invite`·`conversations.kick`. 서버 안의 백그라운드 스레드 하나가 Slack Web API(표준 라이브러리 HTTP, `chat.postMessage`)로 채널에 올린다. '나에게 온 알림'은 저장된 상태에서 계산하므로 올린 알림 키(종류·프로젝트·화면·버전·시각)를 `slack_notifications`에 남겨 한 번만 올리고, 승인 요청·결정·작업 완료 때 바로, 그 밖에는 `SLACK_SYNC_SECONDS`마다 확인한다. 승인·반려 결과는 결정 API가 바로 큐에 넣는다. 멘션은 그 채널 담당자(초대된 회원)만. Slack 실패는 로그만 남긴다 |
 
 ERD·DDL은 `data_model.json` 하나에서 코드 생성기가 만든다. 생성 DDL 검증은 `VALIDATION_DB_URL`(비우면 같은 컨테이너의 `reqagent_validation`)에 임시 스키마로 적용하며, 접속할 수 없으면 SQLite로 대체 검증하고 보고서에 적는다. 서비스 DB와 검증 DB는 다른 DB다.
 
@@ -47,7 +48,7 @@ ERD·DDL은 `data_model.json` 하나에서 코드 생성기가 만든다. 생성
 
 ## 4. 검증
 
-- `backend/tests` (가짜 LLM, API 키 없이): DB 없이 197 passed · 9 skipped (2026-11-02). PostgreSQL 포함 실행은 2026-10-30 기록(199 passed · 2 skipped) 뒤 다시 하지 않았다. CI(`.github/workflows/ci.yml`)는 PostgreSQL 서비스와 함께 돈다.
+- `backend/tests` (가짜 LLM, API 키 없이): DB 없이 318 passed · 9 skipped (2026-11-04, `test_slack` 포함). PostgreSQL 포함 실행은 2026-10-30 기록(199 passed · 2 skipped) 뒤 다시 하지 않았다. CI(`.github/workflows/ci.yml`)는 PostgreSQL 서비스와 함께 돈다.
 - 화면(`TEAM4_AGENT_FRONT`): 타입 검사(`tsc -b`)와 빌드만 한다. 확정 버튼·지적 처리 화면은 브라우저로 확인하지 않았다.
 - 마이그레이션: `alembic check`로 모델과 DB 차이를 확인한다.
 - 품질: `backend/evals`의 골든셋으로 문서 분석·요구사항 추출을 LLM 없이 채점한다.

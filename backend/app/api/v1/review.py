@@ -10,7 +10,7 @@ from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
 from app.core.exceptions import BadRequest, NotFound
 from app.schemas.version import ReviewCreate
-from app.services import directives, drafts, jobs, output_store, users
+from app.services import directives, drafts, jobs, output_store, slack, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
 
@@ -28,7 +28,8 @@ def create_review(body: ReviewCreate, member: users.Member = Depends(current_use
     _no_running_job(body.project)
     directives.ensure_unlocked(project, version)
     drafts.require_request(project, version, member, "ERD를 최종 확정")
-    drafts.note_event(project, version, member, "확정", "ERD 최종 확정 → 최종본 만들기")
+    approved = drafts.note_event(project, version, member, "확정", "ERD 최종 확정 → 최종본 만들기")
+    slack.request_decided(project, version, "erd", approved, member, approved=True)   # 요청한 파트원에게 '승인'
     return {"job": jobs.start_review(output_dir=output_store.output_root(), project=body.project, version=version,
                                      dispositions=body.dispositions,
                                      on_done=lambda v: output_store.record_maker(project, v, member)).to_dict()}

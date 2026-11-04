@@ -108,19 +108,40 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET /tech-stacks` · `POST /projects/tech-stack` | 개발 스펙의 기술 스택 선택지 · 최종본의 기술 스택 확정 → 개발 스펙 9개를 LLM 없이 다시 쓰기 (`{project, version, stack}`) |
 | `POST /projects/versions` | 기능 명세 내보내기(`source: spec`) → ERD 새 버전, ERD 저장(`source: erd`, `dispositions`: 의미 검토 지적 처리) → 다음 ERD 버전, `source: answers`(또는 `spec` + `answers`) → 기능 명세 새 버전 (답이 없어도 수정·의견으로). `confirm_rules`('추천안 맞음'으로 확인한 규칙)는 LLM 없이 `(결정)` → `202 {job}` |
 | `POST /projects/review` | ERD 최종 확정 (`{project, version, dispositions?}`) → 지적 처리 기록·DDL 검증 → 최종본 v<ERD>.1 (추적 검토·API 설계·개발 스펙) → `202 {job}` |
-| `POST /runs` (multipart `file`, `project?`, `title?`, `model?`, `effort?`) | 문서 업로드 → 기능 명세 초안까지 실행(`--defer --until function_designer`) → `202 {job}`. 고른 모델·생각 수준은 그 프로젝트의 ERD·최종 확정까지 쓴다 |
+| `POST /runs` (multipart `file`, `project?`, `title?`, `model?`, `effort?`, `slack_members?`) | 문서 업로드 → (Slack이 켜져 있으면 프로젝트 비공개 채널을 만들고 `slack_members`(회원 ID, 쉼표) 초대, 실패해도 계속) → 기능 명세 초안까지 실행(`--defer --until function_designer`) → `202 {job, slack: {team, channel_name, invited, failed, existing} 또는 {error} 또는 null(Slack 꺼짐)}`. 고른 모델·생각 수준은 그 프로젝트의 ERD·최종 확정까지 쓴다 |
 | `GET /llm-options` | 업로드에서 고를 모델(키가 있는 공급자만, 모델별 effort 지원 여부)·생각 수준·`.env` 기본값 |
 | `GET /jobs?id=` | 작업 진행 상황 `{status: running·done·failed, message, log, new_version, warnings}` |
 | `GET /capabilities` | rerun이 기능 명세 수정본(`--design`·`--spec-md`)·추천안 확인 규칙(`--confirm-rules`)을 받는지 |
 | `GET /health` | 서버 상태 |
-| `POST /auth/signup` · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` · `GET /auth/roles` | 회원가입(처음 가입자 = 관리자·팀장, 그 뒤 승인 대기) · 로그인(httpOnly 쿠키 세션) · 로그아웃 · 로그인한 회원과 권한 · 역할 목록. **이 밖의 API는 로그인 필요(401)** |
-| `GET /users` · `POST /users/update` · `POST /users/create` · `POST /users/password` | 회원 목록 · 역할·승인·중지·관리자 지정 · 계정 바로 만들기(역할을 정해 승인된 상태) · 비밀번호 초기화 (관리자만, 화면 '관리자 페이지') |
-| `GET·POST /drafts` · `POST /drafts/request` | 버전의 수정 초안 함께 쓰기 (`{project, version, state, rev}`, 늦은 저장은 409, 응답에 변경 내역 `log`·승인 요청 `request`) · 파트원의 수정 완료 승인 요청 (파트장의 확정은 이 요청이 있어야, 팀장은 없이) |
+| `POST /auth/signup` · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` · `GET /auth/roles` | 회원가입(처음 가입자 = 관리자·팀장, 그 뒤 승인 대기, Slack 멤버 ID 선택) · 로그인(httpOnly 쿠키 세션) · 로그아웃 · 로그인한 회원과 권한 · 역할 목록. **이 밖의 API는 로그인 필요(401)** |
+| `GET /users` · `POST /users/update` · `POST /users/create` · `POST /users/password` | 회원 목록 · 역할·승인·중지·관리자 지정·Slack 멤버 ID(`slack_id`) · 계정 바로 만들기(역할을 정해 승인된 상태, `slack_id?`) · 비밀번호 초기화 (관리자만, 화면 '관리자 페이지') |
+| `GET /members` | 승인된 회원 `{id, name, role, role_label, has_slack}` + `slack_enabled` (업로드 화면에서 Slack 채널 담당자 고르기, 로그인한 회원 누구나) |
+| `GET·POST /drafts` · `POST /drafts/request` · `POST /drafts/request/reject` | 버전의 수정 초안 함께 쓰기 (`{project, version, state, rev}`, 늦은 저장은 409, 응답에 변경 내역 `log`·승인 요청 `request`·마지막 반려 `rejection`) · 파트원의 수정 완료 승인 요청 (파트장의 확정은 이 요청이 있어야, 팀장은 없이) · 승인 요청 반려 (`{project, version, reason}`, 그 단계를 확정할 수 있는 파트장·팀장, 사유 필수, 요청이 없으면 404) |
 | `POST /projects/approval` | 최종본 승인 / 수정 지시 (`{project, version, decision: approve·changes, targets?: [spec, erd], items?: [{stage, target_id, label, note}], comment}`, 팀장만) |
 | `GET /projects/directives?project=` · `POST /projects/directives/resolve` | 끝나지 않은 수정 지시와 진행(처리할 버전, 기능 명세 대기, 옛 ERD 잠금) · 지시 항목 처리 반영함·그대로 둠(이유) |
-| `GET /notices` | 나에게 온 알림 (역할별: 수정 지시·기능 명세 대기·승인 요청·승인 대기) |
+| `GET /notices` | 나에게 온 알림 (역할별: 수정 지시·기능 명세 대기·승인 요청·승인 대기, 회원별: 반려 `kind: rejected` — 내가 요청했거나 고친 초안, 다시 요청하거나 그 뒤 같은 계보에 새 버전이 생길 때까지) |
+| `GET /projects/slack?project=` · `POST /projects/slack/members` | 프로젝트 Slack 채널·담당자 `{team, channel_name, members}`(채널이 아직 없으면 `null`) · 담당자 바꾸기 (`{project, members: [회원 ID]}`, 팀장만, 결과 `{added, removed, failed}`, 채널이 없으면 404, Slack이 꺼져 있으면 400) |
 
 역할별 권한(서버가 검사, `app/core/auth.py`): 업로드·기능 명세 수정 = 기획 파트원 이상 · 기능 명세 확정(내보내기) = 기획 파트장 · ERD 수정·저장 = 데이터 파트원 이상 · ERD 최종 확정 = 데이터 파트장 · 최종 승인·수정 지시·기술 스택 = 팀장(모든 단계 가능). 회원 테이블은 `alembic upgrade head`로 만든다 (서비스 DB가 없으면 `OUTPUT_DIR/service.sqlite`).
+
+**Slack 알림** (`backend/app/services/slack.py`): 팀 Slack 워크스페이스 하나에 프로젝트마다 비공개 채널을 자동으로 만들어 그 채널에 알림을 올린다.
+
+- 준비: 이 웹의 회원이 모두 들어 있는 워크스페이스에 Slack 앱을 만들고(<https://api.slack.com/apps>, Bot Token Scopes `chat:write`·`groups:write`) 설치 → 'Bot User OAuth Token'(`xoxb-…`)을 루트 `.env` `SLACK_BOT_TOKEN`에 넣고 서버를 다시 시작한다. 비우면 Slack 알림을 끈다.
+- 채널: 업로드하면 서버가 비공개 채널 `#team4-<프로젝트>`를 만들고 업로드 화면에서 고른 담당자를 초대한다(이름이 있으면 `-2`, 한글 이름을 받지 않는 워크스페이스면 영문 이름). 채널이 없는 기존 프로젝트는 서버가 알아서 만들고 Slack 멤버 ID가 있는 회원을 모두 초대한다. Slack이 실패해도 업로드·분석은 그대로 하고, 서버가 `RETRY_SECONDS`(10분) 뒤에 다시 만든다. 채널·담당자는 `slack_projects` 테이블.
+- 담당자 = 채널에 실제로 초대된 회원. Slack 멤버 ID가 없거나 워크스페이스에 없는 ID면 담당자에 넣지 않고 업로드 결과에 이유를 보여 준다.
+- 담당자 바꾸기: 중간에 담당자가 바뀌면 프로젝트 화면 오른쪽 'Slack 채널' 카드에서 팀장이 '담당자 바꾸기'로 다시 고른다(`POST /projects/slack/members`). 더한 회원은 채널에 초대하고(전에 초대하지 못한 담당자도 다시 초대), 뺀 회원은 채널에서 내보내고, 채널에 `[담당자 변경]`을 올린다. 그 뒤 멘션은 새 담당자 기준이다.
+- 회원 Slack 멤버 ID(`U…`, Slack 프로필 → ⋮ → '멤버 ID 복사')는 회원가입·관리자 페이지에서 넣는다. [임시] 시연용 계정 7개에는 임의 ID(`U0T4…`)가 들어 있어 실제로는 초대되지 않는다 (관리자 페이지에서 바꾼다).
+
+| 언제 | 채널에 올리는 메시지 (멘션) |
+| --- | --- |
+| 홈 '나에게 온 알림'에 새 항목 (승인 요청·최종 승인 대기·수정 지시·수정 대기) | `[승인 요청]` 등 + 화면 링크, 알림마다 하나씩 (그 알림을 받는 회원 중 담당자). 같은 알림은 한 번만 (`slack_notifications`) |
+| 파트장·팀장이 확정('내보내기 → ERD 만들기'·'ERD 최종 확정하기') | `[승인]` (요청한 파트원) |
+| 파트장·팀장이 반려 (`POST /drafts/request/reject`) | `[반려]` + 사유 (요청한 파트원 + 그 초안을 고친 같은 파트 담당자). 홈 '나에게 온 알림'에도 '반려'가 남는다(Slack에는 다시 안 올림) |
+| 팀장이 최종 승인 | `[최종 승인]` (그 최종본·바탕 ERD·기능 명세를 만들거나 고친 회원) |
+| 팀장이 수정 지시 | `[반려 · 수정 지시]` + 지시 내용 (위 회원 + 지시를 처리할 파트, 팀장 자신 빼고). 같은 지시의 `[수정 지시]` 알림은 따로 올리지 않음 |
+| 담당자 바꾸기 | `[담당자 변경]` 추가·제외 (새 담당자) |
+
+알림은 승인 요청·결정·작업 완료 때 바로, 그 밖에는 `SLACK_SYNC_SECONDS`(30)초마다 확인한다(채널이 없는 프로젝트도 이때 만든다). 링크 주소는 `APP_BASE_URL`(기본 `http://localhost:5173`). Slack이 실패해도 화면 요청은 그대로 되고 서버 로그에만 남는다.
 
 **[임시] 시연용 계정**: 계정은 git이 아니라 각 PC의 DB에 있다. 그래서 회원이 한 명도 없는 DB면 서버가 시작할 때 계정 7개를 만든다(`admin@team4.local` 관리자·팀장, `plan.head`·`plan1`·`plan2`(기획), `data.head`·`data1`·`data2`(데이터) `@team4.local`, 비밀번호 `Team4!2026`, 목록은 `backend/app/services/users.py` `TEST_ACCOUNTS`). 이미 회원이 있으면 만들지 않는다. 없는 계정만 직접 만들기: `python -m app seed-accounts`. 끄기: `.env` `SEED_TEST_ACCOUNTS=false`. 실제로 쓸 때는 끄고 지운다.
 

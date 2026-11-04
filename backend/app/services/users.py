@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -19,10 +20,12 @@ from app.core.auth import ROLES, hash_password, new_token, token_hash, verify_pa
 from app.core.config import get_settings
 from app.core.database import sqlalchemy_url
 from app.core.exceptions import BadRequest, Conflict, Forbidden, NotFound, Unauthorized
+from app.models.notification import SlackNotification, SlackProject
 from app.models.user import User, UserSession
 
 SESSION_DAYS = 7          # '로그인 유지'를 고르면 쿠키·세션을 이만큼 둔다
 SESSION_HOURS = 12        # 고르지 않으면 브라우저를 닫을 때까지(쿠키) · 서버는 이 시간까지
+SLACK_ID = re.compile(r"^[UW][A-Z0-9]{6,20}$")   # Slack 멤버 ID (프로필 → ⋮ → '멤버 ID 복사')
 
 
 @dataclass(frozen=True)
@@ -36,25 +39,28 @@ class Member:
     is_admin: bool
     status: str
     created_at: str
+    slack_id: str = ""
 
     def to_dict(self) -> dict:
         from app.core.auth import permissions_of
         return {"id": self.id, "email": self.email, "name": self.name, "role": self.role,
                 "role_label": ROLES.get(self.role, "역할 없음"), "requested_role": self.requested_role,
                 "is_admin": self.is_admin, "status": self.status, "created_at": self.created_at,
+                "slack_id": self.slack_id,
                 "permissions": permissions_of(self.role) if self.status == "active" else []}
 
 
 def _member(u: User) -> Member:
     return Member(u.id, u.email, u.name, u.role, u.requested_role, u.is_admin, u.status,
-                  u.created_at.isoformat(timespec="seconds") if u.created_at else "")
+                  u.created_at.isoformat(timespec="seconds") if u.created_at else "", u.slack_id or "")
 
 
 @cache
 def _sessions(url: str) -> sessionmaker[Session]:
     engine = create_engine(sqlalchemy_url(url), pool_pre_ping=True)
     if url.startswith("sqlite"):   # 서비스 DB가 없을 때(로컬·테스트)는 회원 테이블만 바로 만든다. PostgreSQL은 Alembic
-        User.metadata.create_all(engine, tables=[User.__table__, UserSession.__table__])
+        User.metadata.create_all(engine, tables=[User.__table__, UserSession.__table__,
+                                                 SlackProject.__table__, SlackNotification.__table__])
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 
@@ -83,8 +89,16 @@ def _aware(t: datetime) -> datetime:
     return t if t.tzinfo else t.replace(tzinfo=timezone.utc)   # SQLite는 시간대를 지운다
 
 
-def signup(email: str, name: str, password: str, requested_role: str = "") -> Member:
-    email, name = email.strip().lower(), name.strip()
+def slack_member_id(value: str) -> str:
+    """Slack 멤버 ID 입력을 다듬는다 (대문자). 형식이 틀리면 400, 빈 값은 그대로 (Slack 초대·멘션 안 함)"""
+    value = (value or "").strip().upper()
+    if value and not SLACK_ID.match(value):
+        raise BadRequest("Slack 멤버 ID는 U 또는 W로 시작하는 영문 대문자·숫자입니다 (Slack 프로필 → ⋮ → '멤버 ID 복사').")
+    return value
+
+
+def signup(email: str, name: str, password: str, requested_role: str = "", slack_id: str = "") -> Member:
+    email, name, slack_id = email.strip().lower(), name.strip(), slack_member_id(slack_id)
     if "@" not in email or len(email) > 200:
         raise BadRequest("이메일 형식이 아닙니다.")
     if not name or len(name) > 100:
@@ -98,17 +112,18 @@ def signup(email: str, name: str, password: str, requested_role: str = "") -> Me
             raise Conflict("이미 가입한 이메일입니다.")
         first = not db.scalar(select(func.count()).select_from(User))
         user = User(email=email, name=name, password_hash=hash_password(password), requested_role=requested_role,
-                    role="lead" if first else "", is_admin=first, status="active" if first else "pending")
+                    role="lead" if first else "", is_admin=first, status="active" if first else "pending",
+                    slack_id=slack_id)
         db.add(user)
         db.flush()
         return _member(user)
 
 
-def create_member(email: str, name: str, password: str, role: str, is_admin: bool = False) -> Member:
+def create_member(email: str, name: str, password: str, role: str, is_admin: bool = False, slack_id: str = "") -> Member:
     """관리자 페이지: 가입 절차 없이 역할을 정한 계정을 바로 만든다 (승인된 상태)."""
     if role not in ROLES:
         raise BadRequest("역할이 올바르지 않습니다.")
-    member = signup(email, name, password)
+    member = signup(email, name, password, slack_id=slack_id)
     return update_member(member.id, role=role, status="active", is_admin=is_admin or member.is_admin)
 
 
@@ -164,13 +179,21 @@ def list_members() -> list[Member]:
         return [_member(u) for u in db.scalars(select(User).order_by(User.created_at, User.id))]
 
 
+def get_member(user_id: int) -> Member | None:
+    with _db() as db:
+        user = db.get(User, user_id)
+        return _member(user) if user else None
+
+
 def update_member(user_id: int, *, role: str | None = None, status: str | None = None,
-                  is_admin: bool | None = None) -> Member:
-    """관리자 화면: 역할·상태(승인·중지)·관리자 여부를 바꾼다."""
+                  is_admin: bool | None = None, slack_id: str | None = None) -> Member:
+    """관리자 화면: 역할·상태(승인·중지)·관리자 여부·Slack 멤버 ID를 바꾼다."""
     if role is not None and role not in ROLES:
         raise BadRequest("역할이 올바르지 않습니다.")
     if status is not None and status not in ("active", "disabled", "pending"):
         raise BadRequest("상태가 올바르지 않습니다.")
+    if slack_id is not None:
+        slack_id = slack_member_id(slack_id)
     with _db() as db:
         user = db.get(User, user_id)
         if user is None:
@@ -186,23 +209,30 @@ def update_member(user_id: int, *, role: str | None = None, status: str | None =
             if not others:
                 raise BadRequest("관리자가 한 명은 있어야 합니다.")
         user.role, user.status, user.is_admin = role, status, admin
+        if slack_id is not None:
+            user.slack_id = slack_id
         if status != "active":   # 중지·대기로 바꾸면 로그인을 끊는다
             db.execute(delete(UserSession).where(UserSession.user_id == user.id))
         return _member(user)
+
+
+def service_db():
+    """회원과 같은 DB 세션 (서비스 DB, 없으면 OUTPUT_DIR/service.sqlite). Slack 연결·알림 기록도 여기 둔다 (services/slack.py)"""
+    return _db()
 
 
 # ---------------------------------------------------------------- [임시] 시연용 계정 (나중에 지운다)
 # 계정은 git이 아니라 각 PC의 DB에 있어서, 다른 PC에서도 같은 계정으로 로그인하려고 코드에 둔다.
 # 회원이 한 명도 없을 때만 만든다 (이미 쓰는 DB는 건드리지 않음). 끄기: .env SEED_TEST_ACCOUNTS=false
 TEST_PASSWORD = "Team4!2026"
-TEST_ACCOUNTS = [   # (이메일, 이름, 역할, 관리자)
-    ("admin@team4.local", "김관리", "lead", True),
-    ("plan.head@team4.local", "이기획", "planner_head", False),
-    ("plan1@team4.local", "박기획", "planner", False),
-    ("plan2@team4.local", "최기획", "planner", False),
-    ("data.head@team4.local", "정데이터", "data_head", False),
-    ("data1@team4.local", "강데이터", "data", False),
-    ("data2@team4.local", "조데이터", "data", False),
+TEST_ACCOUNTS = [   # (이메일, 이름, 역할, 관리자, Slack 멤버 ID — 임의 값이라 실제 Slack에 초대되지 않는다. 관리자 페이지에서 바꾼다)
+    ("admin@team4.local", "김관리", "lead", True, "U0T4ADMIN01"),
+    ("plan.head@team4.local", "이기획", "planner_head", False, "U0T4PLANH01"),
+    ("plan1@team4.local", "박기획", "planner", False, "U0T4PLAN101"),
+    ("plan2@team4.local", "최기획", "planner", False, "U0T4PLAN201"),
+    ("data.head@team4.local", "정데이터", "data_head", False, "U0T4DATAH01"),
+    ("data1@team4.local", "강데이터", "data", False, "U0T4DATA101"),
+    ("data2@team4.local", "조데이터", "data", False, "U0T4DATA201"),
 ]
 
 
@@ -212,10 +242,10 @@ def seed_test_accounts(password: str = TEST_PASSWORD, only_if_empty: bool = True
     if only_if_empty and existing:
         return []
     made = []
-    for email, name, role, admin in TEST_ACCOUNTS:
+    for email, name, role, admin, slack_id in TEST_ACCOUNTS:
         if email in existing:
             continue
-        member = signup(email, name, password) if not list_members() else create_member(email, name, password, role, admin)
+        member = signup(email, name, password, slack_id=slack_id) if not list_members()             else create_member(email, name, password, role, admin, slack_id)
         if member.role != role or member.is_admin != admin:
             update_member(member.id, role=role, status="active", is_admin=admin)
         made.append(email)
