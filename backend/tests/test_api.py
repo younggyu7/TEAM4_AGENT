@@ -453,3 +453,28 @@ def test_temporary_test_accounts_are_seeded_and_missing_ones_added(capsys):
     assert users.seed_test_accounts(only_if_empty=False) == [], "있는 계정(중지 포함)은 건드리지 않는다"
     assert TestClient(app).post("/api/v1/auth/login", json={"email": "plan1@team4.local", "password": users.TEST_PASSWORD}).status_code == 200
     assert cli.main(["seed-accounts"]) == 0 and "이미 있음" in capsys.readouterr().out
+
+
+def test_lead_renames_a_project_and_only_the_shown_name_changes(project):
+    """프로젝트 이름 바꾸기 (팀장만): 목록·Slack에 보이는 이름만 바뀌고 프로젝트 ID·주소는 그대로. 비우면 처음 이름."""
+    from app.agents.tools.versions import project_info, save_version
+
+    other = get_settings().output_dir / "other" / "v1"
+    other.mkdir(parents=True)
+    (other / "design.json").write_text(json.dumps({"meta": {}, "requirements": []}), encoding="utf-8")
+    save_version("other", {"design_version": "1", "stage": "function_designer"})
+    lead, planner = signed_in_client(), signed_in_client("planner")
+    body = {"project": "team/demo", "name": "  새  회사 포털 "}
+    r = planner.post("/api/v1/projects/name", json=body)
+    assert r.status_code == 403 and "팀장만" in r.json()["detail"]
+    r = lead.post("/api/v1/projects/name", json=body)
+    assert r.status_code == 200 and r.json() == {"project": "team/demo", "name": "새 회사 포털"}, "공백은 하나로"
+    names = {p["id"]: p["name"] for p in planner.get("/api/v1/projects").json()["projects"]}
+    assert names == {"team/demo": "새 회사 포털", "other": "other"}, "ID는 그대로, 보이는 이름만"
+    assert planner.get("/api/v1/design?project=team/demo&version=1").status_code == 200, "주소(ID)는 그대로 쓴다"
+    assert lead.post("/api/v1/projects/name", json={**body, "name": "x" * 81}).status_code == 400
+    r = lead.post("/api/v1/projects/name", json={"project": "other", "name": "새 회사 포털"})
+    assert r.status_code == 409 and "같은 이름" in r.json()["detail"]
+    r = lead.post("/api/v1/projects/name", json={"project": "team/demo", "name": ""})
+    assert r.json()["name"] == "demo" and "name" not in project_info("team/demo"), "비우면 처음 이름으로"
+    assert "project_rename" in lead.get("/api/v1/auth/me").json()["user"]["permissions"]

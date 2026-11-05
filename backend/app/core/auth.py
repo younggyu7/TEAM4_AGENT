@@ -40,6 +40,7 @@ PERMISSIONS: dict[str, tuple[set[str], str]] = {
     "repo_write": ({"dev", "dev_head"}, "최종 개발물 브랜치·코드 고치기·저장하기·합치기 요청은 개발 파트원·개발 파트장만 할 수 있습니다."),
     "app_accounts": ({"dev", "dev_head", "lead"}, "앱 시연 계정은 개발 파트원·개발 파트장·팀장만 볼 수 있습니다."),
     "project_delete": ({"lead"}, "프로젝트 삭제는 팀장만 할 수 있습니다."),
+    "project_rename": ({"lead"}, "프로젝트 이름은 팀장만 바꿀 수 있습니다."),
 }
 
 

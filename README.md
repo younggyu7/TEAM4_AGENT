@@ -105,6 +105,7 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET·HEAD /file?project=&version=&name=` | 산출물 원문 (`schema.sql`, `erd.mmd`, `functions.md`, 최종본의 개발 스펙 `API.md`·`openapi.yaml` …) |
 | `GET /spec-format` | 개발 스펙 문서의 형식 정의 (`backend/SPEC_FORMAT.md`) |
 | `POST /projects/title` | 버전 제목 저장 |
+| `POST /projects/name` | 프로젝트 이름 바꾸기 (`{project, name}`, 팀장만, 80자, 다른 프로젝트와 같은 이름은 409, 비우면 처음 이름). 목록·Slack 메시지·다음 최종 개발하기의 회사 이름에 보이는 이름만 바뀌고 프로젝트 ID(주소·코드 폴더·Slack 채널 이름)는 그대로. 프로젝트 파일 `project.json`의 `name` |
 | `DELETE /projects?project=&confirm=` | 프로젝트 삭제 (팀장만, `confirm`에 프로젝트 이름 그대로, 작업 중이면 409). 버전·산출물·프로젝트 파일·코드 폴더(git)·미리보기 컨테이너와 DB·작업·담당자·Slack 기록을 지움 (Slack 채널·원격 저장소는 그대로, 되돌릴 수 없음) |
 | `POST /projects/dev-spec/fill` | 업무 동작 분석 전에 만든 예전 최종본의 빠진 개발 스펙 채우기: 업무 동작 설계 LLM 1회 → 개발 스펙 다시 쓰기 (`{project, version}`, 데이터 파트장·팀장, 이미 채웠으면 400, LLM 실패면 502로 파일을 그대로 둠) |
 | `GET /tech-stacks` · `POST /projects/tech-stack` | 개발 스펙의 기술 스택 선택지 · 최종본의 기술 스택 확정 → 개발 스펙 9개를 LLM 없이 다시 쓰기 (`{project, version, stack}`) |

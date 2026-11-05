@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from app.agents.storage import get_store
 
@@ -95,9 +95,16 @@ PROJECT_INFO = "project.json"
 
 
 def project_info(project: str) -> dict:
-    """버전과 관계없는 프로젝트 정보 (예: company = 개발한 서비스 화면에 보일 회사 이름. 없으면 프로젝트 이름을 쓴다)."""
+    """버전과 관계없는 프로젝트 정보 (name = 화면에서 바꾼 프로젝트 이름, company = 개발한 서비스 화면에 보일 회사 이름.
+    없으면 프로젝트 이름을 쓴다)."""
     text = get_store().read_project_file(project, PROJECT_INFO)
     return json.loads(text) if text else {}
+
+
+def display_name(project: str) -> str:
+    """화면·Slack에 보일 프로젝트 이름: 화면에서 바꾼 이름(project.json name), 없으면 프로젝트 ID의 끝 이름.
+    프로젝트 ID(저장소·코드 폴더·주소)는 바뀌지 않는다."""
+    return project_info(project).get("name") or PurePosixPath(project).name
 
 
 def save_project_info(project: str, **fields) -> None:

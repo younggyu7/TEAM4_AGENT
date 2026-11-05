@@ -1,4 +1,4 @@
-"""산출물 읽기 (화면 API): 프로젝트·설계 버전 목록, design.json, 산출물 원문, 화면에서 붙인 버전 제목.
+"""산출물 읽기 (화면 API): 프로젝트·설계 버전 목록, design.json, 산출물 원문, 화면에서 붙인 버전 제목·프로젝트 이름.
 
 읽기·쓰기는 산출물 저장소 포트(agents/storage)로 한다. v<N>/design.json이 있는 버전을 가진 것을 프로젝트로 본다
 (output/semantic-review/고객요구사항5-review처럼 묶음 아래 프로젝트도 저장소가 찾는다).
@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from app.agents.storage import get_store
+from app.agents.tools.versions import display_name
 from app.core.config import get_settings
 from app.core.guards import is_version
 
@@ -73,7 +74,8 @@ def _project_versions(project: str) -> list[dict]:
 
 
 def find_projects() -> list[dict]:
-    projects = [{"id": p, "name": PurePosixPath(p).name, "versions": _project_versions(p)}
+    # name: 화면에 보일 이름 (팀장이 바꾼 이름, 없으면 ID의 끝 이름). id는 바뀌지 않는다
+    projects = [{"id": p, "name": display_name(p), "versions": _project_versions(p)}
                 for p in get_store().list_projects()]
     projects = [p for p in projects if p["versions"]]
     # 최근 버전이 위로

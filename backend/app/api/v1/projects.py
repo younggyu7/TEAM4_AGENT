@@ -2,6 +2,7 @@
 
   GET  /projects          프로젝트와 설계 버전 목록 (버전 번호는 '4', '4.1' 같은 문자열). 내가 담당자인 프로젝트만 (팀장은 모두)
   POST /projects/title    버전 제목 저장
+  POST /projects/name     프로젝트 이름 바꾸기 (팀장만): 화면·Slack에 보이는 이름만, 프로젝트 ID·주소·코드 폴더는 그대로
   GET  /tech-stacks       개발 스펙의 기술 스택 선택지 (화면·서버·DB, 개발 틀이 있는지)
   GET  /projects/stack    버전의 기술 스택 상태 (원문·확정·미정, 개발 틀 없는 층 경고)
   POST /projects/tech-stack  최종본의 기술 스택 확정 → 개발 스펙 10개 다시 쓰기 (LLM 없음)
@@ -13,6 +14,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -22,14 +24,20 @@ from app.agents.storage import get_store
 from app.agents.tools import stacks
 from app.agents.llm.client import LLMError
 from app.agents.tools.exporter import confirm_tech_stack, fill_dev_spec
+from app.agents.tools.versions import display_name, save_project_info
 from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
 from app.core.auth import ROLES
-from app.core.exceptions import AppError, BadRequest, Forbidden, NotFound
+from app.core.exceptions import AppError, BadRequest, Conflict, Forbidden, NotFound
 from app.schemas.version import TechStackUpdate, TitleUpdate, VersionRef
 from app.services import output_store, project_access, project_delete, slack, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
+
+
+class ProjectRename(BaseModel):
+    project: str
+    name: str = Field(default="", max_length=200)   # 비우면 처음 이름(프로젝트 ID의 끝 이름)으로
 
 
 class ProjectMembers(BaseModel):
@@ -57,6 +65,20 @@ def delete_project(project: str, confirm: str, member: users.Member = Depends(cu
 def set_title(body: TitleUpdate):
     output_store.save_title(_project(body.project), guards.version(body.version), body.title)
     return {"ok": True}
+
+
+@router.post("/projects/name", summary="프로젝트 이름 바꾸기 (팀장만, 화면에 보이는 이름)")
+def rename_project(body: ProjectRename, member: users.Member = Depends(current_user)):
+    ensure(member, "project_rename")
+    project = _project(body.project)
+    name = " ".join(body.name.split())
+    if len(name) > 80:
+        raise BadRequest("프로젝트 이름은 80자 이하로 적어 주세요.")
+    first = PurePosixPath(project).name
+    if name and name != first and any(p["id"] != project and p["name"] == name for p in output_store.find_projects()):
+        raise Conflict("같은 이름의 프로젝트가 이미 있습니다. 다른 이름을 적어 주세요.")
+    save_project_info(project, name="" if name == first else name)   # 비우거나 처음 이름이면 기록을 지운다
+    return {"project": project, "name": display_name(project)}
 
 
 @router.get("/tech-stacks", summary="개발 스펙의 기술 스택 선택지")

@@ -42,6 +42,7 @@ from pathlib import PurePosixPath
 
 from sqlalchemy import delete, select
 
+from app.agents.tools.versions import display_name
 from app.core.auth import ROLES
 from app.core.config import get_settings
 from app.models.notification import SlackNotification, SlackProject
@@ -298,7 +299,7 @@ def link(project: str, version: str, page: str) -> str:
 
 
 def _project_name(project: str) -> str:
-    return PurePosixPath(project).name
+    return display_name(project)   # 화면에서 바꾼 이름 (채널 이름은 그대로)
 
 
 def _mention(config: dict, member: users.Member) -> str:

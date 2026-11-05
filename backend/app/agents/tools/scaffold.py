@@ -66,10 +66,11 @@ def load_spec(project: str, version: str) -> Spec:
     model = DataModel.model_validate_json(read("data_model.json"))
     record = find_version(project, label) or {}
     title = re.search(r"^- 사업: (.+)$", read("AGENTS.md") or "", re.M)
-    # 회사 이름: 따로 정하지 않았으면 업로드할 때 넣은 프로젝트 이름 (로그인 표지·메뉴에 보인다)
+    # 회사 이름: 따로 정하지 않았으면 화면에서 바꾼 프로젝트 이름, 없으면 업로드할 때 넣은 프로젝트 이름 (로그인 표지·메뉴에 보인다)
+    info = project_info(project)
     options = {"standard": record.get("standard"), "title": title.group(1).strip() if title else "",
-               "company": project_info(project).get("company") or project_name(project),
-               "theme": project_info(project).get("theme", "")}   # 화면 스타일 (최종 개발하기에서 고름, tools/themes.py)
+               "company": info.get("company") or info.get("name") or project_name(project),
+               "theme": info.get("theme", "")}   # 화면 스타일 (최종 개발하기에서 고름, tools/themes.py)
     profile = profile_of(options)
     physical, conv = model, None
     if profile and profile.renames:
