@@ -6,10 +6,11 @@
   GET  /preview/{프로젝트}/mock/…           예시 데이터 화면 (서버 없이)
   GET  /preview/{프로젝트}/accounts         앱 시연 계정 (admin·user 비밀번호, 개발 파트원·파트장·팀장)
   GET  /preview/{프로젝트}/status · POST /preview/{프로젝트}/start · POST /preview/{프로젝트}/stop (끄기는 개발 파트장·팀장)
-  GET·POST /develop/git?project=          저장소 설정 (화면·백엔드 주소·브랜치·토큰, 토큰은 다시 보내지 않음)
-  POST /develop/git/push                  git에 올리기 → {job} (개발 파트장·팀장)
-  GET  /develop/files?project=            코드 폴더 파일 목록 (빈 업무 로직·사람이 고친 파일 표시)
-  GET·PUT /develop/file?project=&path=    파일 내용 보기 · 고쳐 저장 (개발 파트원·파트장·팀장)
+  GET·POST /develop/git?project=          원격 설정 하나 {url, branch, token} (토큰은 다시 보내지 않음, 개발 파트장)
+  POST /develop/git/push                  원격에 main·최종본 태그 올리기 → {job} (개발 파트장)
+  GET  /develop/files?project=&branch=    코드 파일 목록 (main 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고침·커밋 안 한 변경 표시)
+  GET·PUT /develop/file?project=&path=&branch=  파일 내용 보기 · 브랜치에서 고쳐 저장 (main 거부, 개발 파트원·파트장)
+  브랜치·저장하기(커밋)·합치기 요청·이력은 api/v1/repo.py
   GET  /preview/{프로젝트}/terminal         실행 미리보기 터미널: 빌드·실행 기록 + 앱 서버 로그
 """
 from __future__ import annotations
@@ -41,16 +42,11 @@ class DevelopBody(BaseModel):
     effort: str = ""         # build일 때 생각 수준 low·medium·high (비우면 설정 dev_effort)
 
 
-class GitSide(BaseModel):
-    url: str = ""
-    branch: str = ""
-    token: str = ""          # 비우면 저장된 토큰 그대로
-
-
 class GitSettings(BaseModel):
     project: str
-    frontend: GitSide = GitSide()
-    backend: GitSide = GitSide()
+    url: str = ""
+    branch: str = ""         # 비우면 main
+    token: str = ""          # 비우면 저장된 토큰 그대로
 
 
 class PushBody(BaseModel):
@@ -62,6 +58,7 @@ class FileBody(BaseModel):
     project: str
     path: str
     content: str
+    branch: str = ""         # 고칠 브랜치 (main·빈 값은 거부)
 
 
 @router.get("/develop/themes", summary="개발한 앱의 화면 스타일 선택지 (미리보기 색)")
@@ -138,7 +135,7 @@ def run_stop(project: str, member: users.Member = Depends(current_user)):
 
 @router.get("/preview/{project}/accounts", summary="앱 시연 계정 (개발 파트원·파트장·팀장)")
 def run_accounts(project: str, member: users.Member = Depends(current_user)):
-    ensure(member, "code_edit")
+    ensure(member, "app_accounts")
     return {"accounts": preview.accounts(_project(project))}
 
 
@@ -178,10 +175,9 @@ go().catch(()=>{bar.hidden=true})
 </script></body></html>"""
 
 
-@router.get("/develop/git", summary="git 저장소 설정 (토큰은 있는지만)")
-def get_git(project: str, member: users.Member = Depends(current_user)):
-    ensure(member, "develop")
-    return gitpush.settings(_project(project))
+@router.get("/develop/git", summary="원격 설정과 앞섬·뒤처짐 (토큰은 있는지만, fetch 안 함)")
+def get_git(project: str):
+    return gitpush.remote_status(_project(project))
 
 
 @router.post("/develop/git", summary="git 저장소 설정 저장")
@@ -190,7 +186,7 @@ def set_git(body: GitSettings, member: users.Member = Depends(current_user)):
     return gitpush.save_settings(_project(body.project), body.model_dump())
 
 
-@router.post("/develop/git/push", status_code=202, summary="git에 올리기 (작업)")
+@router.post("/develop/git/push", status_code=202, summary="원격에 올리기 (작업)")
 def push(body: PushBody, member: users.Member = Depends(current_user)):
     ensure(member, "develop")
     project, version = _project(body.project), guards.version(body.version)
@@ -199,18 +195,17 @@ def push(body: PushBody, member: users.Member = Depends(current_user)):
     return {"job": gitpush.start_push(project=project, version=version, member=member).to_dict()}
 
 
-@router.get("/develop/files", summary="최종 개발물 파일 목록")
-def list_files(project: str):
-    return appfiles.tree(_project(project))
+@router.get("/develop/files", summary="최종 개발물 파일 목록 (main 또는 브랜치)")
+def list_files(project: str, branch: str = ""):
+    return appfiles.tree(_project(project), branch or None)
 
 
 @router.get("/develop/file", summary="최종 개발물 파일 내용")
-def get_file(project: str, path: str):
-    return appfiles.read(_project(project), path)
+def get_file(project: str, path: str, branch: str = ""):
+    return appfiles.read(_project(project), path, branch or None)
 
 
-@router.put("/develop/file", summary="최종 개발물 파일 고쳐 저장 (개발 파트원·파트장·팀장)")
+@router.put("/develop/file", summary="브랜치에서 파일 고쳐 저장 (개발 파트원·파트장, main 거부)")
 def put_file(body: FileBody, member: users.Member = Depends(current_user)):
-    ensure(member, "code_edit")
-    _no_running_job(body.project)   # 다시 개발하는 중에는 고치지 않는다
-    return appfiles.save(_project(body.project), body.path, body.content)
+    ensure(member, "repo_write")
+    return appfiles.save(_project(body.project), body.path, body.content, body.branch or None)

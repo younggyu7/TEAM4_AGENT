@@ -5,13 +5,15 @@
      기본은 LLM 없음. --logic이면 업무 로직 빈칸만 LLM이 채운다 (예상 비용은 plan()으로 먼저 보여 준다)
   2) 화면을 예시 데이터 모드로 빌드 → app/.preview/mock (npm install은 package.json이 바뀔 때만)
      우리 백엔드가 /api/v1/preview/<프로젝트>/mock/ 으로 보여 준다 (로그인한 회원만, api/v1/develop.py)
-  3) 최종본 버전 기록의 develop에 누가·언제·AI 사용 여부·결과를 남긴다. 실행 중인 앱(services/preview.py)은 다음에 열 때 다시 빌드한다
+  3) 코드 저장소(services/repo.py)의 main에 req-agent 커밋 + 태그 final-v<최종본> (바뀐 것이 없으면 커밋 없음)
+  4) 최종본 버전 기록의 develop에 누가·언제·AI 사용 여부·결과·커밋을 남긴다. 실행 중인 앱(services/preview.py)은 다음에 열 때 다시 빌드한다
 코드 폴더는 프로젝트마다 하나다. 다시 개발하면 바뀐 파일만 바뀌고 사람이 고친 파일은 덮어쓰지 않는다 (scaffold.write_app).
 """
 from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 from urllib.parse import quote
 import subprocess
@@ -115,12 +117,14 @@ class _DevelopRunner(_Runner):
                 return self._finish("failed", "코드를 만들지 못했습니다. 아래 기록의 마지막 줄을 확인하세요.")
             built = self.build_mock()
             summary = self.summary()
+            commit = self.commit()
             check = self.check()
             record = find_version(self.project, self.version) or {}
             develop = {"version": self.version, "at": datetime.now().isoformat(timespec="seconds"),
                        "by": {"id": self.member.id, "name": self.member.name, "role": self.member.role},
                        "build": self.build, "ai": self.ai, "logic": self.ai.get("mode") == "logic", "mock": built,
                        "backend": (app_dir(self.project) / "backend").is_dir(), "summary": summary, "check": check,
+                       "usage": self.usage(), "commit": commit,
                        "log": [line for line in self.job.log if line.lstrip().startswith(("새로 쓴", "사람이 고쳐", "기능 구현(LLM)", "스펙 v"))][-6:]}
             update_version(self.project, self.version, develop=develop, developments=[*(record.get("developments") or []), develop])
             self.job.new_version = self.version
@@ -131,6 +135,27 @@ class _DevelopRunner(_Runner):
         except Exception as e:  # noqa: BLE001 - 작업 스레드의 오류는 화면에 보여 준다
             self._push(repr(e))
             self._finish("failed", f"작업 중 오류가 났습니다: {e}")
+
+    def commit(self) -> str | None:
+        """main에 이번 개발을 커밋한다 (작성자 req-agent). 저장소 오류는 기록만 하고 개발은 끝낸다"""
+        from app.services import repo
+
+        try:
+            sha = repo.commit_develop(self.project, self.version, repo.develop_message(self.version, self.ai, self.member.name))
+        except Exception as e:  # noqa: BLE001 - 커밋 실패로 개발 결과를 버리지 않는다
+            self._push(f"코드 저장소에 커밋하지 못했습니다: {e}")
+            return None
+        self._push(f"코드 저장소 main에 커밋: {sha[:10]} (태그 final-v{self.version})" if sha else "코드 저장소: 바뀐 파일이 없어 커밋하지 않음")
+        return sha
+
+    def usage(self) -> dict:
+        """이번 개발에 쓴 LLM: CLI 기록의 'LLM n회, 입력 x · 출력 y 토큰' 줄(기능 구현·업무 로직·AI 뼈대)을 더한다"""
+        calls = inp = out = 0
+        for line in self.job.log:
+            if m := re.search(r"LLM (\d+)회, 입력 ([\d,]+) · 출력 ([\d,]+) 토큰", line):
+                calls, inp, out = calls + int(m.group(1)), inp + int(m.group(2).replace(",", "")), out + int(m.group(3).replace(",", ""))
+        return {"calls": calls, "input": inp, "output": out, "model": self.ai.get("model", ""), "effort": self.ai.get("effort", ""),
+                "mode": self.ai.get("mode") or "none"}
 
     def summary(self) -> dict:
         """기능별 구현 방식: AI 구현 · AI 실패(코드 틀로 둠) · 코드 틀, 그리고 고객 답을 기다려 구현하지 않은 규칙 (LLM 없음)"""

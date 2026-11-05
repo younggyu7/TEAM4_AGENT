@@ -30,4 +30,4 @@ def add_cors(app: FastAPI) -> None:
     from fastapi.middleware.cors import CORSMiddleware
 
     app.add_middleware(CORSMiddleware, allow_origins=list(get_settings().cors_origins),
-                       allow_methods=["GET", "HEAD", "POST"], allow_headers=["*"])
+                       allow_methods=["GET", "HEAD", "POST", "PUT", "DELETE"], allow_headers=["*"])   # PUT: 코드 저장, DELETE: 브랜치 지우기

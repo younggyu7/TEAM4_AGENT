@@ -123,9 +123,12 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET /develop/plan` · `POST /develop` | 승인 최종본의 최종 개발하기: 예상(화면·파일, 틀 없는 층 경고, AI 업무 기능 구현 예상 토큰) · 코드(+`build`·`model`·`effort`면 AI 구현) + 예시 데이터 화면 + Docker 자동 확인 → `202 {job}` (개발 파트장만) |
 | `GET /preview/<프로젝트>/` (`mock/` · `status` · `start` · `stop` · `accounts`) | 최종 개발물 실행: 안내 페이지 → 앱 자체 docker-compose로 독립 실행 → 앱 주소 `http://<서버>:<포트>`(`PREVIEW_BIND`, 기본 0.0.0.0). 10분 동안 요청이 없으면 끔, 동시 3개. `accounts`는 admin·user 비밀번호(개발 파트·팀장) |
 | `GET /projects/stack` | 버전의 기술 스택 상태: 원문·확정(기능 명세 TQ-001)·미정, 개발 틀이 없는 층 경고 |
-| `GET /develop/files` · `GET·PUT /develop/file` | 최종 개발물 코드 파일 구성(빈 업무 로직·사람이 고친 파일 표시) · 내용 보기 · 고쳐 저장(개발 파트원·파트장·팀장) |
+| `GET /develop/files` · `GET·PUT /develop/file` | 최종 개발물 코드 파일 구성(`branch`: main 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고친 파일·커밋 안 한 변경 표시) · 내용 보기 · 브랜치에서 고쳐 저장(main 거부, 개발 파트원·파트장 `repo_write`) |
 | `GET /preview/<프로젝트>/terminal` | 실행 미리보기 터미널: 서버가 실행한 명령·출력 + 앱 서버 로그 |
-| `GET·POST /develop/git` · `POST /develop/git/push` | 프로젝트별 화면·백엔드 저장소 설정(토큰 암호화) · 서버 코드 폴더를 두 저장소에 커밋·push → `202 {job}` |
+| `GET·POST /develop/git` · `POST /develop/git/push` | 원격 하나 `{url, branch, token}`(토큰 암호화, 화면엔 `has_token`·받아 둔 원격 기준 앞섬·뒤처짐) · 코드 저장소의 main과 `final-v*` 태그를 push(원격에 main에 없는 커밋이 있으면 거부) → `202 {job}` (개발 파트장) |
+| `GET /develop/repo` (`/log` · `/commit` · `/diff`) | 코드 저장소: 브랜치(앞섬·뒤처짐·커밋 안 한 변경·열린 요청)·합치기 요청 · 모든 브랜치 커밋(이력 그래프, `ai`=req-agent) · 커밋 하나의 diff · main...브랜치 차이 |
+| `POST·DELETE /develop/repo/branch` · `POST /develop/repo/commit` · `/update-branch` · `/request` | 브랜치(+작업 폴더) 만들기·지우기 · 저장하기(작성자=로그인 회원) · 메인 가져오기(충돌이면 409 `conflicts`) · 합치기 요청(→ 개발 파트장 알림) (개발 파트원·파트장) |
+| `POST /develop/repo/merge` · `/reject` · `/fetch` | 합치기(`--no-ff`, 충돌이면 되돌리고 409 `conflicts`) · 반려(사유 필수) — 요청한 회원에게만 알림 · 원격 확인(fetch) (개발 파트장) |
 | `GET /projects/slack?project=` · `POST /projects/slack/members` | 프로젝트 Slack 채널·담당자 `{team, channel_name, members}`(채널이 아직 없으면 `null`) · 담당자 바꾸기 (`{project, members: [회원 ID]}`, 팀장만, 결과 `{added, removed, failed}`, 채널이 없으면 404, Slack이 꺼져 있으면 400) |
 
 역할별 권한(서버가 검사, `app/core/auth.py`): 업로드·기능 명세 수정 = 기획 파트원 이상 · 기능 명세 확정(내보내기) = 기획 파트장 · ERD 수정·저장 = 데이터 파트원 이상 · ERD 최종 확정 = 데이터 파트장 · 최종 승인·수정 지시·기술 스택 = 팀장(모든 단계 가능). 회원 테이블은 `alembic upgrade head`로 만든다 (서비스 DB가 없으면 `OUTPUT_DIR/service.sqlite`).

@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 
-from app.api.v1 import artifacts, auth, develop, drafts, jobs, projects, review, runs, versions
+from app.api.v1 import artifacts, auth, develop, drafts, jobs, projects, repo, review, runs, versions
 from app.api.v1.deps import current_user
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
@@ -77,3 +77,4 @@ app.include_router(runs.router, prefix=API_PREFIX, dependencies=signed_in)      
 app.include_router(jobs.router, prefix=API_PREFIX, dependencies=signed_in)        # 작업 진행 상황
 app.include_router(drafts.router, prefix=API_PREFIX, dependencies=signed_in)      # 수정 초안 공유·팀장 승인
 app.include_router(develop.router, prefix=API_PREFIX, dependencies=signed_in)     # 최종 개발하기·미리보기·git
+app.include_router(repo.router, prefix=API_PREFIX, dependencies=signed_in)        # 최종 개발물 브랜치·커밋·합치기 요청

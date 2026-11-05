@@ -50,7 +50,8 @@ class PayloadTooLarge(AppError):
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def app_error(_request: Request, exc: AppError) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        # extra: 오류에 붙일 값 (예: 합치기 충돌 파일 목록 conflicts)
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail, **(getattr(exc, "extra", None) or {})})
 
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception) -> JSONResponse:

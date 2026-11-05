@@ -1,22 +1,18 @@
-"""최종 개발물 git 올리기: 서버의 코드 폴더(OUTPUT_DIR/<프로젝트>/app)를 화면·백엔드 저장소에 따로 커밋·push한다.
+"""최종 개발물 원격 올리기: 서버의 코드 저장소(OUTPUT_DIR/<프로젝트>/app, services/repo.py)의 main과 최종본 태그를 원격 하나에 push한다.
 
-- 저장소 설정은 프로젝트마다 (프로젝트 파일 git.json): 화면·백엔드 각각 {url, branch, token}. 처음 올릴 때 화면에서 받는다.
+- 원격 설정은 프로젝트마다 (프로젝트 파일 git.json): {url, branch(기본 main), token}. 화면·백엔드·DB는 한 저장소에 같이 올린다.
   토큰은 암호화해 저장하고(Fernet, 키는 .env GIT_SECRET_KEY, 없으면 OUTPUT_DIR/.git-secret를 만들어 씀) 화면에는 다시 보내지 않는다.
-- 올리는 내용
-    백엔드 저장소: backend/ · db/ · spec/(개발 스펙 전부) · README.md · docker-compose.yml · .gitignore
-    화면 저장소:   frontend/ · spec/SCREENS.md · spec/API.md · spec/openapi.yaml · .gitignore
-  빌드 결과·node_modules·미리보기(.preview)·생성기 기록(.req-agent)은 올리지 않는다.
-- 저장소 작업 폴더는 app/.preview/git-<쪽>. 브랜치가 원격에 있으면 받아서 그 위에 커밋한다 (이력 유지, 강제 push 없음).
-- 토큰은 명령줄·기록에 남지 않게 http.extraHeader로만 넘기고, 기록의 토큰 글자는 가린다.
-- 올리는 일은 정해진 절차(코드)이고 LLM은 쓰지 않는다.
+  예전 설정(화면·백엔드 저장소 두 개 {frontend, backend})은 읽을 때 백엔드(없으면 화면) 저장소 하나로 바꿔 읽는다 (토큰 유지).
+- 올리기(작업, 개발 파트장): 원격 브랜치를 받아(fetch) 원격에 main에 없는 커밋이 있으면 거부하고(강제 push 없음),
+  `git push origin main:<branch> + final-v* 태그`. 빌드 결과·미리보기·생성기 기록은 .gitignore로 커밋되지 않는다.
+- 원격 확인(check_remote)은 화면이 '원격 확인'을 누를 때와 올릴 때만 fetch한다. 앞섬·뒤처짐은 받아 둔 origin/<branch>로 센다.
+- 토큰은 명령줄·기록에 남지 않게 http.extraHeader로만 넘기고, 기록의 토큰 글자는 가린다. LLM은 쓰지 않는다.
 """
 from __future__ import annotations
 
 import base64
 import json
 import os
-import shutil
-import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -24,15 +20,10 @@ from app.agents.storage import get_store
 from app.agents.tools.versions import find_version, update_version
 from app.core.config import get_settings
 from app.core.exceptions import BadRequest
-from app.services.develop import PREVIEW, app_dir
+from app.services import repo
+from app.services.develop import app_dir
 from app.services.jobs.common import Job, _new_job, _Runner
 
-SIDES = {"frontend": "화면", "backend": "백엔드"}
-CONTENT = {
-    "backend": ["backend", "db", "spec", "README.md", "docker-compose.yml", ".gitignore"],
-    "frontend": ["frontend", "spec/SCREENS.md", "spec/API.md", "spec/openapi.yaml", ".gitignore"],
-}
-SKIP = {"node_modules", "dist", "target", ".env", PREVIEW, ".req-agent", ".git", "local"}   # local: 앱 시연 계정 비밀번호
 SETTINGS = "git.json"
 
 
@@ -50,53 +41,103 @@ def _fernet():
 
 
 def _read(project: str) -> dict:
+    """{url, branch, token(암호문)}. 예전 두 저장소 설정이면 백엔드(없으면 화면) 쪽 하나로"""
     text = get_store().read_project_file(project, SETTINGS)
-    return json.loads(text) if text else {}
+    saved = json.loads(text) if text else {}
+    if "url" not in saved:
+        old = next((saved[s] for s in ("backend", "frontend") if (saved.get(s) or {}).get("url")), {})
+        saved = {"url": old.get("url", ""), "branch": old.get("branch") or "", "token": old.get("token", "")}
+    return {"url": saved.get("url", ""), "branch": saved.get("branch") or repo.MAIN, "token": saved.get("token", "")}
 
 
 def settings(project: str) -> dict:
     """화면에 보낼 설정 (토큰은 있는지만)"""
     saved = _read(project)
-    return {side: {"url": (saved.get(side) or {}).get("url", ""), "branch": (saved.get(side) or {}).get("branch", ""),
-                   "has_token": bool((saved.get(side) or {}).get("token"))} for side in SIDES}
+    return {"url": saved["url"], "branch": saved["branch"], "has_token": bool(saved["token"])}
 
 
 def save_settings(project: str, body: dict) -> dict:
-    """{frontend|backend: {url, branch, token}} — 토큰이 비면 저장된 것을 그대로 둔다. url이 비면 그쪽은 올리지 않는다"""
+    """{url, branch, token} — 토큰이 비면 저장된 것을 그대로 둔다"""
     saved = _read(project)
-    for side in SIDES:
-        given = body.get(side) or {}
-        url = (given.get("url") or "").strip()
-        if url and not url.startswith(("https://", "http://")):
-            raise BadRequest(f"{SIDES[side]} 저장소 주소는 https://로 시작해야 합니다 (예: https://github.com/팀/저장소.git).")
-        old = saved.get(side) or {}
-        token = (given.get("token") or "").strip()
-        saved[side] = {"url": url, "branch": (given.get("branch") or "").strip(),
-                       "token": _fernet().encrypt(token.encode()).decode() if token else old.get("token", "")}
+    url = (body.get("url") or "").strip()
+    if url and not url.startswith(("https://", "http://")):
+        raise BadRequest("저장소 주소는 https://로 시작해야 합니다 (예: https://github.com/팀/저장소.git).")
+    branch = (body.get("branch") or "").strip() or repo.MAIN
+    if branch != repo.MAIN:
+        branch = repo.clean_name(branch)
+    token = (body.get("token") or "").strip()
+    saved = {"url": url, "branch": branch, "token": _fernet().encrypt(token.encode()).decode() if token else saved["token"]}
     get_store().write_project_file(project, SETTINGS, json.dumps(saved, ensure_ascii=False))
     return settings(project)
 
 
-def _token(project: str, side: str) -> str:
-    enc = (_read(project).get(side) or {}).get("token")
+def _token(project: str) -> str:
+    enc = _read(project)["token"]
     return _fernet().decrypt(enc.encode()).decode() if enc else os.getenv("GIT_TOKEN", "").strip()
 
 
-def _copy(app: Path, work: Path, items: list[str]) -> None:
-    """작업 폴더를 비우고(.git 빼고) 올릴 내용을 복사한다"""
-    for child in work.iterdir():
-        if child.name != ".git":
-            shutil.rmtree(child) if child.is_dir() else child.unlink()
-    for item in items:
-        src = app / item
-        if not src.exists():
-            continue
-        dest = work / item
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        if src.is_dir():
-            shutil.copytree(src, dest, ignore=lambda _d, names: [n for n in names if n in SKIP])
-        else:
-            shutil.copy2(src, dest)
+def _header(token: str) -> str:
+    return "Authorization: Basic " + base64.b64encode(f"x-access-token:{token}".encode()).decode() if token else ""
+
+
+def _set_remote(app: Path, url: str) -> None:
+    if repo.git(app, "remote", "get-url", "origin", check=False).startswith("0\n"):
+        repo.git(app, "remote", "set-url", "origin", url)
+    else:
+        repo.git(app, "remote", "add", "origin", url)
+
+
+def remote_status(project: str) -> dict:
+    """원격 설정 + 받아 둔 origin/<branch> 기준 main의 앞섬·뒤처짐 (fetch하지 않는다)"""
+    conf = settings(project)
+    out = {**conf, "ahead": None, "behind": None, "exists": False, **repo._data(project)["remote"]}
+    if conf["url"] and repo.ready(project):
+        app = app_dir(project)
+        ref = f"refs/remotes/origin/{conf['branch']}"
+        if repo.git(app, "rev-parse", "--verify", "-q", ref, check=False).startswith("0\n"):
+            out["behind"], out["ahead"] = repo._counts(app, ref, repo.MAIN)
+            out["exists"] = True
+        elif out.get("checked_at"):
+            out["ahead"], out["behind"] = int(repo.git(app, "rev-list", "--count", repo.MAIN).strip()), 0
+    return out
+
+
+def _fetch(project: str, app: Path, conf: dict, token: str) -> tuple[bool, str]:
+    """원격 브랜치를 origin/<branch>로 받는다. (원격에 브랜치가 있는지, 오류 메시지)"""
+    _set_remote(app, conf["url"])
+    header = _header(token)
+    listed = repo.git(app, "ls-remote", "--heads", "origin", conf["branch"], check=False, header=header)
+    code, out = listed.split("\n", 1)
+    if code != "0":
+        return False, _redact(out.strip()[-300:], token, header) or "원격에 연결하지 못했습니다."
+    if not out.strip():
+        return False, ""
+    fetched = repo.git(app, "fetch", "-q", "origin", f"+refs/heads/{conf['branch']}:refs/remotes/origin/{conf['branch']}",
+                       check=False, header=header)
+    if not fetched.startswith("0\n"):
+        return False, _redact(fetched.split("\n", 1)[1].strip()[-300:], token, header)
+    return True, ""
+
+
+def _redact(text: str, *secrets: str) -> str:
+    for s in secrets:
+        if s:
+            text = text.replace(s, "***")
+    return text
+
+
+def check_remote(project: str) -> dict:
+    """'원격 확인': 원격 브랜치를 받아 앞섬·뒤처짐을 다시 센다 (개발 파트장)"""
+    conf = _read(project)
+    if not conf["url"]:
+        raise BadRequest("원격 저장소 주소가 없습니다. 원격 설정에서 주소를 적으세요.")
+    app = repo.ensure_repo(project)
+    _, error = _fetch(project, app, conf, _token(project))
+    with repo._lock:
+        data = repo._data(project)
+        data["remote"] = {"checked_at": datetime.now().isoformat(timespec="seconds"), "error": error}
+        repo._write(project, data)
+    return remote_status(project)
 
 
 class _GitRunner(_Runner):
@@ -110,72 +151,45 @@ class _GitRunner(_Runner):
             line = line.replace(s, "***")
         super()._push(line)
 
-    def _git(self, args: list[str], cwd: Path, token: str = "") -> int:
-        cmd = ["git"]
-        if token:
-            header = base64.b64encode(f"x-access-token:{token}".encode()).decode()
-            self.secrets += [token, header]
-            cmd += ["-c", f"http.extraHeader=Authorization: Basic {header}"]
-        cmd += args
-        self._push("$ git " + " ".join(args))
-        proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
-        for line in (proc.stdout + proc.stderr).splitlines():
-            self._push(line)
-        return proc.returncode
-
-    def _side(self, side: str, conf: dict, approver: str) -> str:
-        app = app_dir(self.project)
-        work = app / PREVIEW / f"git-{side}"
-        token = _token(self.project, side)
-        branch = conf.get("branch") or f"req-agent/v{self.version}"
-        url = conf["url"]
-        if not (work / ".git").is_dir():
-            work.mkdir(parents=True, exist_ok=True)
-            self._git(["init", "-q"], work)
-            self._git(["remote", "add", "origin", url], work)
-        else:
-            self._git(["remote", "set-url", "origin", url], work)
-        # 원격에 브랜치가 있으면 그 위에, 없으면 새 브랜치
-        if self._git(["fetch", "-q", "--depth", "1", "origin", branch], work, token) == 0:
-            self._git(["checkout", "-q", "-B", branch, "FETCH_HEAD"], work)
-        else:
-            self._git(["checkout", "-q", "-B", branch], work)
-        _copy(app, work, CONTENT[side])
-        self._git(["add", "-A"], work)
-        if self._git(["diff", "--cached", "--quiet"], work) == 0:
-            self._push(f"{SIDES[side]}: 바뀐 파일이 없어 커밋하지 않음")
-        else:
-            develop = (find_version(self.project, self.version) or {}).get("develop") or {}
-            message = (f"최종본 v{self.version} 개발물 ({SIDES[side]})\n\n승인: {approver}\n"
-                       f"개발: {(develop.get('by') or {}).get('name', '')} · 업무 로직 AI: {'사용' if develop.get('logic') else '안 씀'}\n"
-                       f"올림: {self.member.name} · 설계 도구 req-agent")
-            author = ["-c", "user.name=req-agent", "-c", f"user.email=req-agent@{self.member.email.split('@')[-1]}"]
-            if self._git([*author, "commit", "-q", "-m", message], work) != 0:
-                raise RuntimeError(f"{SIDES[side]} 커밋을 만들지 못했습니다.")
-        if self._git(["push", "-q", "origin", f"HEAD:refs/heads/{branch}"], work, token) != 0:
-            raise RuntimeError(f"{SIDES[side]} 저장소에 올리지 못했습니다 (주소·브랜치·토큰 권한을 확인하세요).")
-        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
-        return f"{branch}@{sha[:10]}"
-
     def _run(self, args: list[str]) -> None:
         try:
             conf = _read(self.project)
-            sides = [s for s in SIDES if (conf.get(s) or {}).get("url")]
-            if not sides:
-                return self._finish("failed", "저장소 주소가 없습니다. 'Git에 올리기' 설정에서 화면·백엔드 저장소를 적으세요.")
+            if not conf["url"]:
+                return self._finish("failed", "원격 저장소 주소가 없습니다. 'Git' 단계의 원격 설정에서 주소를 적으세요.")
+            app = repo.ensure_repo(self.project)
+            token = _token(self.project)
+            self.secrets += [s for s in (token, _header(token).split(" ")[-1] if token else "") if s]
+            branch = conf["branch"]
+            self.job.message = f"원격 {branch}를 확인하는 중"
+            self._save()
+            self._push(f"$ git fetch origin {branch}")
+            exists, error = _fetch(self.project, app, conf, token)
+            if error:
+                raise RuntimeError(f"원격을 받지 못했습니다 (주소·토큰 권한을 확인하세요): {error}")
+            if exists and not repo._ok(app, "merge-base", "--is-ancestor", f"refs/remotes/origin/{branch}", repo.MAIN):
+                raise RuntimeError(f"원격 {branch}에 서버에 없는 커밋이 있어 올리지 않았습니다 (강제로 덮어쓰지 않음). "
+                                   "원격의 변경을 서버 밖에서 정리한 뒤 다시 올리세요.")
+            self.job.message = f"원격 {branch}에 올리는 중"
+            self._save()
+            self._push(f"$ git push origin {repo.MAIN}:{branch} +refs/tags/final-v*")
+            pushed = repo.git(app, "push", "--porcelain", "origin", f"refs/heads/{repo.MAIN}:refs/heads/{branch}",
+                              "+refs/tags/final-v*:refs/tags/final-v*", check=False, header=_header(token))
+            for line in pushed.split("\n")[1:]:
+                if line.strip():
+                    self._push(line)
+            if not pushed.startswith("0\n"):
+                raise RuntimeError("원격에 올리지 못했습니다 (주소·브랜치·토큰 권한을 확인하세요).")
+            sha = repo.git(app, "rev-parse", repo.MAIN).strip()
+            with repo._lock:
+                data = repo._data(self.project)
+                data["remote"] = {"checked_at": datetime.now().isoformat(timespec="seconds"), "error": ""}
+                repo._write(self.project, data)
             record = find_version(self.project, self.version) or {}
-            approver = ((record.get("approval") or {}).get("by") or {}).get("name", "")
-            pushed = {}
-            for side in sides:
-                self.job.message = f"{SIDES[side]} 저장소에 올리는 중"
-                self._save()
-                pushed[side] = self._side(side, conf[side], approver)
             git = {"at": datetime.now().isoformat(timespec="seconds"), "by": {"id": self.member.id, "name": self.member.name},
-                   "pushed": pushed, "urls": {s: conf[s]["url"] for s in sides}}
+                   "url": conf["url"], "branch": branch, "commit": sha}
             update_version(self.project, self.version, git=git, gits=[*(record.get("gits") or []), git])
             self.job.new_version = self.version
-            self._finish("done", "올렸습니다: " + ", ".join(f"{SIDES[s]} {v}" for s, v in pushed.items()))
+            self._finish("done", f"올렸습니다: {branch}@{sha[:10]}")
         except Exception as e:  # noqa: BLE001 - 작업 스레드의 오류는 화면에 보여 준다
             self._push(str(e))
             self._finish("failed", str(e))
@@ -184,6 +198,6 @@ class _GitRunner(_Runner):
 def start_push(*, project: str, version: str, member) -> Job:
     if not (app_dir(project) / "README.md").is_file():
         raise BadRequest("먼저 '최종 개발하기'로 코드를 만드세요.")
-    job = _new_job(project=project, base=version, source="git", message="git에 올리는 중")
+    job = _new_job(project=project, base=version, source="git", message="원격에 올리는 중")
     _GitRunner(job, project, version, member).start([])
     return job

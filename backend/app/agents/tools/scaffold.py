@@ -1160,7 +1160,8 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
         files["docker-compose.yml"] = COMPOSE_MYSQL if mysql else COMPOSE
         files["Dockerfile"] = DOCKERFILE
         files[".dockerignore"] = DOCKERIGNORE
-    files[".gitignore"] = "node_modules/\ndist/\ntarget/\n.env\nlocal/\n" + ("__pycache__/\n.venv/\n" if python else "")
+    # .preview(미리보기·브랜치 작업 폴더)·.req-agent(생성기 기록)는 코드 저장소에 커밋하지 않는다 (services/repo.py)
+    files[".gitignore"] = "node_modules/\ndist/\ntarget/\n.env\nlocal/\n.preview/\n.req-agent/\n" + ("__pycache__/\n.venv/\n" if python else "")
     files["README.md"] = _readme(spec, data, skipped)
     files["IMPLEMENTATION.md"] = _implementation(spec, data, owned, built, logic, records, skipped)
     files["spec/SCREENS.md"] = screens_md(spec, data)

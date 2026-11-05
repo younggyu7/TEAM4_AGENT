@@ -166,15 +166,30 @@ def _notice_data(project: str) -> dict:
     return {"events": data.get("events") or [], "dismissed": data.get("dismissed") or {}}
 
 
-def add_event(project: str, kind: str, title: str, detail: str, page: str, version: str, roles: set[str] | None) -> None:
-    """일 알림을 남긴다. roles=None이면 모든 회원"""
+def add_event(project: str, kind: str, title: str, detail: str, page: str, version: str, roles: set[str] | None,
+              member_ids: set[int] | None = None) -> None:
+    """일 알림을 남긴다. roles=None이면 모든 회원. member_ids가 있으면 그 회원에게만 (예: 합치기 결과 → 요청한 사람)"""
     with _notice_lock:
         data = _notice_data(project)
         at = datetime.now().isoformat(timespec="seconds")
-        data["events"] = [*data["events"][-199:], {"id": f"{kind}:{version}:{at}", "kind": kind, "at": at, "title": title,
-                                                   "detail": detail, "page": page, "version": version,
-                                                   "roles": sorted(roles) if roles is not None else None}]
+        event = {"id": f"{kind}:{version}:{at}", "kind": kind, "at": at, "title": title, "detail": detail, "page": page,
+                 "version": version, "roles": sorted(roles) if roles is not None else None}
+        if member_ids is not None:
+            event["member_ids"] = sorted(member_ids)
+        data["events"] = [*data["events"][-199:], event]
         get_store().write_project_file(project, NOTICE_FILE, json.dumps(data, ensure_ascii=False))
+
+
+def _event_notice(project: str, e: dict) -> dict:
+    n = {"project": project, **{k: e[k] for k in ("kind", "at", "title", "detail", "page", "version", "id")}}
+    if e.get("member_ids") is not None:
+        n["members"] = e["member_ids"]
+    return n
+
+
+def member_events(project: str) -> list[dict]:
+    """회원을 정해 남긴 일 알림 (Slack이 그 회원만 부를 때)"""
+    return [_event_notice(project, e) for e in _notice_data(project)["events"] if e.get("member_ids") is not None]
 
 
 def dismiss(project: str, notice_id: str, member) -> None:
@@ -262,8 +277,8 @@ def notices(member, include_dismissed: bool = False) -> list[dict]:
                 out.append({"project": project, "kind": "decide", "at": r.get("created_at") or "", "page": "final", "version": label,
                             "title": f"최종본 v{label} 승인 대기", "detail": "최종 승인 또는 수정 지시"})
         data = _notice_data(project)
-        out += [{"project": project, **{k: e[k] for k in ("kind", "at", "title", "detail", "page", "version", "id")}}
-                for e in data["events"] if e.get("roles") is None or role in e["roles"]]
+        out += [_event_notice(project, e) for e in data["events"]
+                if (e.get("roles") is None or role in e["roles"]) and (e.get("member_ids") is None or member.id in e["member_ids"])]
         gone = set(data["dismissed"].get(str(member.id)) or [])
         if not include_dismissed:
             out = [n for n in out if n["project"] != project or _nid(n) not in gone]

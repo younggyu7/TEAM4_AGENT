@@ -7,7 +7,9 @@
     erd_edit      ERD 수정·지적 처리·저장 데이터 파트원·데이터 파트장·팀장
     erd_confirm   ERD 최종 확정          데이터 파트장·팀장
     final_decide  최종 승인·수정 지시·기술 스택 팀장
-    develop       최종 개발하기·실행·git 올리기 개발 파트장·팀장 (개발 파트원은 알림·미리보기)
+    develop       최종 개발하기·실행 끄기·합치기·반려·원격 올리기  개발 파트장 (개발 파트원은 알림·미리보기)
+    repo_write    최종 개발물 브랜치 만들기·고치기·저장하기(커밋)·합치기 요청  개발 파트원·개발 파트장
+    app_accounts  앱 시연 계정 보기     개발 파트원·개발 파트장·팀장
 보기는 승인된 회원 누구나 할 수 있다. 회원 승인·역할 지정은 관리자(is_admin)가 한다.
 """
 from __future__ import annotations
@@ -33,8 +35,9 @@ PERMISSIONS: dict[str, tuple[set[str], str]] = {
     "erd_edit": ({"data", "data_head", "lead"}, "ERD 수정은 데이터 파트원·데이터 파트장·팀장만 할 수 있습니다."),
     "erd_confirm": ({"data_head", "lead"}, "ERD 최종 확정은 데이터 파트장·팀장만 할 수 있습니다."),
     "final_decide": ({"lead"}, "최종 승인·수정 지시와 기술 스택은 팀장만 정할 수 있습니다."),
-    "develop": ({"dev_head"}, "최종 개발하기·실행 끄기·git 올리기는 개발 파트장만 할 수 있습니다."),
-    "code_edit": ({"dev", "dev_head", "lead"}, "최종 개발물 코드 고치기는 개발 파트원·개발 파트장·팀장만 할 수 있습니다."),
+    "develop": ({"dev_head"}, "최종 개발하기·실행 끄기·합치기·원격 올리기는 개발 파트장만 할 수 있습니다."),
+    "repo_write": ({"dev", "dev_head"}, "최종 개발물 브랜치·코드 고치기·저장하기·합치기 요청은 개발 파트원·개발 파트장만 할 수 있습니다."),
+    "app_accounts": ({"dev", "dev_head", "lead"}, "앱 시연 계정은 개발 파트원·개발 파트장·팀장만 볼 수 있습니다."),
 }
 
 

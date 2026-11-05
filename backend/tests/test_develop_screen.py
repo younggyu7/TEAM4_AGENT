@@ -94,45 +94,40 @@ def test_stack_is_chosen_in_three_parts_and_warns_when_there_is_no_template():
     assert stacks.status({"questions": [], "requirements": [{"title": "로그인", "description": "회원 로그인"}]})["basis"] == "없음"
 
 
-def test_git_settings_hide_tokens_and_push_both_sides_to_their_repos(tmp_path, monkeypatch):
-    """화면·백엔드 저장소에 따로 올린다 (로컬 bare 저장소로). 토큰은 암호화해 두고 화면에는 있는지만 보낸다."""
+def test_git_settings_hide_tokens_and_push_one_repo(tmp_path, monkeypatch):
+    """원격은 하나 (화면·백엔드·DB를 한 저장소에, 로컬 bare 저장소로). 토큰은 암호화해 두고 화면에는 있는지만 보낸다.
+    올리는 것은 코드 저장소의 main (빌드 결과·패키지·생성기 기록은 커밋되지 않음). 자세한 경우는 test_repo.py"""
     project = "sample"
     app = develop.app_dir(project)
     for path, text in {"README.md": "# app", "frontend/src/App.tsx": "x", "frontend/node_modules/m.js": "skip",
                        "backend/pom.xml": "<p/>", "backend/target/a.jar": "skip", "db/schema.sql": "create table t();",
-                       "spec/API.md": "api", "spec/SCREENS.md": "s", "spec/PRD.md": "prd", ".gitignore": "node_modules/\n"}.items():
+                       "spec/API.md": "api", ".gitignore": "node_modules/\ntarget/\n.preview/\n.req-agent/\n",
+                       ".req-agent/manifest.json": "{}"}.items():
         (app / path).parent.mkdir(parents=True, exist_ok=True)
         (app / path).write_text(text, encoding="utf-8")
-    saved = gitpush.save_settings(project, {"frontend": {"url": "https://example.com/f.git", "branch": "main", "token": "ghp_secret"},
-                                            "backend": {"url": "https://example.com/b.git", "token": ""}})
-    assert saved["frontend"] == {"url": "https://example.com/f.git", "branch": "main", "has_token": True}
+    from app.services import repo
+    repo.commit_develop(project, "1.1", "최종본 v1.1 개발")
+    saved = gitpush.save_settings(project, {"url": "https://example.com/app.git", "branch": "", "token": "ghp_secret"})
+    assert saved == {"url": "https://example.com/app.git", "branch": "main", "has_token": True}
     raw = (get_settings().output_dir / project / "git.json").read_text(encoding="utf-8")
-    assert "ghp_secret" not in raw and gitpush._token(project, "frontend") == "ghp_secret", "토큰은 암호화해 저장"
+    assert "ghp_secret" not in raw and gitpush._token(project) == "ghp_secret", "토큰은 암호화해 저장"
+    assert signed_in_client("dev").get("/api/v1/develop/git?project=sample").json()["has_token"] is True
+    assert signed_in_client("dev").post("/api/v1/develop/git", json={"project": project, "url": "https://x/y.git"}).status_code == 403
 
-    remotes = {}
-    for side in ("frontend", "backend"):
-        remotes[side] = tmp_path / f"{side}.git"
-        subprocess.run(["git", "init", "-q", "--bare", str(remotes[side])], check=True)
+    remote = tmp_path / "app.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
     store = json.loads(raw)
-    for side in remotes:   # 테스트는 로컬 저장소로 (화면 입력은 https만 받는다)
-        store[side]["url"] = str(remotes[side])
+    store["url"] = str(remote)   # 테스트는 로컬 저장소로 (화면 입력은 https만 받는다)
     (get_settings().output_dir / project / "git.json").write_text(json.dumps(store), encoding="utf-8")
-    monkeypatch.setattr(gitpush, "find_version", lambda p, v: {"approval": {"by": {"name": "김관리"}}, "develop": {"by": {"name": "한개발"}}})
+    monkeypatch.setattr(gitpush, "find_version", lambda p, v: {})
     monkeypatch.setattr(gitpush, "update_version", lambda *a, **k: None)
     member = type("M", (), {"id": 1, "name": "한개발", "email": "dev@team4.local"})()
     job = jobs.Job(id="g", project=project, base="1.1", source="git", status="running", message="")
-    runner = gitpush._GitRunner(job, project, "1.1", member)
-    runner._run([])
+    gitpush._GitRunner(job, project, "1.1", member)._run([])
     assert job.status == "done", job.log
-    files = lambda side, branch: subprocess.run(["git", "--git-dir", str(remotes[side]), "ls-tree", "-r", "--name-only", branch],   # noqa: E731
-                                                capture_output=True, text=True).stdout.split()
-    assert sorted(files("frontend", "main")) == [".gitignore", "frontend/src/App.tsx", "spec/API.md", "spec/SCREENS.md"]
-    assert sorted(files("backend", "req-agent/v1.1")) == [".gitignore", "README.md", "backend/pom.xml", "db/schema.sql",
-                                                          "spec/API.md", "spec/PRD.md", "spec/SCREENS.md"]
+    files = subprocess.run(["git", "--git-dir", str(remote), "ls-tree", "-r", "--name-only", "main"], capture_output=True, text=True).stdout.split()
+    assert sorted(files) == [".gitignore", "README.md", "backend/pom.xml", "db/schema.sql", "frontend/src/App.tsx", "spec/API.md"]
     assert not any("ghp_secret" in line for line in job.log), "기록에 토큰이 남지 않는다"
-    runner2 = gitpush._GitRunner(jobs.Job(id="g2", project=project, base="1.1", source="git", status="running", message=""), project, "1.1", member)
-    runner2._run([])
-    assert runner2.job.status == "done" and any("바뀐 파일이 없어" in line for line in runner2.job.log), "다시 올리면 바뀐 것만"
 
 
 def test_code_files_show_empty_logic_and_only_dev_part_saves():
@@ -159,11 +154,14 @@ def test_code_files_show_empty_logic_and_only_dev_part_saves():
     for hidden in ("local/accounts.txt", "frontend/node_modules/x.js", "../../etc/passwd"):
         assert data_head.get("/api/v1/develop/file", params={"project": "sample", "path": hidden}).status_code == 404, hidden
 
-    body = {"project": "sample", "path": "README.md", "content": "# 고친 앱\n"}
-    assert data_head.put("/api/v1/develop/file", json=body).status_code == 403, "개발 파트·팀장만 고친다"
+    branch = dev.post("/api/v1/develop/repo/branch", json={"project": "sample", "name": "feature/dev-readme"}).json()["name"]
+    body = {"project": "sample", "path": "README.md", "content": "# 고친 앱\n", "branch": branch}
+    assert data_head.put("/api/v1/develop/file", json=body).status_code == 403, "개발 파트만 고친다"
+    assert lead.put("/api/v1/develop/file", json=body).status_code == 403, "팀장도 코드는 고치지 않는다 (개발 파트원·파트장)"
     saved = dev.put("/api/v1/develop/file", json=body).json()
-    assert saved["edited"] and (app / "README.md").read_text(encoding="utf-8") == "# 고친 앱\n", "개발 파트원도 고칠 수 있고 '사람이 고침'으로 표시"
-    assert lead.put("/api/v1/develop/file", json={**body, "path": "local/accounts.txt"}).status_code == 404
+    assert saved["edited"] and saved["changed"] == "M", "개발 파트원은 브랜치에서 고치고 '사람이 고침'·커밋 안 한 변경으로 표시"
+    assert (app / "README.md").read_text(encoding="utf-8") == "# app", "main은 그대로"
+    assert dev.put("/api/v1/develop/file", json={**body, "path": "local/accounts.txt"}).status_code == 404
     assert lead.get("/api/v1/preview/sample/terminal").json()["app_log"] == [], "실행 전에는 앱 서버 로그 없음"
 
 
@@ -197,8 +195,10 @@ def test_code_browser_marks_what_ai_wrote():
     assert not tree["frontend/src/pages/index.ts"]["ai_file"] and not tree["README.md"]["ai_file"]
     assert [(h["name"], h["empty"], h["ai"]) for h in appfiles.read("sample", "backend/src/main/java/app/logic/L.java")["hole_list"]] \
         == [("a", True, False), ("b", False, True)]
-    appfiles.save("sample", "backend/src/main/java/app/logic/L.java", logic.replace("if (x)", "if (y)"))
-    assert appfiles.read("sample", "backend/src/main/java/app/logic/L.java")["ai_holes"] == 0, "사람이 고치면 AI 표시가 빠진다"
+    from app.services import repo
+    branch = repo.create_branch("sample", "feature/fix", type("M", (), {"id": 1, "name": "한개발"})())["name"]
+    appfiles.save("sample", "backend/src/main/java/app/logic/L.java", logic.replace("if (x)", "if (y)"), branch)
+    assert appfiles.read("sample", "backend/src/main/java/app/logic/L.java", branch)["ai_holes"] == 0, "사람이 고치면 AI 표시가 빠진다"
 
 
 def test_event_notices_go_to_roles_and_disappear_when_confirmed(sample_doc):
