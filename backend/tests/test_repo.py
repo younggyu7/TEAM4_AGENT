@@ -147,8 +147,10 @@ def test_merge_request_merge_and_notices(sample_doc):
     assert not kinds(head, "merged") and not kinds(signed_in_client("lead"), "merged"), "합친 알림은 요청한 사람에게만"
     assert head.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]}).status_code == 400, "이미 처리"
 
-    # Slack: 회원을 정한 알림은 그 회원만 부른다
-    from app.services import slack
+    # Slack: 회원을 정한 알림은 그 회원만 부른다 (그 회원이 프로젝트 담당자일 때 — 담당자가 아니면 Slack으로 부르지 않는다)
+    from app.services import project_access, slack, users
+    assert not [m for n, ms in slack._pending({P}).values() if n["kind"] == "merged" for m in ms], "담당자가 아니면 안 부른다"
+    project_access.set_members(P, [m.id for m in users.list_members() if m.name == "dev"])
     pending = slack._pending({P})
     who = [m.name for n, ms in pending.values() if n["kind"] == "merged" for m in ms]
     assert who == ["dev"]
