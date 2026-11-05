@@ -134,6 +134,23 @@ TABLE_IN_SQL = re.compile(r"\b(?:FROM|JOIN|UPDATE|INTO)\s+(?!(?:SET|SELECT|LATER
 CTE_NAME = re.compile(r"(?:\bWITH(?:\s+RECURSIVE)?|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s*\(", re.I)
 
 
+# SQL을 조각으로 이을 때 공백이 빠진 것: "… AS total" + "FROM …" → "totalFROM" (컴파일은 되지만 실행하면 문법 오류)
+SQL_KEY = r"(?:SELECT|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|GROUP|ORDER|HAVING|LIMIT|OFFSET|UNION|AND|OR|ON|SET|VALUES|RETURNING|INTO)\b"
+_OPEN = r"(?:\"\"\"[ \t]*\n\s*|[\"'`])"   # 다음 조각의 시작: 텍스트 블록(\"\"\" 다음 줄) 또는 따옴표
+_GLUED = re.compile(r"([\"'`])([^\"'`\n]*[A-Za-z0-9_)])\1\s*\+?\s*" + _OPEN + "(" + SQL_KEY + ")")
+_SQL_VAR = re.compile(r"\b([A-Za-z_]\w*)\s*=\s*" + _OPEN + r"\s*" + SQL_KEY)
+
+
+def glued_sql(code: str) -> list[str]:
+    """SQL 조각을 이을 때 앞 조각 끝과 뒤 조각 앞 사이에 공백이 없는 곳 (문자열끼리, 또는 SQL로 시작하는 변수와)"""
+    out = [f"SQL 조각 사이에 공백이 없음: '…{m.group(2)[-20:]}' + '{m.group(3)} …' (→ '{m.group(2)[-8:]}{m.group(3)}'). 조각 앞이나 끝에 공백을 둔다"
+           for m in _GLUED.finditer(code)]
+    for var in set(_SQL_VAR.findall(code)):
+        for m in re.finditer(r"([\"'`])([^\"'`\n]*[A-Za-z0-9_)])\1\s*\+\s*" + re.escape(var) + r"\b", code):
+            out.append(f"SQL 조각 사이에 공백이 없음: '…{m.group(2)[-20:]}' + {var} ({var}는 SQL로 시작). 조각 앞이나 끝에 공백을 둔다")
+    return list(dict.fromkeys(out))
+
+
 def sql_tables(sql: str) -> list[str]:
     """SQL이 읽고 쓰는 테이블 이름. 'DO UPDATE SET'의 SET 같은 예약어와 WITH 이름(CTE, 예: base)은 테이블이 아니다"""
     ctes = {m.lower() for m in CTE_NAME.findall(sql)}

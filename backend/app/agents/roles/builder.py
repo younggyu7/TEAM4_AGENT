@@ -28,7 +28,7 @@ from app.schemas.function import FunctionSpec
 from app.agents.tools.dev_spec import Spec
 from app.agents.tools.scaffold import TEMPLATES, class_name, has_backend, owned_operations
 from app.agents.roles import builder_fastapi, builder_nestjs
-from app.agents.roles.developer import DATE_PARSE, TABLE_IN_SQL, TodoOut, sql_tables, _strip_comments, _strip_strings
+from app.agents.roles.developer import DATE_PARSE, TABLE_IN_SQL, TodoOut, glued_sql, sql_tables, _strip_comments, _strip_strings
 
 log = logging.getLogger(__name__)
 PROMPT_VERSION = "build-v2"
@@ -328,12 +328,14 @@ def _path_matches(called: list[str], spec: list[str]) -> bool:
 
 
 def check_server(spec: Spec, code: str, cls: str, ops: list[dict], tables: set[str]) -> list[str]:
-    """서버 코드 검사: Spring은 Java 컨트롤러, FastAPI는 Python 모듈, NestJS는 TypeScript 컨트롤러."""
+    """서버 코드 검사: Spring은 Java 컨트롤러, FastAPI는 Python 모듈, NestJS는 TypeScript 컨트롤러. 셋 다 SQL 조각 공백도 본다"""
     if _nest(spec):
-        return builder_nestjs.check_module(code, cls, ops, tables, _cramped)
-    if _python(spec):
-        return builder_fastapi.check_module(code, ops, tables, _cramped)
-    return check_controller(code, cls, ops, tables)
+        errors = builder_nestjs.check_module(code, cls, ops, tables, _cramped)
+    elif _python(spec):
+        errors = builder_fastapi.check_module(code, ops, tables, _cramped)
+    else:
+        errors = check_controller(code, cls, ops, tables)
+    return errors + glued_sql(code)
 
 
 def recheck(spec: Spec, f: FunctionSpec, ops: list[dict], record: dict, tables: set[str]) -> list[str]:

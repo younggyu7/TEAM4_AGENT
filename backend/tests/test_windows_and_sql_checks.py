@@ -18,3 +18,14 @@ def test_windows_prefers_exe_and_cmd_over_extensionless_scripts(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda name: found.get(name))
     assert exe.which("docker").endswith("docker.exe") and exe.which("npm").endswith("npm.cmd")
     assert exe.run_shell(r"C:\node\npm.cmd") and not exe.run_shell(r"C:\Docker\bin\docker.exe")
+
+
+def test_glued_sql_pieces_are_caught_before_running():
+    """'… AS total' + 'FROM …' → 'totalFROM': 컴파일은 되지만 실행하면 문법 오류. 코드 검사에서 잡아 AI에게 다시 묻는다"""
+    from app.agents.roles.developer import glued_sql
+    assert glued_sql('String c = "SELECT COUNT(*) AS total" + "FROM budget_allocation ba";')
+    assert glued_sql('String c = "SELECT COUNT(*) AS total" + """\n    FROM budget_allocation ba""";'), "텍스트 블록"
+    assert glued_sql('String from = """\n  FROM a\n""";\nString c = "SELECT COUNT(*) AS total" + from;'), "SQL로 시작하는 변수"
+    assert glued_sql('sql = ("SELECT COUNT(*) AS total"\n       "FROM budget")'), "Python 이어 쓴 문자열"
+    assert not glued_sql('String c = "SELECT COUNT(*) AS total " + "FROM budget";')
+    assert not glued_sql('String c = "SELECT a" + " FROM budget";') and not glued_sql('msg = "총 " + "건";')
