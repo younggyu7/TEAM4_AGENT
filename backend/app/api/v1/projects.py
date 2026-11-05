@@ -6,6 +6,7 @@
   GET  /projects/stack    버전의 기술 스택 상태 (원문·확정·미정, 개발 틀 없는 층 경고)
   POST /projects/tech-stack  최종본의 기술 스택 확정 → 개발 스펙 10개 다시 쓰기 (LLM 없음)
   GET  /projects/slack    프로젝트 Slack 채널·담당자 (채널이 아직 없거나 Slack이 꺼져 있으면 null)
+  DELETE /projects        프로젝트 삭제 (팀장만, confirm에 프로젝트 이름을 그대로 적어야 함, 되돌릴 수 없음)
   POST /projects/slack/members  담당자 바꾸기 (팀장만): 더한 회원은 채널에 초대, 뺀 회원은 채널에서 내보냄
 """
 from __future__ import annotations
@@ -23,7 +24,7 @@ from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
 from app.core.exceptions import BadRequest, Forbidden, NotFound
 from app.schemas.version import TechStackUpdate, TitleUpdate
-from app.services import output_store, slack, users
+from app.services import output_store, project_delete, slack, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
 
@@ -36,6 +37,15 @@ class SlackMembers(BaseModel):
 @router.get("/projects", summary="프로젝트와 설계 버전 목록")
 def list_projects():
     return {"output_dir": get_store().location, "projects": output_store.find_projects()}
+
+
+@router.delete("/projects", summary="프로젝트 삭제 (팀장만, 되돌릴 수 없음)")
+def delete_project(project: str, confirm: str, member: users.Member = Depends(current_user)):
+    ensure(member, "project_delete")
+    project = _project(project)
+    if confirm != project:
+        raise BadRequest("확인 칸에 프로젝트 이름을 그대로 적어 주세요.")
+    return project_delete.delete_project(project, member)
 
 
 @router.post("/projects/title", summary="버전 제목 저장")

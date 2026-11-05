@@ -217,3 +217,24 @@ def test_event_notices_go_to_roles_and_disappear_when_confirmed(sample_doc):
     assert kinds(data) == ["uploaded"], "확인한 알림은 사라진다"
     assert kinds(signed_in_client("data_head")) == ["erd_draft", "uploaded"], "다른 회원에게는 그대로"
     assert lead.get("/api/v1/develop/plan?project=sample&version=1.1").status_code == 403, "개발은 개발 파트장만"
+
+
+def test_lead_deletes_project_with_its_data(sample_doc):
+    """프로젝트 삭제: 팀장만, 확인 칸에 이름을 그대로 적어야 한다. 버전·프로젝트 파일·코드 폴더가 모두 지워진다."""
+    from app.agents.storage import get_store
+    from app.services import directives
+    _approved_final(sample_doc)
+    directives.add_event("sample", "uploaded", "t", "", "spec", "1", None)
+    folder = get_settings().output_dir / "sample" / "app"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "README.md").write_text("x", encoding="utf-8")
+    lead = signed_in_client("lead")
+    assert signed_in_client("dev_head").delete("/api/v1/projects?project=sample&confirm=sample").status_code == 403, "팀장만"
+    assert lead.delete("/api/v1/projects?project=sample&confirm=sampl").status_code == 400, "이름이 다르면 안 지운다"
+    assert get_store().has_project("sample")
+    r = lead.delete("/api/v1/projects?project=sample&confirm=sample")
+    assert r.status_code == 200, r.text
+    assert not get_store().has_project("sample") and get_store().read_project_file("sample", directives.NOTICE_FILE) is None
+    assert not (get_settings().output_dir / "sample").exists()
+    assert all(p["id"] != "sample" for p in lead.get("/api/v1/projects").json()["projects"])
+    assert lead.delete("/api/v1/projects?project=sample&confirm=sample").status_code == 400, "없는 프로젝트"

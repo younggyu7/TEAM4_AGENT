@@ -32,6 +32,9 @@ class ArtifactStore(Protocol):
     def write_project_file(self, project: str, name: str, text: str) -> str:
         """프로젝트 파일을 쓰고 위치를 돌려준다."""
 
+    def delete_project(self, project: str) -> None:
+        """프로젝트의 모든 버전·산출물·프로젝트 파일을 지운다 (되돌릴 수 없음)."""
+
     # ---------------------------------------------------------------- 버전 기록·제목
     def load_version_records(self, project: str) -> list[dict]:
         """버전 기록 (versions.json의 versions 항목). 없으면 빈 목록."""
