@@ -661,27 +661,78 @@ def confirm_tech_stack(project: str, version: str, stack: str, parts: dict | Non
     api = design.get("api_design") or {}
     if not api.get("functions"):
         raise ValueError(f"v{version}에는 개발 스펙이 없습니다 ('ERD 최종 확정'으로 만든 최종본에서 정하세요).")
-    meta = design.get("meta") or {}
     model = DataModel.model_validate_json(store.read(project, version, "data_model.json") or "{}")
     questions = answer_stack([Question.model_validate(q) for q in design.get("questions") or []], stack)
     result = tech_stack(api, questions, chosen=True)   # 팀장이 최종 산출물 화면에서 고른 값 → 확정
     if result["basis"] == "원문":
         raise ValueError(f"원문이 기술 스택을 정했습니다 ({result['backend']}). 원문과 다른 스택은 정할 수 없습니다.")
+    dev_spec, files = _rewrite_dev_spec(project, version, design, model, questions, result)
+    update_version(project, version, tech_stack={"stack": result["backend"], "basis": result["basis"],
+                                                 **({"parts": parts} if parts else {})})
+    return {**dev_spec, "written": len(files)}
+
+
+def fill_dev_spec(project: str, version: str) -> dict:
+    """업무 동작 분석 전에 만든 예전 최종본(BEHAVIOR.md 없음)을 채운다: 그 최종본으로 업무 동작 설계를 한 번 하고(LLM 1회)
+    개발 스펙 10개를 다시 쓴다. 설계 산출물(기능 명세·ERD·DDL·API 설계)과 기술 스택은 그대로다.
+    분석 결과가 이미 있으면 LLM 없이 빠진 파일만 다시 쓴다. 개발 스펙이 없는 버전이면 ValueError, LLM이 실패하면 LLMError."""
+    from app.agents.llm.client import get_llm
+    from app.agents.roles import behavior
+    from app.core.config import get_settings
+
+    store = get_store()
+    text = store.read(project, version, "design.json")
+    design = json.loads(text) if text else {}
+    api = design.get("api_design") or {}
+    if not api.get("functions"):
+        raise ValueError(f"v{version}에는 개발 스펙이 없습니다 ('ERD 최종 확정'으로 만든 최종본에서 채웁니다).")
+    missing = [name for name in DEV_SPEC_FILES if not store.exists(project, version, name)]
+    motion = api.get("behavior") or {}
+    if motion.get("fingerprint") and not missing:
+        raise ValueError(f"v{version}의 개발 스펙은 이미 모두 있습니다.")
+    model = DataModel.model_validate_json(store.read(project, version, "data_model.json") or "{}")
+    questions = [Question.model_validate(q) for q in design.get("questions") or []]
+    asked = 0
+    if not motion.get("fingerprint"):
+        # API 설계 단계(api_designer)의 업무 동작 설계와 같은 순서: 값의 출처를 코드로 채운 뒤 상태 전환·자동 처리를 묻는다
+        s, llm = get_settings(), get_llm()
+        functions = [FunctionSpec.model_validate(f) for f in design.get("functions") or []]
+        stored = api["functions"]
+        behavior.fill_sources(stored, model, [f.function_id for f in functions])
+        request = behavior.request(functions, model, stored, design.get("common") or {})
+        out = llm.structured(system=behavior.PROMPT, user=request, schema=behavior.BehaviorOut, effort=s.api_effort,
+                             purpose="업무 동작 설계 (예전 최종본 채우기)") if request else behavior.BehaviorOut()
+        motion = {**behavior.normalize(out, model, stored, motion), "fingerprint": behavior.fingerprint(request)}
+        # 최종본에서는 질문을 바로 묻지 않고 미룬다 (ERD 최종 확정과 같은 ask_mode=defer)
+        new = behavior.attach_questions(motion, questions, False, s.behavior_max_questions)
+        questions, asked = questions + new, len(new)
+        api["behavior"] = motion
+    meta = (design.get("meta") or {}).get("dev_spec") or {}
+    result = tech_stack(api, questions, chosen=meta.get("stack_basis") == "확정" and not meta.get("stack_from_answer"))
+    dev_spec, files = _rewrite_dev_spec(project, version, design, model, questions, result)
+    return {**dev_spec, "written": len(files), "filled": missing, "questions": asked,
+            "states": len(motion.get("states") or []), "automations": len(motion.get("automations") or [])}
+
+
+def _rewrite_dev_spec(project: str, version: str, design: dict, model: DataModel, questions: list[Question],
+                      result: dict) -> tuple[dict, list[str]]:
+    """최종본의 개발 스펙 10개와 design.json(질문·api_design·meta.dev_spec)을 다시 쓴다 (LLM 없음). → (meta.dev_spec, 쓴 파일)"""
+    store = get_store()
+    meta = design.get("meta") or {}
     options = {"standard": (meta.get("standard") or {}).get("profile")} if meta.get("standard") else {}
     profile = profile_of(options)
     physical, conv = apply_profile(model, profile) if profile and profile.renames else (model, None)
     state = {"requirements": design.get("requirements"), "functions": design.get("functions"),
              "questions": [q.model_dump(mode="json") for q in questions], "function_common": design.get("common") or {},
-             "api_design": api, "options": options, "document": meta.get("document") or {}}
+             "api_design": design.get("api_design") or {}, "options": options, "document": meta.get("document") or {}}
     files = write_dev_spec(state, lambda name, body: store.write(project, version, name, body), project, version, model,
                            ddl_model(physical, profile), conv, profile, result)
     meta["dev_spec"] = {**(meta.get("dev_spec") or {}), "format": SPEC_FORMAT, "files": list(DEV_SPEC_FILES),
-                        "stack": result["backend"], "stack_basis": result["basis"], "stack_from_answer": False}
+                        "stack": result["backend"], "stack_basis": result["basis"],
+                        "stack_from_answer": result.get("from_answer", False)}
     design.update(meta=meta, questions=state["questions"])
     store.write(project, version, "design.json", json.dumps(design, ensure_ascii=False, separators=(",", ":")))
-    update_version(project, version, tech_stack={"stack": result["backend"], "basis": result["basis"],
-                                                 **({"parts": parts} if parts else {})})
-    return {**meta["dev_spec"], "written": len(files)}
+    return meta["dev_spec"], files
 
 
 def export_semantic_review(state: dict, project: str, version: str) -> list[str]:

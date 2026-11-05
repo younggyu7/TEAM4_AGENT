@@ -1168,7 +1168,7 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
     files["spec/SPEC_VERSION"] = json.dumps({"project": spec.project, "version": spec.version, "format": APP_FORMAT,
                                              "document": (spec.meta.get("document") or {}).get("document_version", "")},
                                             ensure_ascii=False, indent=1) + "\n"
-    for name in (*SPEC_FILES, "schema.sql"):
+    for name in (*SPEC_FILES, "schema.sql", "erd.mmd"):   # ERD 그림(Mermaid)도 개발 AI가 볼 수 있게
         if (text := spec.read(name)) is not None:
             files[f"spec/{name}"] = text
     if stack_parts(spec)["frontend"] == "nextjs":

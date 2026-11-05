@@ -5,6 +5,7 @@
   GET  /tech-stacks       개발 스펙의 기술 스택 선택지 (화면·서버·DB, 개발 틀이 있는지)
   GET  /projects/stack    버전의 기술 스택 상태 (원문·확정·미정, 개발 틀 없는 층 경고)
   POST /projects/tech-stack  최종본의 기술 스택 확정 → 개발 스펙 10개 다시 쓰기 (LLM 없음)
+  POST /projects/dev-spec/fill  예전 최종본의 빠진 개발 스펙 채우기 (업무 동작 설계 LLM 1회 → BEHAVIOR.md 등 다시 쓰기)
   DELETE /projects        프로젝트 삭제 (팀장만, confirm에 프로젝트 이름을 그대로 적어야 함, 되돌릴 수 없음)
   GET  /projects/members  담당자(이 프로젝트를 보는 회원)와 Slack 채널 (채널이 아직 없거나 Slack이 꺼져 있으면 slack: null)
   POST /projects/members  담당자 바꾸기 (팀장만): 뺀 회원은 이 프로젝트를 더는 못 본다. Slack 채널이 있으면 더한 회원은 초대, 뺀 회원은 내보냄
@@ -19,12 +20,13 @@ from pydantic import BaseModel, Field
 from app.agents.roles.api_designer import stack_choices
 from app.agents.storage import get_store
 from app.agents.tools import stacks
-from app.agents.tools.exporter import confirm_tech_stack
+from app.agents.llm.client import LLMError
+from app.agents.tools.exporter import confirm_tech_stack, fill_dev_spec
 from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
 from app.core.auth import ROLES
-from app.core.exceptions import BadRequest, Forbidden, NotFound
-from app.schemas.version import TechStackUpdate, TitleUpdate
+from app.core.exceptions import AppError, BadRequest, Forbidden, NotFound
+from app.schemas.version import TechStackUpdate, TitleUpdate, VersionRef
 from app.services import output_store, project_access, project_delete, slack, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
@@ -89,6 +91,21 @@ def set_tech_stack(body: TechStackUpdate, member: users.Member = Depends(current
         return {"dev_spec": confirm_tech_stack(project, version, stack, body.parts)}
     except ValueError as e:
         raise BadRequest(str(e)) from e
+
+
+@router.post("/projects/dev-spec/fill", summary="예전 최종본의 빠진 개발 스펙 채우기 (업무 동작 설계 LLM 1회)")
+def fill_spec(body: VersionRef, member: users.Member = Depends(current_user)):
+    ensure(member, "erd_confirm")   # 개발 스펙은 'ERD 최종 확정'이 만든다 → 같은 권한 (데이터 파트장·팀장)
+    project, version = _project(body.project), guards.version(body.version)
+    if not output_store.has_version(project, version):
+        raise NotFound(f"v{version}이 없습니다.")
+    _no_running_job(body.project)
+    try:
+        return {"dev_spec": fill_dev_spec(project, version)}
+    except ValueError as e:
+        raise BadRequest(str(e)) from e
+    except LLMError as e:   # 실패를 빈 문서로 숨기지 않는다: 파일은 그대로 두고 알린다
+        raise AppError(f"업무 동작 설계 요청이 실패해 채우지 못했습니다: {e}", 502) from e
 
 
 def _members_view(project: str) -> dict:

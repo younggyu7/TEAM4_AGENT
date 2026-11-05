@@ -50,7 +50,7 @@ Agent가 고객 요구사항 문서(RFP)로 만드는 산출물이 **무엇이�
 | `backend/.../logic/` | 기능별 업무 로직. `// <hole>` 안을 채운다 | 예. 고친 파일은 다시 생성해도 그대로 둔다 |
 | `backend/src/test/.../acceptance/` | 수용 기준 하나 = 테스트 하나 (`@Disabled` 틀) | 예 |
 | `db/` | `schema.sql`과 시연용 `seed.sql` | 아니오 (스펙에서 생성) |
-| `spec/` | 이 코드를 만든 개발 스펙, 화면 목록 `SCREENS.md`, 버전 `SPEC_VERSION` | 아니오 |
+| `spec/` | 이 코드를 만든 개발 스펙, `schema.sql`, ERD 그림 `erd.mmd`, 화면 목록 `SCREENS.md`, 버전 `SPEC_VERSION` | 아니오 |
 | `.req-agent/` | 생성 파일 해시(`manifest.json`), LLM이 채운 결과(`logic/`) | 아니오 |
 
 ## 3. 파일별 설명

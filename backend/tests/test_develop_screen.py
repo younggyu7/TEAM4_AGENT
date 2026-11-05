@@ -68,6 +68,9 @@ def test_preview_files_stay_inside_and_need_login(sample_doc):
     status = member.get("/api/v1/preview/sample/status").json()
     assert (status["status"], status["backend"], status["mock"]) == ("stopped", False, True)
     assert member.post("/api/v1/preview/sample/start").json()["status"] == "no_backend", "백엔드가 없으면 실행하지 않는다"
+    assert member.post("/api/v1/preview/sample/stop").status_code == 403, "끄기는 개발 파트장·팀장만"
+    for role in ("dev_head", "lead"):
+        assert signed_in_client(role).post("/api/v1/preview/sample/stop").status_code == 200, role
 
 
 def test_stack_is_chosen_in_three_parts_and_warns_when_there_is_no_template():
@@ -238,3 +241,29 @@ def test_lead_deletes_project_with_its_data(sample_doc):
     assert not (get_settings().output_dir / "sample").exists()
     assert all(p["id"] != "sample" for p in lead.get("/api/v1/projects").json()["projects"])
     assert lead.delete("/api/v1/projects?project=sample&confirm=sample").status_code == 400, "없는 프로젝트"
+
+
+def test_old_final_without_behavior_is_filled_once(sample_doc, monkeypatch):
+    """업무 동작 분석 전에 만든 예전 최종본(BEHAVIOR.md 없음): 채우기는 업무 동작 설계를 한 번 묻고 개발 스펙을 다시 쓴다.
+    다시 누르면 묻지 않는다. 데이터 파트장·팀장만."""
+    from app.agents.storage import get_store
+    final = _approved_final(sample_doc)
+    store = get_store()
+    design = json.loads(store.read("sample", final, "design.json"))
+    design["api_design"].pop("behavior", None)
+    design["meta"]["dev_spec"]["files"].remove("BEHAVIOR.md")
+    store.write("sample", final, "design.json", json.dumps(design, ensure_ascii=False))
+    (get_settings().output_dir / "sample" / f"v{final}" / "BEHAVIOR.md").unlink()   # 테스트 저장소는 로컬 폴더
+    from app.agents.roles import behavior
+    monkeypatch.setattr(behavior, "request", lambda *a: "상태 컬럼 요청")   # 예시 문서에는 상태 컬럼이 없어 요청이 빈다
+    fake = FakeLLM(broken_fk=False)
+    llm_module.set_llm(fake)
+    body = {"project": "sample", "version": final}
+    assert signed_in_client("data").post("/api/v1/projects/dev-spec/fill", json=body).status_code == 403
+    r = signed_in_client("data_head").post("/api/v1/projects/dev-spec/fill", json=body)
+    assert r.status_code == 200, r.text
+    assert fake.calls["BehaviorOut"] == 1 and store.exists("sample", final, "BEHAVIOR.md")
+    after = json.loads(store.read("sample", final, "design.json"))
+    assert after["api_design"]["behavior"]["fingerprint"] and "BEHAVIOR.md" in after["meta"]["dev_spec"]["files"]
+    again = signed_in_client("lead").post("/api/v1/projects/dev-spec/fill", json=body)
+    assert again.status_code == 400 and fake.calls["BehaviorOut"] == 1, "이미 채운 최종본은 다시 묻지 않는다"

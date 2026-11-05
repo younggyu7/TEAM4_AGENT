@@ -27,6 +27,12 @@ class TitleUpdate(BaseModel):
     title: str = ""
 
 
+class VersionRef(BaseModel):
+    """프로젝트의 한 버전"""
+    project: str
+    version: str
+
+
 class TechStackUpdate(BaseModel):
     """최종본의 기술 스택 확정 (화면 '개발 스펙 파일'에서 선택·직접 입력). LLM 없이 개발 스펙 10개를 다시 쓴다."""
     project: str

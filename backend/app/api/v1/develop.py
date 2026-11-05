@@ -129,7 +129,7 @@ def run_start(project: str):
 
 @router.post("/preview/{project}/stop", summary="실행 미리보기 끄기 (개발 파트장·팀장)")
 def run_stop(project: str, member: users.Member = Depends(current_user)):
-    ensure(member, "develop")
+    ensure(member, "preview_stop")
     return preview.stop(_project(project), f"{member.name}님이 껐습니다.")
 
 
