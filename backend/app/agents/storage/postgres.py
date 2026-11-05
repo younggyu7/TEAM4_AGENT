@@ -52,6 +52,15 @@ class PostgresArtifactStore:
             project_repository.write_file(s, _check(project), _check_name(name), text)
         return f"{self.location}/{project}/{name}"
 
+    def delete_project(self, project: str) -> None:
+        """프로젝트 파일과 프로젝트를 지운다 (버전·산출물은 외래 키 CASCADE로 함께 지워진다)"""
+        from sqlalchemy import delete
+
+        from app.models.project import Project, ProjectFile
+        with session_scope() as s:
+            s.execute(delete(ProjectFile).where(ProjectFile.project_id == _check(project)))
+            s.execute(delete(Project).where(Project.id == project))
+
     # ---------------------------------------------------------------- 버전 기록·제목
     def load_version_records(self, project: str) -> list[dict]:
         with session_scope() as s:

@@ -91,6 +91,9 @@ def test_postgres_store_reads_writes_and_blocks_outside(pg):
         assert not store.has_project(bad)
     with pytest.raises(ValueError):
         store.write("p", "1", "../escape", "x")
+    store.delete_project("p")   # 버전·산출물(CASCADE)·프로젝트 파일까지 지운다, 다른 프로젝트는 그대로
+    assert store.list_projects() == ["team/q"] and store.read("p", "1", "design.json") is None
+    assert store.read_project_file("p", "diff-v1-v1.1.md") is None and store.claim_version("p") == "1"
 
 
 def test_claim_version_is_unique_under_concurrency(pg):

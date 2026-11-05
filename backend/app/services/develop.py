@@ -156,7 +156,16 @@ class _DevelopRunner(_Runner):
         for line in self.job.log:
             if m := re.search(r"LLM (\d+)회, 입력 ([\d,]+) · 출력 ([\d,]+) 토큰", line):
                 calls, inp, out = calls + int(m.group(1)), inp + int(m.group(2).replace(",", "")), out + int(m.group(3).replace(",", ""))
-        return {"calls": calls, "input": inp, "output": out, "model": self.ai.get("model", ""), "effort": self.ai.get("effort", ""),
+        model = self.ai.get("model") or ""
+        if not model and self.ai.get("mode"):   # 모델을 고르지 않았으면 .env 기본 모델로 돌았다 (금액 계산에 모델이 필요)
+            from app.agents.llm.client import resolve_provider
+            from app.core.config import get_settings
+            s = get_settings()
+            try:
+                model = s.anthropic_model if resolve_provider() == "anthropic" else s.openai_model
+            except RuntimeError:
+                model = ""
+        return {"calls": calls, "input": inp, "output": out, "model": model, "effort": self.ai.get("effort", ""),
                 "mode": self.ai.get("mode") or "none"}
 
     def summary(self) -> dict:

@@ -40,6 +40,11 @@ _ITEM_MARKS = ("□", "■")                           # RFP의 최상위 항목
 REQ_CODE = re.compile(r"^[A-Za-z]{2,6}[-_ ]?\d{1,4}([-_.]\d{1,3})?$")
 
 SUPPORTED_SUFFIXES = {".hwpx", ".docx", ".pdf", ".txt", ".md"}
+# 웹 업로드로 받는 형식 (TXT·MD는 CLI·시험용으로만 읽는다)
+UPLOAD_SUFFIXES = {".pdf", ".docx", ".hwpx"}
+UPLOAD_NOTE = "PDF·DOCX·HWPX만 지원합니다. 스캔본·이미지(사진·그림으로 된 문서, PNG·JPG 등)는 글자를 읽지 못해 받지 않습니다."
+MIN_TEXT_CHARS = 30      # 이보다 글자가 적은 DOCX·HWPX는 이미지로 된 문서로 보고 막는다
+_IMAGE_HINT = "이미지 파일은 글자를 읽지 못합니다(OCR 없음). 원본 문서(한글·Word)를 HWPX·DOCX나 'PDF로 저장'한 파일로 올려 주세요."
 # 읽지 못하는 형식은 사용자가 바로 조치할 수 있게 변환 방법을 알려준다
 CONVERT_HINTS = {
     ".hwp": "한글에서 열고 [다른 이름으로 저장] → HWPX 또는 PDF로 저장해서 넣으세요. "
@@ -51,6 +56,7 @@ CONVERT_HINTS = {
     ".xls": "Excel에서 열고 PDF로 저장하거나, 표 내용을 텍스트로 옮겨 넣으세요.",
     ".xlsx": "Excel에서 열고 PDF로 저장하거나, 표 내용을 텍스트로 옮겨 넣으세요.",
     ".zip": "압축을 풀고 안의 문서를 한 건씩 넣으세요.",
+    **{s: _IMAGE_HINT for s in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".webp", ".heic")},
 }
 
 # 요구사항 표의 머리 칸(공백·기호 제거, 소문자) → 표준 필드명. 발주기관마다 표기가 달라 동의어를 모아 둔다.
@@ -92,6 +98,28 @@ def check_supported(path: str | Path) -> None:
         raise UnsupportedFormatError(suffix, hint)
     if suffix == ".pdf":
         _check_scanned_pdf(path)
+
+
+def check_upload(path: str | Path) -> None:
+    """웹 업로드 검사: PDF·DOCX·HWPX만, 스캔본 PDF와 글자가 거의 없는(이미지로 된) DOCX·HWPX는 막는다."""
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix not in UPLOAD_SUFFIXES:
+        raise UnsupportedFormatError(suffix, CONVERT_HINTS.get(suffix, UPLOAD_NOTE),
+                                     message=f"지원하지 않는 형식입니다: {suffix or '(확장자 없음)'}. {UPLOAD_NOTE}")
+    check_supported(path)
+    if suffix == ".pdf":
+        return
+    try:
+        raw = _parse_hwpx(path) if suffix == ".hwpx" else _parse_docx(path)
+    except Exception as e:  # noqa: BLE001 — 깨진 파일은 형식 오류로 알린다
+        raise UnsupportedFormatError(suffix, "원본 프로그램에서 다시 저장해 올려 주세요.",
+                                     message=f"문서를 열지 못했습니다 (손상되었거나 {suffix.upper()[1:]} 형식이 아님): {path.name}") from e
+    chars = sum(len("".join(str(b.get("text") or "").split())) + sum(len("".join(" ".join(r).split())) for r in b.get("rows") or [])
+                for b in raw)
+    if chars < MIN_TEXT_CHARS:
+        raise UnsupportedFormatError(suffix, "본문이 그림(스캔·캡처)으로 들어 있으면 읽지 못합니다. 글자로 된 원본 문서를 올려 주세요.",
+                                     message=f"글자가 거의 없는 문서입니다 (스캔본·이미지로 된 문서는 지원하지 않습니다): {path.name}")
 
 
 def file_fingerprint(path: Path) -> tuple[str, str]:

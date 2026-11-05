@@ -49,6 +49,13 @@ class LocalArtifactStore:
         return str(path)
 
     # ---------------------------------------------------------------- 프로젝트
+    def delete_project(self, project: str) -> None:
+        """프로젝트 폴더(버전·산출물·프로젝트 파일)를 지운다"""
+        import shutil
+        folder = inside(self.root, project)
+        if folder.is_dir():
+            shutil.rmtree(folder)
+
     def list_projects(self) -> list[str]:
         projects: list[str] = []
 
