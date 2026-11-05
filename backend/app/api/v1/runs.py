@@ -1,6 +1,7 @@
 """문서 업로드 실행 (작업).
 
-  POST /runs          문서 업로드(multipart file, project?, title?, model?, effort?, slack_members?)
+  POST /runs          문서 업로드(multipart file, project?, title?, model?, effort?, members?)
+                      → 새 프로젝트면 담당자 = 고른 회원 + 올린 사람 (담당자·팀장만 그 프로젝트를 봄)
                       → (Slack이 켜져 있으면 프로젝트 비공개 채널을 만들고 담당자 초대) → 기능 명세 초안까지 실행 → {job, slack}
   GET  /llm-options   업로드 화면에서 고를 모델·생각 수준 (키가 있는 공급자만)
 """
@@ -21,8 +22,8 @@ from app.api.v1.deps import _no_running_job, current_user, ensure
 from app.core import guards
 from app.agents.llm.client import resolve_provider
 from app.core.config import ANTHROPIC_MODELS, EFFORTS, get_settings
-from app.core.exceptions import BadRequest, PayloadTooLarge
-from app.services import jobs, output_store, slack, users
+from app.core.exceptions import BadRequest, Conflict, PayloadTooLarge
+from app.services import jobs, output_store, project_access, slack, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
 
@@ -61,14 +62,15 @@ async def create_run(
     title: Annotated[str, Form(description="사업 이름 (LLM에 사업 맥락으로 줌)")] = "",
     model: Annotated[str, Form(description="LLM 모델 ID (GET /llm-options의 models, 비우면 .env)")] = "",
     effort: Annotated[str, Form(description="생각 수준 low·medium·high (비우면 .env)")] = "",
-    slack_members: Annotated[str, Form(description="채널에 초대할 담당자 회원 ID (쉼표로 구분, GET /members)")] = "",
+    members: Annotated[str, Form(description="담당자 회원 ID (쉼표로 구분, GET /members). 올린 사람·팀장은 늘 담당자. "
+                                             "담당자만 이 프로젝트를 보고 Slack 채널에 초대된다")] = "",
     member: users.Member = Depends(current_user),
 ):
     ensure(member, "upload")
     try:
-        slack_ids = [int(x) for x in slack_members.split(",") if x.strip()]
+        chosen = [int(x) for x in members.split(",") if x.strip()]
     except ValueError as e:
-        raise BadRequest("slack_members는 회원 ID를 쉼표로 이은 값입니다.") from e
+        raise BadRequest("members는 회원 ID를 쉼표로 이은 값입니다.") from e
     if model and model not in {m["id"] for m in llm_options()["models"]}:
         raise BadRequest(f"고를 수 없는 모델입니다: {model}")
     if effort and effort not in EFFORTS:
@@ -77,6 +79,9 @@ async def create_run(
     if Path(name).suffix.lower() not in UPLOAD_SUFFIXES:   # 저장하기 전에 확장자로 먼저 막는다
         raise BadRequest(f"지원하지 않는 형식입니다: {Path(name).suffix or '(확장자 없음)'}. {UPLOAD_NOTE}")
     project = guards.project_name(project or Path(name).stem)
+    existing = output_store.has_project(project)
+    if existing and not project_access.can_see(member, project):
+        raise Conflict("같은 이름의 프로젝트가 이미 있습니다 (담당자만 볼 수 있음). 다른 회사 이름을 적어 주세요.")
     _no_running_job(project)
     # 올린 시각별 폴더에 원래 파일 이름 그대로 둔다 (산출물의 문서 이름이 원본과 같게)
     folder = get_settings().data_dir.resolve() / "uploads" / f"{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
@@ -97,12 +102,16 @@ async def create_run(
     except UnsupportedFormatError as e:
         shutil.rmtree(folder, ignore_errors=True)
         raise BadRequest(f"{e} — {e.hint}" if e.hint and e.hint not in str(e) else str(e)) from e
-    # Slack(.env SLACK_BOT_TOKEN이 있을 때): 프로젝트 채널을 만들고 고른 담당자를 초대한다. 실패해도 분석은 하고,
-    # 고른 담당자를 남겨 두어 서버가 나중에 다시 만든다 (services/slack.ensure_channels)
+    # 담당자: 새 프로젝트만 정한다 (같은 프로젝트에 다시 올리면 그대로 두고, 바꾸기는 팀장이 프로젝트 화면에서)
+    if not existing:
+        await run_in_threadpool(project_access.set_members, project, [member.id, *chosen])
+    # Slack(.env SLACK_BOT_TOKEN이 있을 때): 프로젝트 채널을 만들고 담당자를 초대한다. 실패해도 분석은 하고,
+    # 서버가 나중에 다시 만든다 (services/slack.ensure_channels)
     connected = None
     if slack.enabled():
         try:
-            connected = await run_in_threadpool(slack.create_channel, project, slack_ids, member)
+            assigned = [m.id for m in project_access.assignees(project)]
+            connected = await run_in_threadpool(slack.create_channel, project, assigned, member)
         except slack.SlackError as e:
             connected = {"error": f"Slack 채널을 만들지 못했습니다: {e} (서버가 잠시 뒤 다시 만들어 봅니다)"}
     job = jobs.start_run(output_dir=output_store.output_root(), document=target, project=project,

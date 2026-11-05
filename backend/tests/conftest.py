@@ -59,6 +59,15 @@ def isolated_settings(tmp_path, monkeypatch):
     set_store(None)   # 저장소를 바꿔 끼운 테스트 뒤에는 설정의 로컬 폴더로 되돌린다
 
 
+@pytest.fixture(autouse=True)
+def every_member_sees_every_project(request, monkeypatch):
+    """담당자 규칙(services/project_access: 담당자와 팀장만 그 프로젝트를 봄)은 @pytest.mark.assignees 테스트가 본다.
+    다른 테스트는 저장소에 바로 만든 프로젝트를 여러 역할로 쓰므로 모든 회원이 모든 프로젝트를 보게 둔다."""
+    if request.node.get_closest_marker("assignees") is None:
+        from app.services import project_access
+        monkeypatch.setattr(project_access, "sees_all", lambda member: True)
+
+
 def signed_in_client(role: str = "lead"):
     """로그인한 화면 요청 (처음 가입자는 관리자·팀장, 다른 역할은 관리자가 승인한 회원). API는 로그인한 회원만 쓴다."""
     from fastapi.testclient import TestClient

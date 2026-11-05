@@ -1,6 +1,7 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = ["assignees: 담당자 규칙(담당자·팀장만 프로젝트를 봄)을 그대로 두고 시험 (conftest.every_member_sees_every_project)"]
 
 [tool.ruff]
 target-version = "py312"

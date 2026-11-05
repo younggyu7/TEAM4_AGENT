@@ -18,7 +18,7 @@ from app.agents.storage import get_store
 
 from app.agents.tools.versions import load_versions, update_version, version_key
 from app.core.exceptions import BadRequest, Forbidden, NotFound
-from app.services import drafts, output_store
+from app.services import drafts, output_store, project_access
 
 SPEC_STAGE = "function_designer"
 PLANNERS, DATA = {"planner", "planner_head", "lead"}, {"data", "data_head", "lead"}
@@ -219,12 +219,12 @@ def job_event(job) -> None:
 
 
 def notices(member, include_dismissed: bool = False) -> list[dict]:
-    """홈·사이드바의 '나에게 온 알림': 상태 알림(내 역할에 해당하는 수정 지시·승인 요청·승인 대기·개발 대기, 내가 요청했거나 고친 초안의 반려)
+    """홈·사이드바의 '나에게 온 알림' (내가 담당자인 프로젝트만): 상태 알림(내 역할에 해당하는 수정 지시·승인 요청·승인 대기·개발 대기, 내가 요청했거나 고친 초안의 반려)
     + 일 알림(업로드 분석 완료·ERD 초안·개발 초안). 확인한 것은 뺀다 (include_dismissed=True면 빼지 않는다: Slack 전송용)"""
     out = []
     role = member.role
-    for p in output_store.find_projects():
-        project = p["id"]
+    # 담당자인 프로젝트만 (팀장은 모두): 담당자가 아닌 프로젝트의 알림은 보이지 않는다 (services/project_access)
+    for project in project_access.visible(member, [p["id"] for p in output_store.find_projects()]):
         tree = Tree(project)
         for d in _open(tree):
             src = f"{(d['by'] or {}).get('name', '팀장')} · 최종본 v{d['final']}"

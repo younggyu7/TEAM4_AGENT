@@ -1,6 +1,6 @@
 # TRD
 
-- 버전·최종 수정일: 2.2 · 2026-11-04
+- 버전·최종 수정일: 2.3 · 2026-11-05
 - 상태: 검토 중 (현재 코드 구조로 다시 씀)
 - 파일별 설명: [PROJECT_STRUCTURE.md](../../PROJECT_STRUCTURE.md) · 실행·API·설정: [프로젝트 README](../../README.md) · 변경 기록: [IMPLEMENTATION_STATUS_FOR_FASTAPI.md](../../IMPLEMENTATION_STATUS_FOR_FASTAPI.md)
 
@@ -34,7 +34,8 @@ LLM이 걸리는 작업(몇 분)은 서버 안에서 돌리지 않고 같은 코
 | 실행 체크포인트 | LangGraph `PostgresSaver` (DB 없으면 `SqliteSaver`) | rerun·review·resume는 기준 버전을 만든 실행의 마지막 상태에서 시작 |
 | 코드 도구 | `app/agents/tools/` (LLM 없음) | 문서 파서, 모델 검사, ERD·DDL 생성기, DB 검증, 산출물 쓰기, 개발 스펙(`dev_spec.py`, `spec-format v1`) |
 | 설정 | 루트 `.env` 하나, `app/core/config.py` | docker용 `POSTGRES_*`와 앱 설정을 함께 둔다. 상대 경로는 `backend/` 기준 |
-| Slack 알림 (제안) | `app/services/slack.py`, `app/models/notification.py` | 팀 워크스페이스 봇 토큰 하나(`.env` `SLACK_BOT_TOKEN`). 프로젝트마다 비공개 채널·담당자를 `slack_projects`에 둔다: 업로드(`POST /runs`의 `slack_members`) 때 만들고, 채널이 없는 프로젝트는 백그라운드가 만든다(`auth.test` → `conversations.create`(`is_private`) → `conversations.invite`, 실패하면 10분 뒤 다시). 담당자 바꾸기는 `POST /projects/slack/members` → `conversations.invite`·`conversations.kick`. 서버 안의 백그라운드 스레드 하나가 Slack Web API(표준 라이브러리 HTTP, `chat.postMessage`)로 채널에 올린다. '나에게 온 알림'은 저장된 상태에서 계산하므로 올린 알림 키(종류·프로젝트·화면·버전·시각)를 `slack_notifications`에 남겨 한 번만 올리고, 승인 요청·결정·작업 완료 때 바로, 그 밖에는 `SLACK_SYNC_SECONDS`마다 확인한다. 승인·반려 결과는 결정 API가 바로 큐에 넣는다. 멘션은 그 채널 담당자(초대된 회원)만. Slack 실패는 로그만 남긴다 |
+| Slack 알림 (제안) | `app/services/slack.py`, `app/models/notification.py` | 팀 워크스페이스 봇 토큰 하나(`.env` `SLACK_BOT_TOKEN`). 프로젝트마다 비공개 채널·초대한 회원을 `slack_projects`에 둔다: 업로드(`POST /runs`) 때 담당자(`project_members`, 팀장 포함)로 만들고, 채널이 없는 프로젝트는 백그라운드가 만든다(`auth.test` → `conversations.create`(`is_private`) → `conversations.invite`, 실패하면 10분 뒤 다시). 담당자 바꾸기는 `POST /projects/members` → `conversations.invite`·`conversations.kick`. 서버 안의 백그라운드 스레드 하나가 Slack Web API(표준 라이브러리 HTTP, `chat.postMessage`)로 채널에 올린다. '나에게 온 알림'은 저장된 상태에서 계산하므로 올린 알림 키(종류·프로젝트·화면·버전·시각)를 `slack_notifications`에 남겨 한 번만 올리고, 승인 요청·결정·작업 완료 때 바로, 그 밖에는 `SLACK_SYNC_SECONDS`마다 확인한다. 승인·반려 결과는 결정 API가 바로 큐에 넣는다. 멘션은 알림을 받는 담당자 중 채널에 초대된 회원만. Slack 실패는 로그만 남긴다 |
+| 프로젝트 담당자 (검토 중) | `app/services/project_access.py`, `app/models/assignee.py`, `app/api/v1/deps.py` | 담당자(`project_members`: 프로젝트·회원 ID)와 팀장만 그 프로젝트를 본다. `current_user`(async 의존성)가 요청한 회원을 ContextVar에 남기고, 프로젝트를 받는 API가 공통으로 부르는 `_project`·`_file`과 작업 조회가 담당자인지 검사해 아니면 404(없는 프로젝트처럼). `GET /projects`·'나에게 온 알림'·Slack 대상도 같은 규칙으로 거른다. 담당자는 업로드 때 정하고(올린 사람 포함) 팀장만 바꾼다(`POST /projects/members`). 테스트는 `@pytest.mark.assignees`만 규칙을 그대로 쓰고 나머지는 conftest가 모두에게 보이게 둔다 |
 
 ERD·DDL은 `data_model.json` 하나에서 코드 생성기가 만든다. 생성 DDL 검증은 `VALIDATION_DB_URL`(비우면 같은 컨테이너의 `reqagent_validation`)에 임시 스키마로 적용하며, 접속할 수 없으면 SQLite로 대체 검증하고 보고서에 적는다. 서비스 DB와 검증 DB는 다른 DB다.
 

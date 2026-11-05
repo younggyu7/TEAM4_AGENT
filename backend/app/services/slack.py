@@ -3,16 +3,19 @@
 
 - 워크스페이스: 이 웹의 회원이 모두 들어 있는 팀 워크스페이스 하나. 봇 토큰(xoxb-…)은 .env SLACK_BOT_TOKEN에만 둔다.
   Slack 앱 권한(Bot Token Scopes): chat:write, groups:write (비공개 채널 만들기·초대·내보내기·메시지).
-- 채널 만들기(create_channel): 업로드할 때 고른 담당자로 비공개 채널(team4-<프로젝트>)을 만들어 초대한다.
-  채널이 없는 기존 프로젝트는 백그라운드 스레드가 알아서 만든다 (ensure_channels: 담당자 = Slack 멤버 ID가 있는 승인된 회원 모두).
-  만들지 못하면(Slack 오류) 업로드는 그대로 하고, RETRY_SECONDS 뒤에 다시 만들어 본다. 채널·담당자는 slack_projects 테이블.
-- 담당자 = 채널에 실제로 초대된 회원. Slack 멤버 ID가 없거나 Slack에 없는 ID면 담당자에 넣지 않는다 (화면에 이유를 보여 준다).
+- 담당자(services/project_access, project_members): 업로드할 때 고른 회원과 올린 사람, 그리고 팀장. 담당자만 그 프로젝트를 보고
+  알림을 받는다. 채널에는 담당자를 초대한다.
+- 채널 만들기(create_channel): 업로드할 때 담당자로 비공개 채널(team4-<프로젝트>)을 만들어 초대한다.
+  채널이 없는 프로젝트는 백그라운드 스레드가 알아서 만든다 (ensure_channels: 그 프로젝트의 담당자를 초대).
+  만들지 못하면(Slack 오류) 업로드는 그대로 하고, RETRY_SECONDS 뒤에 다시 만들어 본다. 채널·초대한 회원은 slack_projects 테이블.
+- 채널 멤버(slack_projects.members) = 담당자 중 채널에 실제로 초대된 회원. Slack 멤버 ID가 없거나 Slack에 없는 ID면
+  초대하지 못한다 (화면에 이유를 보여 주고, 알림에는 멘션하지 못한 담당자를 적는다).
 - 담당자 바꾸기(update_members): 프로젝트 화면에서 팀장이 담당자를 더하거나 빼면, 더한 회원은 채널에 초대하고
   뺀 회원은 채널에서 내보낸다 (고른 담당자는 모두 다시 초대해 보므로, 전에 초대하지 못한 담당자도 이때 들어간다).
 - 회원의 Slack 멤버 ID(U…)는 회원가입·관리자 페이지에서 넣는다. 초대와 멘션에 쓴다.
 - '나에게 온 알림'(services/directives.notices: 승인 요청·최종 승인 대기·수정 지시·수정 대기·개발 대기와
-  일 알림 업로드 분석 완료(모든 회원)·ERD 초안(데이터 파트)·개발 초안(개발 파트))의 새 항목은 그 프로젝트
-  채널에 알림마다 메시지 하나로 올린다 (그 알림을 받는 회원 중 담당자를 멘션). 같은 알림은 한 번만: 올린 알림 키를
+  일 알림 업로드 분석 완료(모든 담당자)·ERD 초안(데이터 파트)·개발 초안(개발 파트))의 새 항목은 그 프로젝트
+  채널에 알림마다 메시지 하나로 올린다 (그 알림을 받는 담당자를 멘션). 같은 알림은 한 번만: 올린 알림 키를
   slack_notifications에 남긴다. 알림은 저장된 상태에서 계산되므로 승인 요청·결정·작업 완료 때 바로 확인하고(kick)
   SLACK_SYNC_SECONDS마다도 확인한다 (CLI로 만든 버전처럼 서버가 모르는 변화도 잡는다).
 - 승인·반려 결과는 결정할 때 바로 그 채널에 올린다:
@@ -42,7 +45,7 @@ from sqlalchemy import delete, select
 from app.core.auth import ROLES
 from app.core.config import get_settings
 from app.models.notification import SlackNotification, SlackProject
-from app.services import directives, drafts, output_store, users
+from app.services import directives, drafts, output_store, project_access, users
 
 log = logging.getLogger(__name__)
 
@@ -225,7 +228,7 @@ _retry_at: dict[str, float] = {}   # 채널을 만들지 못한 프로젝트 →
 
 def ensure_channels() -> int:
     """채널이 없는 프로젝트의 채널을 만든다 (업로드 때 만들지 못했거나 Slack을 켜기 전에 만든 프로젝트).
-    담당자: 업로드 때 고른 회원, 고른 적이 없으면 Slack 멤버 ID가 있는 승인된 회원 모두. 만든 채널 수"""
+    초대: 그 프로젝트의 담당자 (담당자를 정한 적이 없으면 팀장만). 만든 채널 수"""
     if not enabled():
         return 0
     configs = {c["project"]: c for c in connected()}
@@ -235,9 +238,8 @@ def ensure_channels() -> int:
         config = configs.get(project)
         if (config and config["channel_id"]) or time.monotonic() < _retry_at.get(project, 0):
             continue
-        members = config["members"] if config else [m.id for m in users.list_members() if m.status == "active" and m.slack_id]
         try:
-            create_channel(project, members)
+            create_channel(project, [m.id for m in project_access.assignees(project)])
             made += 1
             _retry_at.pop(project, None)
         except SlackError as e:
@@ -316,24 +318,24 @@ PART_LABEL = {"planner": "기획 파트", "planner_head": "기획 파트", "data
 
 
 def _missing(config: dict, members: Iterable[users.Member]) -> list[users.Member]:
-    """멘션할 수 없는 회원: 이 채널 담당자가 아니거나 Slack 멤버 ID가 없다"""
+    """멘션할 수 없는 회원: 채널에 초대되지 않았거나 Slack 멤버 ID가 없다"""
     return list({m.id: m for m in members if not (m.slack_id and m.id in config["members"])}.values())
 
 
 def _missing_hint(members: list[users.Member]) -> str:
-    """멘션하지 못한 회원 안내 (파트별 이름): 팀장이 채널 담당자로 더하면 다음부터 멘션된다"""
+    """멘션하지 못한 담당자 안내 (파트별 이름): Slack 멤버 ID를 넣고 팀장이 담당자를 다시 저장하면 초대된다"""
     if not members:
         return ""
     parts: dict[str, list[str]] = {}
     for m in members:
         parts.setdefault(PART_LABEL.get(m.role, ROLES.get(m.role, "회원")), []).append(m.name)
     who = ", ".join(f"{part}({'·'.join(_esc(n) for n in names)})" for part, names in parts.items())
-    return (f"⚠️ 알림 받을 {who}이(가) 이 채널 담당자가 아니어서 멘션하지 못했습니다. "
-            "팀장이 프로젝트 화면 'Slack 채널 → 담당자 바꾸기'에서 추가하세요.")
+    return (f"⚠️ 알림 받을 {who}이(가) 이 채널에 없어 멘션하지 못했습니다 (Slack 멤버 ID가 없거나 초대하지 못함). "
+            "Slack 멤버 ID를 확인하고 팀장이 프로젝트 화면 '담당자 → 바꾸기'에서 저장하면 초대됩니다.")
 
 
 def notice_mentions(config: dict, who: list[users.Member], people: dict[int, users.Member]) -> tuple[str, str]:
-    """알림을 받을 회원(who) 중 채널 담당자를 멘션한다. 아무도 멘션할 수 없으면 팀장을 대신 멘션하고 안내를 붙인다
+    """알림을 받을 담당자(who) 중 채널에 있는 회원을 멘션한다. 아무도 멘션할 수 없으면 팀장을 대신 멘션하고 안내를 붙인다
     (알림이 아무도 부르지 않고 묻히지 않게). (멘션, 안내)"""
     mentions = _mentions(config, who)
     if mentions or not who:
@@ -381,22 +383,26 @@ def _mark_sent(keys: Iterable[str]) -> None:
 
 
 def _pending(projects: set[str]) -> dict[str, tuple[dict, list[users.Member]]]:
-    """연결된 프로젝트의 알림 키 → (알림, 그 알림을 받는 회원). 반려 밖의 알림은 역할로만 정해져 역할마다 한 번 계산한다"""
-    by_role: dict[str, list[dict]] = {}
+    """연결된 프로젝트의 알림 키 → (알림, 그 알림을 받는 담당자). 반려 밖의 알림은 역할과 담당 프로젝트로만 정해져
+    (역할, 담당 프로젝트)마다 한 번 계산한다"""
+    by_role: dict[tuple, list[dict]] = {}
     out: dict[str, tuple[dict, list[users.Member]]] = {}
     for m in users.list_members():
         if m.status != "active" or not m.role:
             continue
-        if m.role not in by_role:
-            # 화면에서 '확인'(나에게서 지움)을 눌러도 Slack은 보낸다: 역할마다 한 회원의 목록으로 정하므로 확인 여부를 빼고 계산한다
-            by_role[m.role] = directives.notices(m, include_dismissed=True)
-        for n in by_role[m.role]:
+        mine = (m.role, frozenset(project_access.visible(m, projects)))
+        if not mine[1]:
+            continue   # 이 프로젝트들의 담당자가 아니다
+        if mine not in by_role:
+            # 화면에서 '확인'(나에게서 지움)을 눌러도 Slack은 보낸다: 같은 역할·담당이면 한 회원의 목록으로 정하므로 확인 여부를 빼고 계산한다
+            by_role[mine] = directives.notices(m, include_dismissed=True)
+        for n in by_role[mine]:
             # 반려 알림은 회원마다 다르고(역할로 정해지지 않음) 반려할 때 [반려] 메시지로 이미 올렸다
             # 회원을 정한 알림(합치기 결과)은 아래에서 그 회원만 부른다
             if n["project"] in projects and n["kind"] != "rejected" and not n.get("members"):
                 out.setdefault(notice_key(n), (n, []))[1].append(m)
-    people = {m.id: m for m in users.list_members() if m.status == "active"}
     for project in projects:
+        people = {m.id: m for m in project_access.assignees(project)}
         for n in directives.member_events(project):
             out.setdefault(notice_key(n), (n, []))[1].extend(people[i] for i in n["members"] if i in people)
     return out
@@ -440,9 +446,9 @@ def request_decided(project: str, version: str, stage: str, request: dict | None
     editors = set() if approved else directives.rejected_people(drafts.read(project, version), stage) - {who}
 
     def post(config: dict) -> None:
-        requester = users.get_member(who)
+        people = {m.id: m for m in project_access.assignees(project)}   # 담당자에서 빠진 회원은 부르지 않는다
+        requester = people.get(who)
         head = _mention(config, requester) if requester else _esc(request["by"].get("name", ""))
-        people = {m.id: m for m in users.list_members() if m.status == "active"}
         targets = [people[i] for i in sorted(editors) if i in people]
         others = _mentions(config, targets)
         head = f"{head} {others}" if others else head
@@ -480,7 +486,7 @@ def final_decided(project: str, final: str, approval: dict, decider: users.Membe
 
     def post(config: dict) -> None:
         tree = directives.Tree(project)
-        people = {m.id: m for m in users.list_members() if m.status == "active"}
+        people = {m.id: m for m in project_access.assignees(project)}   # 관여했어도 담당자에서 빠진 회원은 부르지 않는다
         who = [people[i] for i in sorted(related(project, final, tree)) if i in people and i != decider.id]
         comment = (approval.get("comment") or "").strip()
         if approval.get("decision") == "approve":

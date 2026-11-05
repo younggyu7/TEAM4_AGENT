@@ -5,10 +5,12 @@
   artifact.py  artifacts                     버전별 산출물 파일 내용
   job.py       jobs                          작업 진행 기록
   user.py      users · user_sessions         회원·로그인 세션 (역할·권한은 core/auth.py)
-  notification.py  slack_projects · slack_notifications  프로젝트별 Slack 연결(봇 토큰·채널·담당자), 채널에 올린 알림
+  assignee.py  project_members               프로젝트 담당자 (담당자만 그 프로젝트를 봄, 팀장은 모두)
+  notification.py  slack_projects · slack_notifications  프로젝트별 Slack 채널·채널에 초대한 회원, 채널에 올린 알림
 실행 체크포인트 테이블(checkpoints …)은 LangGraph PostgresSaver가 직접 만들고 관리한다 (여기·Alembic 밖).
 """
 from app.models.artifact import Artifact
+from app.models.assignee import ProjectMember
 from app.models.base import Base
 from app.models.job import JobRecord
 from app.models.notification import SlackNotification, SlackProject
@@ -16,5 +18,5 @@ from app.models.project import Project, ProjectFile
 from app.models.user import User, UserSession
 from app.models.version import DesignVersion
 
-__all__ = ["Artifact", "Base", "DesignVersion", "JobRecord", "Project", "ProjectFile", "SlackNotification", "SlackProject",
+__all__ = ["Artifact", "Base", "DesignVersion", "JobRecord", "Project", "ProjectFile", "ProjectMember", "SlackNotification", "SlackProject",
            "User", "UserSession"]

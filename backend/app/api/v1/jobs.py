@@ -1,11 +1,12 @@
 """작업 진행 상황.
 
-  GET /jobs?id=<job>   작업 진행 상황 {status, message, log, new_version, warnings}
+  GET /jobs?id=<job>   작업 진행 상황 {status, message, log, new_version, warnings} (담당자가 아닌 프로젝트의 작업은 404)
 """
 from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.api.v1.deps import visible_job
 from app.core.exceptions import NotFound
 from app.services import jobs
 
@@ -14,7 +15,7 @@ router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶�
 
 @router.get("/jobs", summary="작업 진행 상황")
 def get_job(id: str):
-    job = jobs.get_job(id)
+    job = visible_job(jobs.get_job(id))
     if job is None:
         raise NotFound("작업을 찾을 수 없습니다. 서버를 다시 띄우면 작업 기록이 사라집니다.")
     return {"job": job.to_dict()}

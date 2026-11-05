@@ -1,13 +1,13 @@
 """프로젝트·버전 목록과 버전 제목.
 
-  GET  /projects          프로젝트와 설계 버전 목록 (버전 번호는 '4', '4.1' 같은 문자열)
+  GET  /projects          프로젝트와 설계 버전 목록 (버전 번호는 '4', '4.1' 같은 문자열). 내가 담당자인 프로젝트만 (팀장은 모두)
   POST /projects/title    버전 제목 저장
   GET  /tech-stacks       개발 스펙의 기술 스택 선택지 (화면·서버·DB, 개발 틀이 있는지)
   GET  /projects/stack    버전의 기술 스택 상태 (원문·확정·미정, 개발 틀 없는 층 경고)
   POST /projects/tech-stack  최종본의 기술 스택 확정 → 개발 스펙 10개 다시 쓰기 (LLM 없음)
-  GET  /projects/slack    프로젝트 Slack 채널·담당자 (채널이 아직 없거나 Slack이 꺼져 있으면 null)
   DELETE /projects        프로젝트 삭제 (팀장만, confirm에 프로젝트 이름을 그대로 적어야 함, 되돌릴 수 없음)
-  POST /projects/slack/members  담당자 바꾸기 (팀장만): 더한 회원은 채널에 초대, 뺀 회원은 채널에서 내보냄
+  GET  /projects/members  담당자(이 프로젝트를 보는 회원)와 Slack 채널 (채널이 아직 없거나 Slack이 꺼져 있으면 slack: null)
+  POST /projects/members  담당자 바꾸기 (팀장만): 뺀 회원은 이 프로젝트를 더는 못 본다. Slack 채널이 있으면 더한 회원은 초대, 뺀 회원은 내보냄
 """
 from __future__ import annotations
 
@@ -22,21 +22,24 @@ from app.agents.tools import stacks
 from app.agents.tools.exporter import confirm_tech_stack
 from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
+from app.core.auth import ROLES
 from app.core.exceptions import BadRequest, Forbidden, NotFound
 from app.schemas.version import TechStackUpdate, TitleUpdate
-from app.services import output_store, project_delete, slack, users
+from app.services import output_store, project_access, project_delete, slack, users
 
 router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶음으로 보이게 같은 태그
 
 
-class SlackMembers(BaseModel):
+class ProjectMembers(BaseModel):
     project: str
-    members: list[int] = Field(default_factory=list, max_length=200)   # 새 담당자 회원 ID 전체 (GET /members)
+    members: list[int] = Field(default_factory=list, max_length=200)   # 새 담당자 회원 ID 전체 (GET /members, 팀장은 늘 포함)
 
 
-@router.get("/projects", summary="프로젝트와 설계 버전 목록")
-def list_projects():
-    return {"output_dir": get_store().location, "projects": output_store.find_projects()}
+@router.get("/projects", summary="프로젝트와 설계 버전 목록 (내가 담당자인 프로젝트만, 팀장은 모두)")
+def list_projects(member: users.Member = Depends(current_user)):
+    projects = output_store.find_projects()
+    mine = set(project_access.visible(member, [p["id"] for p in projects]))
+    return {"output_dir": get_store().location, "projects": [p for p in projects if p["id"] in mine]}
 
 
 @router.delete("/projects", summary="프로젝트 삭제 (팀장만, 되돌릴 수 없음)")
@@ -88,22 +91,34 @@ def set_tech_stack(body: TechStackUpdate, member: users.Member = Depends(current
         raise BadRequest(str(e)) from e
 
 
-@router.get("/projects/slack", summary="프로젝트 Slack 채널·담당자")
-def get_project_slack(project: str):
-    return {"slack": slack.project_info(_project(project))}
+def _members_view(project: str) -> dict:
+    """담당자 카드: 담당자(Slack 채널에 들어 있는지)와 채널. 팀장은 고르지 않아도 늘 담당자"""
+    channel = slack.project_config(project) if slack.enabled() else None
+    in_channel = set(channel["members"]) if channel and channel["channel_id"] else set()
+    return {"members": [{"id": m.id, "name": m.name, "role": m.role, "role_label": ROLES.get(m.role, "역할 없음"),
+                         "has_slack": bool(m.slack_id), "in_channel": m.id in in_channel, "always": m.role == project_access.ALWAYS}
+                        for m in project_access.assignees(project)],
+            "slack": slack.project_info(project), "slack_enabled": slack.enabled()}
 
 
-@router.post("/projects/slack/members", summary="Slack 담당자 바꾸기 (팀장만)")
-def set_project_slack_members(body: SlackMembers, member: users.Member = Depends(current_user)):
+@router.get("/projects/members", summary="프로젝트 담당자와 Slack 채널")
+def get_project_members(project: str):
+    return _members_view(_project(project))
+
+
+@router.post("/projects/members", summary="담당자 바꾸기 (팀장만)")
+def set_project_members(body: ProjectMembers, member: users.Member = Depends(current_user)):
     if member.role != "lead":
-        raise Forbidden("Slack 담당자는 팀장만 바꿀 수 있습니다.")
+        raise Forbidden("담당자는 팀장만 바꿀 수 있습니다.")
     project = _project(body.project)
-    if not slack.enabled():
-        raise BadRequest("Slack 알림이 꺼져 있습니다 (백엔드 .env SLACK_BOT_TOKEN).")
-    if not slack.project_info(project):
-        raise NotFound("이 프로젝트의 Slack 채널이 아직 없습니다 (서버가 곧 만듭니다).")
-    try:
-        result = slack.update_members(project, body.members, member)
-    except slack.SlackError as e:
-        raise BadRequest(str(e)) from e
-    return {"result": result, "slack": slack.project_info(project)}
+    before = {m.id: m for m in project_access.assignees(project)}
+    after = {m.id: m for m in project_access.set_members(project, body.members)}
+    result = {"added": [m.name for i, m in after.items() if i not in before],
+              "removed": [m.name for i, m in before.items() if i not in after], "failed": []}
+    # Slack 채널이 있으면 채널도 담당자에 맞춘다 (Slack이 실패해도 담당자는 이미 바뀌었다)
+    if slack.enabled() and slack.project_info(project):
+        try:
+            result["failed"] = slack.update_members(project, list(after), member)["failed"]
+        except slack.SlackError as e:
+            result["failed"] = [{"name": "Slack 채널", "reason": str(e)}]
+    return {"result": result, **_members_view(project)}

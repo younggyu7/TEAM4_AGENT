@@ -20,6 +20,7 @@ from app.core.auth import ROLES, hash_password, new_token, token_hash, verify_pa
 from app.core.config import get_settings
 from app.core.database import sqlalchemy_url
 from app.core.exceptions import BadRequest, Conflict, Forbidden, NotFound, Unauthorized
+from app.models.assignee import ProjectMember
 from app.models.notification import SlackNotification, SlackProject
 from app.models.user import User, UserSession
 
@@ -60,7 +61,7 @@ def _sessions(url: str) -> sessionmaker[Session]:
     engine = create_engine(sqlalchemy_url(url), pool_pre_ping=True)
     if url.startswith("sqlite"):   # 서비스 DB가 없을 때(로컬·테스트)는 회원 테이블만 바로 만든다. PostgreSQL은 Alembic
         User.metadata.create_all(engine, tables=[User.__table__, UserSession.__table__,
-                                                 SlackProject.__table__, SlackNotification.__table__])
+                                                 SlackProject.__table__, SlackNotification.__table__, ProjectMember.__table__])
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 
