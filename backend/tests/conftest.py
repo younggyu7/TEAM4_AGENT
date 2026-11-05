@@ -75,3 +75,15 @@ def signed_in_client(role: str = "lead"):
     client = TestClient(app)
     assert client.post("/api/v1/auth/login", json={"email": email, "password": "password123"}).status_code == 200
     return client
+
+
+def docx_upload(text: str = "사용자는 IT 서비스 요청을 등록할 수 있어야 한다. 요청에는 제목과 내용이 포함된다.", name: str = "a.docx"):
+    """웹 업로드(PDF·DOCX·HWPX만)에 쓸 작은 DOCX 파일 (TestClient files= 값)"""
+    import io
+
+    from docx import Document
+    doc, buf = Document(), io.BytesIO()
+    if text:
+        doc.add_paragraph(text)
+    doc.save(buf)
+    return {"file": (name, buf.getvalue(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}

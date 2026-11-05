@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.main import app
 from app.services import jobs
-from conftest import signed_in_client
+from conftest import docx_upload, signed_in_client
 
 
 @pytest.fixture
@@ -91,8 +91,14 @@ def test_run_rejects_unsupported_document(client, monkeypatch, tmp_path):
     monkeypatch.setattr(jobs, "start_run", lambda **kw: pytest.fail("지원하지 않는 형식은 실행하지 않는다"))
     config._settings = config.Settings(output_dir=tmp_path / "output", data_dir=tmp_path / "data", validation_db_url="")
     r = client.post("/api/v1/runs", files={"file": ("req.hwp", b"x", "application/octet-stream")})
-    assert r.status_code == 400
-    assert not list((tmp_path / "data" / "uploads").iterdir()), "거부한 문서는 남기지 않는다"
+    assert r.status_code == 400 and "PDF·DOCX·HWPX만" in r.json()["detail"]
+    # 웹 업로드는 PDF·DOCX·HWPX만: TXT·이미지 파일, 글자가 없는(이미지로 된) DOCX, 깨진 DOCX는 막는다
+    for files, said in ((docx_upload(name="req.txt"), "PDF·DOCX·HWPX만"), ({"file": ("scan.png", b"x", "image/png")}, "스캔본·이미지"),
+                        (docx_upload(""), "글자가 거의 없는 문서"), ({"file": ("bad.docx", b"not a zip", "application/octet-stream")}, "문서를 열지 못했습니다")):
+        r = client.post("/api/v1/runs", files=files)
+        assert r.status_code == 400 and said in r.json()["detail"], r.text
+    uploads = tmp_path / "data" / "uploads"
+    assert not uploads.exists() or not list(uploads.iterdir()), "거부한 문서는 남기지 않는다"
 
 
 def test_upload_run_stops_at_function_spec_and_review_runs_review(monkeypatch, tmp_path):
@@ -216,7 +222,7 @@ def test_llm_options_list_models_of_providers_with_keys(client, monkeypatch):
     assert "claude-haiku-5-5" in ids and all(m["provider"] == "anthropic" for m in body["models"])
     assert next(m for m in body["models"] if m["id"] == "claude-haiku-4-5")["effort"] is False, "Haiku 4.5는 effort 없음"
     assert body["efforts"] == ["low", "medium", "high"]
-    files = {"file": ("a.txt", b"hello", "text/plain")}
+    files = docx_upload()
     assert client.post("/api/v1/runs", files=files, data={"model": "gpt-unknown"}).status_code == 400
     assert client.post("/api/v1/runs", files=files, data={"effort": "max"}).status_code == 400
 
@@ -272,7 +278,7 @@ def test_roles_limit_who_confirms_each_stage(project, monkeypatch):
     assert data.post("/api/v1/drafts/request", json={"project": "team/demo", "version": "1"}).status_code == 200
     assert data_head.post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 202
     assert signed_in_client().post("/api/v1/projects/review", json={"project": "team/demo", "version": "1"}).status_code == 202
-    files = {"file": ("a.txt", b"hello", "text/plain")}
+    files = docx_upload()
     assert data.post("/api/v1/runs", files=files).status_code == 403, "업로드는 기획 파트·팀장"
     assert data.get("/api/v1/projects").status_code == 200, "보기는 누구나"
 
@@ -328,7 +334,7 @@ def test_upload_project_name_matches_the_cli_folder_name(monkeypatch, tmp_path):
     seen = {}
     monkeypatch.setattr(jobs, "start_run", lambda **kw: seen.update(kw) or jobs.Job(id="j", project=kw["project"], base="",
                                                                                      source="run", status="running", message=""))
-    r = signed_in_client().post("/api/v1/runs", files={"file": ("a.txt", b"hello", "text/plain")}, data={"project": "요구사항 test"})
+    r = signed_in_client().post("/api/v1/runs", files=docx_upload(), data={"project": "요구사항 test"})
     assert r.status_code == 202 and seen["project"] == "요구사항_test"
 
 

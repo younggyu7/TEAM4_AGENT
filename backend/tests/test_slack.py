@@ -12,7 +12,7 @@ import pytest
 from app.core import config
 from app.core.config import get_settings
 from app.services import drafts, jobs, slack, users
-from conftest import signed_in_client
+from conftest import docx_upload, signed_in_client
 
 PROJECT = "team/demo"
 
@@ -118,7 +118,7 @@ def test_slack_is_off_without_a_workspace_token(monkeypatch):
         id="j", project=kw["project"], base="", source="run", status="running", message=""))
     planner = signed_in_client("planner")
     assert not slack.enabled() and planner.get("/api/v1/members").json()["slack_enabled"] is False
-    r = planner.post("/api/v1/runs", files={"file": ("a.txt", b"hello", "text/plain")}, data={"slack_members": "1"})
+    r = planner.post("/api/v1/runs", files=docx_upload(), data={"slack_members": "1"})
     assert r.status_code == 202 and r.json()["slack"] is None and started
     _rec("1", "function_designer")
     slack.flush()   # 토큰이 없으면 채널도 만들지 않고 아무것도 보내지 않는다 (Slack을 부르면 실패한다)
@@ -136,7 +136,7 @@ def test_upload_makes_the_project_channel_with_the_chosen_members(fake, monkeypa
     nobody = users.create_member("x@test.local", "Slack없음", "password123", "data")
     ghost = users.create_member("g@test.local", "없는ID", "password123", "data", slack_id="U0FAKE0001")
     assert c["planner"].get("/api/v1/members").json()["slack_enabled"] is True
-    files = {"file": ("a.txt", b"hello", "text/plain")}
+    files = docx_upload()
     form = {"project": "회사A 포털", "slack_members": f"{planner.id},{head.id},{nobody.id},{ghost.id}"}
     r = c["planner"].post("/api/v1/runs", files=files, data=form)
     assert r.status_code == 202, r.text

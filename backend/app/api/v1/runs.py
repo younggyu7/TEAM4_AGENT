@@ -16,7 +16,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from starlette.concurrency import run_in_threadpool
 
-from app.agents.tools.document_parser import UnsupportedFormatError, check_supported
+from app.agents.tools.document_parser import UPLOAD_NOTE, UPLOAD_SUFFIXES, UnsupportedFormatError, check_upload
 from app.api.v1.deps import _no_running_job, current_user, ensure
 from app.core import guards
 from app.agents.llm.client import resolve_provider
@@ -56,7 +56,7 @@ def get_llm_options():
 
 @router.post("/runs", status_code=202, summary="문서 업로드 → 기능 명세 초안까지 실행 (작업)")
 async def create_run(
-    file: Annotated[UploadFile, File(description="요구사항 문서 (PDF·DOCX·HWPX·TXT 등)")],
+    file: Annotated[UploadFile, File(description="요구사항 문서 (PDF·DOCX·HWPX만, 스캔본·이미지는 안 됨)")],
     project: Annotated[str, Form(description="프로젝트 이름. 생략하면 문서 파일 이름")] = "",
     title: Annotated[str, Form(description="사업 이름 (LLM에 사업 맥락으로 줌)")] = "",
     model: Annotated[str, Form(description="LLM 모델 ID (GET /llm-options의 models, 비우면 .env)")] = "",
@@ -74,6 +74,8 @@ async def create_run(
     if effort and effort not in EFFORTS:
         raise BadRequest(f"생각 수준은 {', '.join(EFFORTS)} 중 하나입니다.")
     name = guards.upload_name(file.filename)
+    if Path(name).suffix.lower() not in UPLOAD_SUFFIXES:   # 저장하기 전에 확장자로 먼저 막는다
+        raise BadRequest(f"지원하지 않는 형식입니다: {Path(name).suffix or '(확장자 없음)'}. {UPLOAD_NOTE}")
     project = guards.project_name(project or Path(name).stem)
     _no_running_job(project)
     # 올린 시각별 폴더에 원래 파일 이름 그대로 둔다 (산출물의 문서 이름이 원본과 같게)
@@ -91,10 +93,10 @@ async def create_run(
         shutil.rmtree(folder, ignore_errors=True)
         raise PayloadTooLarge(f"문서가 너무 큽니다 (최대 {guards.MAX_UPLOAD // 1024 // 1024}MB).")
     try:
-        check_supported(target)
+        check_upload(target)
     except UnsupportedFormatError as e:
         shutil.rmtree(folder, ignore_errors=True)
-        raise BadRequest(str(e)) from e
+        raise BadRequest(f"{e} — {e.hint}" if e.hint and e.hint not in str(e) else str(e)) from e
     # Slack(.env SLACK_BOT_TOKEN이 있을 때): 프로젝트 채널을 만들고 고른 담당자를 초대한다. 실패해도 분석은 하고,
     # 고른 담당자를 남겨 두어 서버가 나중에 다시 만든다 (services/slack.ensure_channels)
     connected = None
