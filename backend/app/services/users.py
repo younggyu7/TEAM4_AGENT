@@ -226,17 +226,17 @@ def service_db():
 # 계정은 git이 아니라 각 PC의 DB에 있어서, 다른 PC에서도 같은 계정으로 로그인하려고 코드에 둔다.
 # 서버가 시작할 때 목록에서 빠진 계정만 만든다 (있는 계정·다른 회원은 건드리지 않음). 끄기: .env SEED_TEST_ACCOUNTS=false
 TEST_PASSWORD = "Team4!2026"
-TEST_ACCOUNTS = [   # (이메일, 이름, 역할, 관리자, Slack 멤버 ID — 임의 값이라 실제 Slack에 초대되지 않는다. 관리자 페이지에서 바꾼다)
-    ("admin@team4.local", "김관리", "lead", True, "U0T4ADMIN01"),
-    ("plan.head@team4.local", "이기획", "planner_head", False, "U0T4PLANH01"),
-    ("plan1@team4.local", "박기획", "planner", False, "U0T4PLAN101"),
-    ("plan2@team4.local", "최기획", "planner", False, "U0T4PLAN201"),
-    ("data.head@team4.local", "정데이터", "data_head", False, "U0T4DATAH01"),
-    ("data1@team4.local", "강데이터", "data", False, "U0T4DATA101"),
-    ("data2@team4.local", "조데이터", "data", False, "U0T4DATA201"),
-    ("dev.head@team4.local", "한개발", "dev_head", False, "U0T4DEVH001"),
-    ("dev1@team4.local", "윤개발", "dev", False, "U0T4DEV1001"),
-    ("dev2@team4.local", "임개발", "dev", False, "U0T4DEV2001"),
+TEST_ACCOUNTS = [   # (이메일, 이름, 역할, 관리자, Slack 멤버 ID — 팀 시연 워크스페이스의 실제 멤버. 팀장·기획 / 데이터 / 개발을 한 사람씩 맡는다)
+    ("admin@team4.local", "김관리", "lead", True, "U0CERR5EPT4"),
+    ("plan.head@team4.local", "이기획", "planner_head", False, "U0CERR5EPT4"),
+    ("plan1@team4.local", "박기획", "planner", False, "U0CERR5EPT4"),
+    ("plan2@team4.local", "최기획", "planner", False, "U0CERR5EPT4"),
+    ("data.head@team4.local", "정데이터", "data_head", False, "U0CD7CD4R2L"),
+    ("data1@team4.local", "강데이터", "data", False, "U0CD7CD4R2L"),
+    ("data2@team4.local", "조데이터", "data", False, "U0CD7CD4R2L"),
+    ("dev.head@team4.local", "한개발", "dev_head", False, "U0CEQ2674R4"),
+    ("dev1@team4.local", "윤개발", "dev", False, "U0CEQ2674R4"),
+    ("dev2@team4.local", "임개발", "dev", False, "U0CEQ2674R4"),
 ]
 
 
