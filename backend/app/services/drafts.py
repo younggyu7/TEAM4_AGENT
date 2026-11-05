@@ -110,11 +110,21 @@ def diff(old: dict | None, new: dict | None, base: dict | None = None) -> list[d
             what = f"지적 처리: {CHOICES.get(b.get('choice'), b.get('choice'))}" + (f" ({b['note'][:40]})" if b.get("note") else "") \
                 if isinstance(b, dict) else "지적 처리 취소"
             changes.append({"target": iid, "label": "의미 검토 지적", "what": what})
-    checked = sum(1 for k in dict.fromkeys([*(old.get("checked") or {}), *(new.get("checked") or {})])
-                  if bool((old.get("checked") or {}).get(k)) != bool((new.get("checked") or {}).get(k)))
-    if checked:
-        changes.append({"target": "", "label": "확인 표시", "what": f"{checked}건 바꿈"})
+    # 확인 표시는 항목별로 남긴다 (누가 어느 규칙·지적을 체크했는지 화면 '전체 보기'에 보이게). 키: a:기능ID:규칙 · i:지적ID
+    for key in dict.fromkeys([*(old.get("checked") or {}), *(new.get("checked") or {})]):
+        b = bool((new.get("checked") or {}).get(key))
+        if bool((old.get("checked") or {}).get(key)) != b:
+            changes.append({"target": key, "label": "확인 표시", "what": f"{'확인함' if b else '확인 해제'} — {_check_text(key)}"})
     return changes
+
+
+def _check_text(key: str) -> str:
+    """확인 표시 키 → 사람이 읽는 대상 ('FN-001 규칙: …' · '지적 SI-003')"""
+    kind, _, rest = key.partition(":")
+    if kind == "a":
+        target, _, rule = rest.partition(":")
+        return f"{target} 규칙: {rule[:60]}"
+    return f"지적 {rest}" if kind == "i" else key[:60]
 
 
 def _base(project: str, version: str) -> dict:

@@ -368,6 +368,9 @@ def test_change_log_text_names_fields_and_columns():
     got = {c["target"]: c["what"] for c in diff({}, new, base)}
     assert got == {"FN-1": "이름 수정 · 업무 규칙 수정", "t": "컬럼 추가 memo · 컬럼 수정 x", "ISS-1": "지적 처리: 문제 아님 (앱에서 처리)"}
     assert diff(new, {}, base)[0]["what"] == "원본으로 되돌림"
+    checks = diff({"checked": {"i:SI-1": True}}, {"checked": {"a:FN-1:한도는 3회 (가정)": True}})
+    assert {c["target"]: c["what"] for c in checks} == {"a:FN-1:한도는 3회 (가정)": "확인함 — FN-1 규칙: 한도는 3회 (가정)",
+                                                       "i:SI-1": "확인 해제 — 지적 SI-1"}, "확인 표시는 항목별로 남긴다"
 
 
 def test_change_request_can_send_both_stages_with_items(project):
