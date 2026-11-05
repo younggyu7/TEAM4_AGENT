@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from app.agents.llm.client import get_llm, run_parallel
 from app.agents.tools.dev_spec import Spec
+from app.core import exe
 from app.core.config import get_settings
 
 log = logging.getLogger(__name__)
@@ -262,7 +263,7 @@ def blame(errors: list[str], result: dict, spec: Spec) -> dict[str, list[str]]:
 
 def verify(out_dir: Path) -> tuple[list[str], str]:
     """docker build로 이미지가 만들어지는지. (오류 끝부분 줄, 하지 못한 이유)"""
-    docker = shutil.which("docker")
+    docker = exe.which("docker")
     if not docker:
         return [], "docker 없음"
     run = subprocess.run([docker, "build", "--progress=plain", "-t", "reqagent-scratch-check", "."], cwd=out_dir,

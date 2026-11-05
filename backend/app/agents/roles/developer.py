@@ -130,7 +130,14 @@ def hole_names(spec: Spec, ops: list[dict]) -> list[str]:
 ROLE_CHECK = re.compile(r"ctx\.user\(\)\.role\(\)")
 DATE_PARSE = re.compile(r"\b(?:LocalDate|LocalDateTime|OffsetDateTime|ZonedDateTime|Instant|LocalTime)\.parse\b")
 FORBIDDEN = re.compile(r"\b(import|class|interface|Runtime|ProcessBuilder|Thread|System\.exit|System\.getenv|java\.io|java\.nio|java\.net|Class\.forName)\b")
-TABLE_IN_SQL = re.compile(r"\b(?:FROM|JOIN|UPDATE|INTO)\s+([a-zA-Z_][a-zA-Z0-9_]*)\b(?!\s*\()", re.I)   # FROM CAST(…)처럼 함수는 테이블이 아니다
+TABLE_IN_SQL = re.compile(r"\b(?:FROM|JOIN|UPDATE|INTO)\s+(?!(?:SET|SELECT|LATERAL|ONLY|DUAL)\b)([a-zA-Z_][a-zA-Z0-9_]*)\b(?!\s*\()", re.I)   # FROM CAST(…)처럼 함수는 테이블이 아니다
+CTE_NAME = re.compile(r"(?:\bWITH(?:\s+RECURSIVE)?|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s*\(", re.I)
+
+
+def sql_tables(sql: str) -> list[str]:
+    """SQL이 읽고 쓰는 테이블 이름. 'DO UPDATE SET'의 SET 같은 예약어와 WITH 이름(CTE, 예: base)은 테이블이 아니다"""
+    ctes = {m.lower() for m in CTE_NAME.findall(sql)}
+    return [t for t in TABLE_IN_SQL.findall(sql) if t.lower() not in ctes]
 
 
 def _strip_strings(code: str) -> str:
@@ -163,7 +170,7 @@ def check_hook(method: str, body: str, allowed: set[str], tables: set[str], read
     if method in reads and "crud.get()" not in bare:
         errors.append(f"{method}: 조회인데 crud.get()을 부르지 않음 (그 결과를 돌려주고 고칠 것만 고친다)")
     for sql in re.findall(r'"((?:\\.|[^"\\])*)"', body):
-        for name in TABLE_IN_SQL.findall(sql):
+        for name in sql_tables(sql):
             if name.lower() not in tables and re.search(r"\b(SELECT|INSERT|UPDATE|DELETE)\b", sql, re.I):
                 errors.append(f"{method}: 스키마에 없는 테이블 '{name}'")
     return errors
@@ -216,7 +223,7 @@ def check_hook_py(method: str, body: str, allowed: set[str], tables: set[str], r
     errors += [f"{method}: 정의하지 않은 이름 '{n.id}'" for n in nodes if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id not in bound]
     for sql in bf._strings(tree):
         if bf.SQL_WORD.search(sql):
-            errors += [f"{method}: 스키마에 없는 테이블 '{name}'" for name in TABLE_IN_SQL.findall(sql) if name.lower() not in tables]
+            errors += [f"{method}: 스키마에 없는 테이블 '{name}'" for name in sql_tables(sql) if name.lower() not in tables]
     return list(dict.fromkeys(errors))
 
 
@@ -251,7 +258,7 @@ def check_hook_ts(method: str, body: str, allowed: set[str], tables: set[str], r
     for m in bn.STRING.finditer(body):
         sql = m.group(0)[1:-1]
         if bn.SQL_WORD.search(sql):
-            errors += [f"{method}: 스키마에 없는 테이블 '{name}'" for name in TABLE_IN_SQL.findall(sql) if name.lower() not in tables]
+            errors += [f"{method}: 스키마에 없는 테이블 '{name}'" for name in sql_tables(sql) if name.lower() not in tables]
     return list(dict.fromkeys(errors))
 
 

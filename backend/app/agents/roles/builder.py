@@ -21,13 +21,14 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from app.core import exe
 from app.core.config import get_settings
 from app.agents.llm.client import get_llm, run_parallel
 from app.schemas.function import FunctionSpec
 from app.agents.tools.dev_spec import Spec
 from app.agents.tools.scaffold import TEMPLATES, class_name, has_backend, owned_operations
 from app.agents.roles import builder_fastapi, builder_nestjs
-from app.agents.roles.developer import DATE_PARSE, TABLE_IN_SQL, TodoOut, _strip_comments, _strip_strings
+from app.agents.roles.developer import DATE_PARSE, TABLE_IN_SQL, TodoOut, sql_tables, _strip_comments, _strip_strings
 
 log = logging.getLogger(__name__)
 PROMPT_VERSION = "build-v2"
@@ -299,7 +300,7 @@ def check_controller(code: str, cls: str, ops: list[dict], tables: set[str]) -> 
             errors.append(f"{method} {path}: 권한 검사가 없음 (CurrentUser.fromRequest().require(…))")
     for sql in re.findall(r'"((?:\\.|[^"\\])*)"', code):
         if re.search(r"\b(SELECT|INSERT|UPDATE|DELETE)\b", sql, re.I):
-            for name in TABLE_IN_SQL.findall(sql):
+            for name in sql_tables(sql):
                 if name.lower() not in tables:
                     errors.append(f"스키마에 없는 테이블 '{name}'")
     return list(dict.fromkeys(errors))
@@ -452,9 +453,9 @@ def verify(out_dir: Path, built: dict[str, dict]) -> tuple[dict[str, list[str]],
     skipped = []
     python = (out_dir / "backend/app/main.py").is_file()   # FastAPI 틀: Maven 대신 만든 모듈을 불러 본다
     nest = (out_dir / "backend/src/main.ts").is_file()   # NestJS 틀: Maven 대신 서버 타입 검사(tsc)
-    mvn = None if python or nest else os.environ.get("MAVEN_CMD") or shutil.which("mvn")
+    mvn = None if python or nest else os.environ.get("MAVEN_CMD") or exe.which("mvn")
     # 서버 PC에 Maven이 없으면 Docker의 Maven 이미지로 컴파일한다 (라이브러리는 볼륨에 캐시)
-    docker = None if mvn or python or nest else shutil.which("docker")
+    docker = None if mvn or python or nest else exe.which("docker")
     if nest:
         from app.agents.tools.scaffold_nestjs import module_name
 
@@ -467,7 +468,7 @@ def verify(out_dir: Path, built: dict[str, dict]) -> tuple[dict[str, list[str]],
         cmd = [mvn, "-q", "-B", "compile"] if mvn else [
             docker, "run", "--rm", "-v", f"{(out_dir / 'backend').resolve()}:/src", "-v", "reqagent-m2:/root/.m2", "-w", "/src",
             "maven:3.9-eclipse-temurin-17", "mvn", "-q", "-B", "compile"]
-        run = subprocess.run(cmd, cwd=out_dir / "backend", capture_output=True, shell=os.name == "nt" and bool(mvn))
+        run = subprocess.run(cmd, cwd=out_dir / "backend", capture_output=True, shell=exe.run_shell(cmd[0]))
         text = (run.stdout + run.stderr).decode("utf-8", "replace")
         lines = text.splitlines()
         for i, line in enumerate(lines):
@@ -480,11 +481,11 @@ def verify(out_dir: Path, built: dict[str, dict]) -> tuple[dict[str, list[str]],
     else:
         skipped.append("서버 컴파일 (mvn·docker 없음)")
     tsc = out_dir / "frontend/node_modules/.bin" / ("tsc.cmd" if os.name == "nt" else "tsc")
-    npm = shutil.which("npm")
+    npm = exe.which("npm")
     if not tsc.exists() and npm:   # 처음 개발하면 패키지가 없다: 설치하고 타입 검사 (Docker 빌드도 tsc를 통과해야 한다)
-        subprocess.run([npm, "install", "--no-audit", "--no-fund"], cwd=out_dir / "frontend", capture_output=True, shell=os.name == "nt")
+        subprocess.run([npm, "install", "--no-audit", "--no-fund"], cwd=out_dir / "frontend", capture_output=True, shell=exe.run_shell(npm))
     if tsc.exists():
-        run = subprocess.run([str(tsc), "--noEmit", "-p", "."], cwd=out_dir / "frontend", capture_output=True)
+        run = subprocess.run([str(tsc), "--noEmit", "-p", "."], cwd=out_dir / "frontend", capture_output=True, shell=exe.run_shell(str(tsc)))
         for m in re.finditer(r"(?:src|ui)[/\\]pages[/\\](\w+)\.tsx\((\d+),\d+\): error (TS\d+: .*)", run.stdout.decode("utf-8", "replace")):
             if fid := by_class.get(m.group(1)):
                 errors.setdefault(fid, []).append(f"타입 오류 {m.group(2)}행: {m.group(3).strip()}")

@@ -17,6 +17,8 @@ import re
 import shutil
 from urllib.parse import quote
 import subprocess
+
+from app.core import exe
 from datetime import datetime
 from pathlib import Path
 
@@ -98,7 +100,7 @@ class _DevelopRunner(_Runner):
     def _sh(self, cmd: list[str], cwd: Path, env: dict | None = None) -> int:
         self._push(f"$ {' '.join(cmd)}")
         try:
-            proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=exe.run_shell(cmd[0]),
                                     text=True, encoding="utf-8", errors="replace", env={**os.environ, **(env or {})})
         except OSError as e:
             self._push(f"{cmd[0]}을(를) 실행할 수 없습니다: {e}")
@@ -214,25 +216,26 @@ def build_frontend(runner: _DevelopRunner | object, project: str, mode: str, env
     if not (front / "package.json").is_file():
         runner._push("화면 코드(frontend)가 없습니다.")
         return False
-    if shutil.which("npm") is None:
+    npm, npx = exe.which("npm"), exe.which("npx")   # Windows는 npm.cmd·npx.cmd (이름만으로는 실행되지 않는다)
+    if npm is None or npx is None:
         runner._push("서버 PC에 Node.js(npm)가 없어 화면을 빌드할 수 없습니다.")
         return False
     stamp = app_dir(project) / PREVIEW / "npm.hash"
     stamp.parent.mkdir(parents=True, exist_ok=True)
     installed = stamp.read_text(encoding="utf-8") if stamp.is_file() else ""
     if not (front / "node_modules").is_dir() or installed != _hash(front / "package.json"):
-        if runner._sh(["npm", "install", "--no-audit", "--no-fund"], front) != 0:
+        if runner._sh([npm, "install", "--no-audit", "--no-fund"], front) != 0:
             return False
         stamp.write_text(_hash(front / "package.json"), encoding="utf-8")
     out = app_dir(project) / PREVIEW / mode
     if (front / "next.config.mjs").is_file():   # Next.js 틀: 정적 내보내기(out/)를 미리보기 주소(하위 경로) 기준으로 빌드해 옮긴다
         base = f"/api/v1/preview/{quote(project)}/{mode}"
-        if runner._sh(["npx", "next", "build"], front, {**env, "NEXT_BASE_PATH": base}) != 0:
+        if runner._sh([npx, "next", "build"], front, {**env, "NEXT_BASE_PATH": base}) != 0:
             return False
         shutil.rmtree(out, ignore_errors=True)
         shutil.copytree(front / "out", out)
         return True
-    return runner._sh(["npx", "vite", "build", "--base", "./", "--outDir", str(out), "--emptyOutDir"], front, env) == 0
+    return runner._sh([npx, "vite", "build", "--base", "./", "--outDir", str(out), "--emptyOutDir"], front, env) == 0
 
 
 def start_develop(*, project: str, version: str, build: bool, model: str, effort: str, member, logic: bool = False, theme: str = "") -> Job:

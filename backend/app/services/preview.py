@@ -24,6 +24,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from app.core import exe
 from app.services.develop import PREVIEW, app_dir
 
 log = logging.getLogger(__name__)
@@ -159,7 +160,7 @@ class _Log:
     def _sh(self, cmd: list[str], cwd: Path, env: dict | None = None) -> int:
         self._push(f"$ {' '.join(cmd)}")
         try:
-            proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=exe.run_shell(cmd[0]),
                                     text=True, encoding="utf-8", errors="replace", env={**os.environ, **(env or {})})
         except OSError as e:
             self._push(f"{cmd[0]}을(를) 실행할 수 없습니다: {e}")
