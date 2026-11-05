@@ -284,7 +284,8 @@ def test_rejection_reaches_part_editors_in_slack_and_stays_in_home_notices(fake)
     slack.flush()
     assert len(fake.texts()) == 1, "반려 알림은 [반려] 메시지 하나 (홈 알림을 Slack에 다시 올리지 않음)"
     assert fake.texts()[0].startswith(f"<@{p.slack_id}> <@{p2.slack_id}> *[반려]* planner_head님이 기능 명세 v1")
-    assert p3.slack_id not in fake.texts()[0] and "기획3" not in fake.texts()[0], "채널 담당자가 아니면 멘션하지 않는다"
+    assert p3.slack_id not in fake.texts()[0], "채널 담당자가 아니면 멘션하지 않는다"
+    assert "⚠️ 알림 받을 기획 파트(기획3)이(가) 이 채널 담당자가 아니어서" in fake.texts()[0], "빠진 사람은 안내로 알린다"
 
     def rejected(client):
         return [n for n in client.get("/api/v1/notices").json()["notices"] if n["kind"] == "rejected"]
@@ -429,3 +430,41 @@ def test_slack_sends_the_agreed_notices_to_the_agreed_roles(sample_doc):
     assert who["erd_draft"] == {"data", "data_head"}, "ERD 초안 → 데이터 파트 (확인해도 Slack은 보낸다)"
     assert who["developed"] == {"dev", "dev_head"}, "개발 초안 → 개발 파트(파트장 포함)"
     assert who["request"] == {"planner_head", "lead"}, "기획 승인 요청 → 기획 파트장·팀장"
+
+
+def test_notice_mentions_the_members_who_get_it_or_the_lead_with_a_hint(fake):
+    """알림 받을 회원 중 채널 담당자를 멘션한다. 받을 회원이 아무도 채널에 없으면(예: 개발 파트를 담당자로 안 넣음)
+    묻히지 않게 팀장을 대신 멘션하고 누가 빠졌는지 알린다. 받을 회원이 채널에 있으면 안내는 없다."""
+    from app.services import directives
+
+    _team("lead", "data", "data_head", "dev", "dev_head")
+    lead, d, dh, dev, devh = (_member(f"{r}@test.local") for r in ("admin", "data", "data_head", "dev", "dev_head"))
+    _rec("1", "function_designer")
+    slack.create_channel(PROJECT, [lead.id, d.id, dh.id])   # 개발 파트는 담당자가 아님
+    fake.posts.clear()
+    directives.add_event(PROJECT, "erd_draft", "ERD 초안 v1.1", "데이터 파트가 ERD를 검토합니다", "erd", "1.1", {"data", "data_head"})
+    directives.add_event(PROJECT, "developed", "개발 초안 완료", "결과를 확인하세요", "develop", "1.1.1", {"dev", "dev_head"})
+    slack.flush()
+    erd, developed = fake.texts()
+    assert erd.startswith(f"<@{d.slack_id}> <@{dh.slack_id}> *[ERD 초안]*") and "⚠️" not in erd, "데이터 파트를 멘션"
+    assert f"<@{lead.slack_id}>" not in erd, "받을 회원이 채널에 있으면 팀장을 대신 부르지 않는다"
+    assert developed.startswith(f"<@{lead.slack_id}> *[개발 초안]*"), "개발 파트가 채널에 없으면 팀장을 대신 멘션"
+    assert "⚠️ 알림 받을 개발 파트(dev·dev_head)이(가) 이 채널 담당자가 아니어서 멘션하지 못했습니다" in developed
+    assert dev.slack_id not in developed and devh.slack_id not in developed
+
+
+def test_result_message_says_when_the_requester_is_not_in_the_channel(fake):
+    """승인·반려 결과: 요청한 파트원이 채널 담당자가 아니면 멘션 대신 이름과 안내를 남긴다"""
+    _team("planner", "planner_head")
+    p, head = _member("planner@test.local"), _member("planner_head@test.local")
+    _rec("1", "function_designer")
+    slack.create_channel(PROJECT, [head.id])   # 요청한 파트원은 담당자가 아님
+    drafts.request(PROJECT, "1", p)
+    req = drafts.reject(PROJECT, "1", head, "다시")
+    slack.flush()
+    fake.posts.clear()
+    slack.request_decided(PROJECT, "1", "spec", req, head, approved=False, reason="다시")
+    slack.flush()
+    text = fake.texts()[0]
+    assert text.startswith("planner *[반려]*") and f"<@{p.slack_id}>" not in text
+    assert "⚠️ 알림 받을 기획 파트(planner)이(가) 이 채널 담당자가 아니어서" in text

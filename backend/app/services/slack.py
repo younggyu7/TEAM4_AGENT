@@ -311,15 +311,47 @@ def _mentions(config: dict, members: Iterable[users.Member]) -> str:
     return " ".join(dict.fromkeys(f"<@{m.slack_id}>" for m in members if m.slack_id and m.id in config["members"]))
 
 
+PART_LABEL = {"planner": "기획 파트", "planner_head": "기획 파트", "data": "데이터 파트", "data_head": "데이터 파트",
+              "dev": "개발 파트", "dev_head": "개발 파트", "lead": "팀장"}
+
+
+def _missing(config: dict, members: Iterable[users.Member]) -> list[users.Member]:
+    """멘션할 수 없는 회원: 이 채널 담당자가 아니거나 Slack 멤버 ID가 없다"""
+    return list({m.id: m for m in members if not (m.slack_id and m.id in config["members"])}.values())
+
+
+def _missing_hint(members: list[users.Member]) -> str:
+    """멘션하지 못한 회원 안내 (파트별 이름): 팀장이 채널 담당자로 더하면 다음부터 멘션된다"""
+    if not members:
+        return ""
+    parts: dict[str, list[str]] = {}
+    for m in members:
+        parts.setdefault(PART_LABEL.get(m.role, ROLES.get(m.role, "회원")), []).append(m.name)
+    who = ", ".join(f"{part}({'·'.join(_esc(n) for n in names)})" for part, names in parts.items())
+    return (f"⚠️ 알림 받을 {who}이(가) 이 채널 담당자가 아니어서 멘션하지 못했습니다. "
+            "팀장이 프로젝트 화면 'Slack 채널 → 담당자 바꾸기'에서 추가하세요.")
+
+
+def notice_mentions(config: dict, who: list[users.Member], people: dict[int, users.Member]) -> tuple[str, str]:
+    """알림을 받을 회원(who) 중 채널 담당자를 멘션한다. 아무도 멘션할 수 없으면 팀장을 대신 멘션하고 안내를 붙인다
+    (알림이 아무도 부르지 않고 묻히지 않게). (멘션, 안내)"""
+    mentions = _mentions(config, who)
+    if mentions or not who:
+        return mentions, ""
+    leads = [m for m in people.values() if m.role == "lead"]
+    return _mentions(config, leads), _missing_hint(_missing(config, who))
+
+
 def notice_key(n: dict) -> str:
     """알림 하나의 키: 같은 알림이면 같다 (새 요청·새 지시·새 버전이면 시각이나 버전이 달라 새 알림)"""
     return "|".join(str(n.get(k) or "") for k in ("kind", "project", "page", "version", "at"))
 
 
-def notice_text(n: dict, mentions: str = "") -> str:
+def notice_text(n: dict, mentions: str = "", note: str = "") -> str:
     detail = f"\n{_esc(n['detail'])}" if n.get("detail") else ""
     head = f"{mentions} " if mentions else ""
-    return (f"{head}*[{KIND.get(n['kind'], '알림')}]* {_esc(n['title'])}{detail}\n"
+    tail = f"\n{note}" if note else ""
+    return (f"{head}*[{KIND.get(n['kind'], '알림')}]* {_esc(n['title'])}{detail}{tail}\n"
             f"<{link(n['project'], n['version'], n['page'])}|화면에서 열기>")
 
 
@@ -379,13 +411,14 @@ def sync_notices() -> int:
         return 0
     pending = _pending(set(configs))
     done = _sent(pending)
+    people = {m.id: m for m in users.list_members() if m.status == "active"}
     count = 0
     for key, (n, who) in sorted(pending.items(), key=lambda kv: kv[1][0]["at"]):
         if key in done:
             continue
         config = configs[n["project"]]
         try:
-            _post(config, notice_text(n, _mentions(config, who)))
+            _post(config, notice_text(n, *notice_mentions(config, who, people)))
         except SlackError as e:
             log.warning("Slack 알림을 올리지 못함 (%s · %s): %s", n["project"], n["title"], e)
             continue
@@ -410,8 +443,11 @@ def request_decided(project: str, version: str, stage: str, request: dict | None
         requester = users.get_member(who)
         head = _mention(config, requester) if requester else _esc(request["by"].get("name", ""))
         people = {m.id: m for m in users.list_members() if m.status == "active"}
-        others = _mentions(config, [people[i] for i in sorted(editors) if i in people])
+        targets = [people[i] for i in sorted(editors) if i in people]
+        others = _mentions(config, targets)
         head = f"{head} {others}" if others else head
+        # 요청한 파트원(·고친 파트원)이 채널 담당자가 아니면 멘션이 안 가므로 알려 둔다
+        hint = _missing_hint(_missing(config, ([requester] if requester else []) + targets))
         what = f"{STAGE.get(stage, '')} v{version} 수정 완료 요청"
         if approved:
             after = ("이 기능 명세로 ERD를 만들고 있습니다." if stage == "spec"
@@ -420,6 +456,8 @@ def request_decided(project: str, version: str, stage: str, request: dict | None
         else:
             text = (f"{head} *[반려]* {_esc(decider.name)}님이 {what}을 반려했습니다\n사유: {_esc(reason)}\n"
                     "고친 뒤 다시 '수정 완료 승인 요청'을 보내 주세요.")
+        if hint:
+            text += f"\n{hint}"
         _post(config, f"{text}\n<{link(project, version, stage)}|화면에서 열기>")
 
     _enqueue(project, post)
@@ -446,8 +484,10 @@ def final_decided(project: str, final: str, approval: dict, decider: users.Membe
         who = [people[i] for i in sorted(related(project, final, tree)) if i in people and i != decider.id]
         comment = (approval.get("comment") or "").strip()
         if approval.get("decision") == "approve":
+            hint = "" if _mentions(config, who) else _missing_hint(_missing(config, who))
             text = (f"{_mentions(config, who)} *[최종 승인]* {_esc(decider.name)}님이 최종본 v{final}을 승인했습니다".lstrip()
                     + (f"\n의견: {_esc(comment)}" if comment else "")
+                    + (f"\n{hint}" if hint else "")
                     + f"\n<{link(project, final, 'final')}|화면에서 열기>")
             _post(config, text)
             return
@@ -468,6 +508,8 @@ def final_decided(project: str, final: str, approval: dict, decider: users.Membe
                   + (f" — {_esc(i['note'])}" if i.get("note") else "") for i in items[:10]]
         if len(items) > 10:
             lines.append(f"외 {len(items) - 10}건")
+        if not _mentions(config, who) and (hint := _missing_hint(_missing(config, who))):
+            lines.append(hint)
         lines.append(f"<{link(project, version, page)}|화면에서 열기>")
         _post(config, "\n".join(lines))
         _mark_sent(directive)
