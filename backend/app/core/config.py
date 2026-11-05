@@ -109,7 +109,7 @@ class Settings:
     api_fix_attempts: int = 1                            # API 검사 오류(없는 컬럼·API 없는 기능)를 그 기능만 다시 설계하는 횟수 (0이면 max_fix_attempts)
     api_batch_size: int = 6                              # API 설계 요청 1건에 넣는 기능 수
     api_effort: str = ""                                 # API 설계·아키텍처 요청의 생각 수준 (빈 값이면 실행 설정)
-    seed_test_accounts: bool = False                     # [임시] 회원이 없으면 서버 시작 때 시연용 계정 7개를 만든다 (.env 기본 켬)
+    seed_test_accounts: bool = False                     # [임시] 서버 시작 때 시연용 계정(TEST_ACCOUNTS 10개) 중 DB에 없는 것만 만든다 (.env 기본 켬)
     log_level: str = "INFO"                              # API 서버 로그 수준
     cors_origins: tuple[str, ...] = DEFAULT_CORS_ORIGINS  # 브라우저 요청을 허용할 프론트 주소 (로컬 Vite 개발 서버는 proxy라 없어도 됨)
     behavior_max_questions: int = 5                      # 상태 전환·자동 처리에서 낼 고객 확인 질문 상한 (BQ-…)
