@@ -851,6 +851,13 @@ def _is_continuation(rows: list[list[str]]) -> bool:
     return no_labels and all(not r[0].strip() for r in rows if r) and any(c.strip() for r in rows for c in r)
 
 
+def _leading_continuation(rows: list[list[str]]) -> int:
+    """표 앞쪽에 붙은 잘린 표의 뒷부분 행 수 (없으면 0): 첫 번호 행 앞의 행들이 그 자체로 이어짐 조각일 때 (_is_continuation).
+    번호 행이 없거나 맨 앞이 번호 행이면 0."""
+    start = next((i for i, cells in enumerate(map(_trim, rows)) if _code_row(cells) or _glued_cell(cells) is not None), 0)
+    return start if start and _is_continuation(rows[:start]) else 0
+
+
 def _continues_with_labels(rows: list[list[str]], head: list[list[str]]) -> bool:
     """쪽 넘김이 행 사이에 걸려 뒷부분이 칸 이름으로 시작하는 경우: ['세부내용', …], ['산출정보', …] (인쇄한 PDF 등).
 
@@ -912,6 +919,11 @@ def _repair_requirements(raw: list[dict]) -> list[dict]:
             if k is not None and (_is_continuation(item["rows"]) or _continues_with_labels(item["rows"], out[k]["rows"])):
                 out[k] = {**out[k], "rows": out[k]["rows"] + [r for r in map(_trim, item["rows"]) if r]}
                 continue
+            n = _leading_continuation(item["rows"])
+            if k is not None and n:
+                # 잘린 앞 요구사항의 뒷부분과 다음 요구사항이 한 표로 뽑힌 경우 (고객요구사항7 PER-003 → 6쪽 PER-004 표 첫 행)
+                out[k] = {**out[k], "rows": out[k]["rows"] + [r for r in map(_trim, item["rows"][:n]) if r]}
+                item = {**item, "rows": item["rows"][n:]}
             parts = _split_requirement_table(item["rows"])
             if parts is None:
                 out.append(item)

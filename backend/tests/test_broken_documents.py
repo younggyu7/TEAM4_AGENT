@@ -139,6 +139,15 @@ def test_middle_fragment_without_labels_is_joined():
     assert got["SFR-18"]["details"] == "파일 업로드\n회의 정보 등록\n회의록 편집 및 공유"
 
 
+def test_cut_off_rows_at_top_of_next_requirement_table_go_back():
+    """잘린 앞 요구사항의 뒷부분이 다음 요구사항 표 맨 위 행으로 같이 뽑히면 앞 요구사항으로 돌려보낸다 (고객요구사항7 PER-003·004)."""
+    raw = [{"type": "table", "rows": _req("PER-03", "AGV 제어", "무인차 주행표시")},
+           {"type": "table", "rows": [["", "", "CELL별 작업지시\n자동충전 제어"]] + _req("PER-04", "WMS", "환경설정")}]
+    got = _fields(_repair_requirements(raw))
+    assert got["PER-03"]["details"] == "무인차 주행표시\nCELL별 작업지시\n자동충전 제어"
+    assert got["PER-04"]["details"] == "환경설정"
+
+
 def test_list_table_cut_by_page_is_joined(tmp_path):
     """쪽마다 잘린 목록형 요구사항 표 (고객요구사항8 비기능): 머리글 없는 뒷부분, 빈 분류 칸, 번호 없이 떨어진 마지막 말."""
     pytest.importorskip("docx")
