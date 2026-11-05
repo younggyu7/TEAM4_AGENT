@@ -68,8 +68,8 @@ def test_preview_files_stay_inside_and_need_login(sample_doc):
     status = member.get("/api/v1/preview/sample/status").json()
     assert (status["status"], status["backend"], status["mock"]) == ("stopped", False, True)
     assert member.post("/api/v1/preview/sample/start").json()["status"] == "no_backend", "백엔드가 없으면 실행하지 않는다"
-    assert member.post("/api/v1/preview/sample/stop").status_code == 403, "끄기는 개발 파트장·팀장만"
-    for role in ("dev_head", "lead"):
+    assert member.post("/api/v1/preview/sample/stop").status_code == 403, "끄기는 팀장·개발 파트장만"
+    for role in ("lead", "dev_head"):
         assert signed_in_client(role).post("/api/v1/preview/sample/stop").status_code == 200, role
 
 

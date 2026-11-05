@@ -5,7 +5,7 @@
   GET  /preview/{프로젝트}/                 미리보기 안내 페이지: 앱을 Docker로 켜고 준비되면 앱 주소(http://<서버>:<포트>)로 (로그인한 회원)
   GET  /preview/{프로젝트}/mock/…           예시 데이터 화면 (서버 없이)
   GET  /preview/{프로젝트}/accounts         앱 시연 계정 (admin·user 비밀번호, 개발 파트원·파트장·팀장)
-  GET  /preview/{프로젝트}/status · POST /preview/{프로젝트}/start · POST /preview/{프로젝트}/stop (끄기는 개발 파트장·팀장)
+  GET  /preview/{프로젝트}/status · POST /preview/{프로젝트}/start · POST /preview/{프로젝트}/stop (끄기는 팀장·개발 파트장)
   GET·POST /develop/git?project=          원격 설정 하나 {url, branch, token} (토큰은 다시 보내지 않음, 개발 파트장)
   POST /develop/git/push                  원격에 main·최종본 태그 올리기 → {job} (개발 파트장)
   GET  /develop/files?project=&branch=    코드 파일 목록 (main 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고침·커밋 안 한 변경 표시)
@@ -127,7 +127,7 @@ def run_start(project: str):
     return preview.start(_project(project))
 
 
-@router.post("/preview/{project}/stop", summary="실행 미리보기 끄기 (개발 파트장·팀장)")
+@router.post("/preview/{project}/stop", summary="실행 미리보기 끄기 (팀장·개발 파트장)")
 def run_stop(project: str, member: users.Member = Depends(current_user)):
     ensure(member, "preview_stop")
     return preview.stop(_project(project), f"{member.name}님이 껐습니다.")
