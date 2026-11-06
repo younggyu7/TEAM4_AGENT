@@ -1,6 +1,9 @@
 """요구사항 Agent: 요구사항 추출·기능/비기능 분류·근거 연결·질문 후보 제안.
 
 - mode=full     : 모든 추출 단위(상세 표/청크)를 배치로 나눠 병렬 추출
+- 빠진 항목 채우기(REQ_FILL_GAPS, full·fix 모두): 추출 뒤 원문 단위의 목록 항목 중 어느 요구사항에도 담기지 않은 것을
+  코드로 찾고(tools/source_items, LLM 없음), 그런 단위만 빠진 항목을 짚어 한 번 더 추출해 더한다 (이미 추출한 요구사항은 그대로).
+  항목이 많은 단위에서 모델이 뒤쪽 항목을 통째로 빠뜨리는 것을 막는다. 문서 형식(번호 체계·서식 문구)에 기대지 않는다.
 - mode=fix      : 지정한 추출 단위만 다시 추출 (결과가 비었거나 실패한 경우)
 - mode=redesign : 요구사항 단계 다시 만들기(rerun requirements_analyst --feedback). 다시 추출하지 않고 요청 1회로
   의견이 바꾸는 요구사항(결정으로 남김), 범위에서 빼는 요구사항(EXCLUDED), 새로 생기는 요구사항(USR-…)만 받는다.
@@ -21,10 +24,18 @@ from app.schemas.document import DocumentBlock, RequirementSource
 from app.schemas.requirement import (Evidence, Priority, Question, Requirement, RequirementCategory, RequirementScope, RequirementType, USER_SOURCE)
 from app.agents.flow.state import AgentState, dump, load, merge_usage, rev
 from app.agents.tools.search import quote_in_text
+from app.agents.tools.source_items import boilerplate, grams, overlap, requirement_text, uncovered_items
 
 log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = load_prompt("requirements_analyst/system")
+DUPLICATE_OVERLAP = 0.9   # 채운 요구사항의 설명 4글자 조각이 같은 단위 기존 요구사항에 이만큼 있으면 같은 내용으로 보고 버린다
+FILL_REQUEST = """## 이번 요청: 빠진 항목 채우기
+위 원문 단위에서 이미 요구사항을 추출했지만 '아직 담기지 않은 원문 항목'은 어느 요구사항에도 들어 있지 않다.
+- 그 항목만 요구사항으로 추출한다 (규칙 1~10을 그대로 따른다). '이미 추출한 요구사항'과 같은 내용은 다시 쓰지 않는다.
+- 같은 목적의 항목은 묶어도 되지만, 묶은 항목은 description에 빠짐없이 쓴다.
+- 검증할 요구가 아닌 줄(목록 제목, 설명·배경 문장, 산출물 안내, 입찰·평가 안내)은 건너뛴다. 해당하는 것이 없으면 requirements를 비운다.
+- questions는 비운다."""
 
 PREFIX_HINT = ("요구사항 번호 접두어 관례(참고용, 원문 표의 '분류'가 우선): SFR=기능, PER=성능, SIR=인터페이스, DAR=데이터, "
                "SER=보안, QUR=품질, COR=제약, ECR=장비구성, TER=테스트, PMR=사업관리, PSR=사업지원")
@@ -148,11 +159,15 @@ def run(state: AgentState) -> dict:
             ))
             next_q += 1
 
+    filled: list[Requirement] = []
+    if s.req_fill_gaps and new_reqs:
+        filled = _fill_gaps(llm, targets, sources, blocks, new_reqs, title)
+        new_reqs += filled
     order = {src.source_key: i for i, src in enumerate(sources)}
-    requirements = sorted(kept + new_reqs, key=lambda r: (order.get(r.source_key, 999), r.requirement_id))
+    requirements = sorted(kept + new_reqs, key=lambda r: (order.get(r.source_key, 999), _seq(r.requirement_id), r.requirement_id))
     counts = {t: sum(r.type == t for r in new_reqs) for t in ("FUNCTIONAL", "NON_FUNCTIONAL")}
-    log.info("[요구사항] 추출 단위 %d개 → 요구사항 %d건 (기능 %d / 비기능 %d), 질문 후보 %d건, 실패 배치 %d",
-             len(targets), len(new_reqs), counts["FUNCTIONAL"], counts["NON_FUNCTIONAL"],
+    log.info("[요구사항] 추출 단위 %d개 → 요구사항 %d건 (기능 %d / 비기능 %d, 빠진 항목 채우기 %d건), 질문 후보 %d건, 실패 배치 %d",
+             len(targets), len(new_reqs), counts["FUNCTIONAL"], counts["NON_FUNCTIONAL"], len(filled),
              len(questions), failed)
     r = rev(state)
     update = {
@@ -235,20 +250,77 @@ def _apply_feedback(state: AgentState) -> dict:
     }
 
 
-def _extract(llm, batch: list[RequirementSource], blocks: dict[str, DocumentBlock], title: str) -> ExtractionOut:
-    """배치 하나(원문 단위 여러 개)의 프롬프트를 만들어 LLM에 추출을 요청한다."""
+def _source_parts(batch: list[RequirementSource], blocks: dict[str, DocumentBlock], title: str) -> list[str]:
+    """추출 프롬프트의 원문 부분 (배치의 원문 단위마다 블록 원문)."""
     parts = [f"문서: {title}", PREFIX_HINT, "", "추출 대상 원문:"]
     for src in batch:
         parts.append(f'<source key="{src.source_key}" heading="{src.heading}">')
         for bid in src.block_ids:
             parts.append(f'<block id="{bid}">\n{blocks[bid].text}\n</block>')
         parts.append("</source>")
-    return llm.structured(system=SYSTEM_PROMPT, user="\n".join(parts), schema=ExtractionOut,
+    return parts
+
+
+def _extract(llm, batch: list[RequirementSource], blocks: dict[str, DocumentBlock], title: str) -> ExtractionOut:
+    """배치 하나(원문 단위 여러 개)의 프롬프트를 만들어 LLM에 추출을 요청한다."""
+    return llm.structured(system=SYSTEM_PROMPT, user="\n".join(_source_parts(batch, blocks, title)), schema=ExtractionOut,
                           purpose=f"요구사항 추출 {','.join(s.source_key for s in batch)}")
 
 
-def _to_requirements(out: ExtractionOut, batch: list[RequirementSource],
-                     blocks: dict[str, DocumentBlock]) -> tuple[list[Requirement], dict[str, str]]:
+def _seq(requirement_id: str) -> int:
+    m = re.search(r"-(\d+)$", requirement_id)
+    return int(m.group(1)) if m else 0
+
+
+def _fill_gaps(llm, targets: list[RequirementSource], sources: list[RequirementSource], blocks: dict[str, DocumentBlock],
+               reqs: list[Requirement], title: str) -> list[Requirement]:
+    """빠진 항목 채우기: 이번에 추출한 단위마다 요구사항에 담기지 않은 목록 항목을 코드로 찾고(LLM 없음),
+    REQ_FILL_MIN_ITEMS개 이상인 단위만 그 항목을 짚어 한 번 더 추출한다. ID는 그 단위의 다음 번호부터 이어 붙인다.
+    같은 단위의 기존 요구사항과 설명이 거의 같은 것은 버린다. 요청이 실패하면 처음 추출한 것만 둔다. 더한 요구사항을 돌려준다."""
+    s = get_settings()
+    boiler = boilerplate(sources, blocks)
+    by_unit: dict[str, list[Requirement]] = {}
+    for r in reqs:
+        by_unit.setdefault(r.source_key, []).append(r)
+    gaps = {src.source_key: uncovered_items(src, blocks, by_unit[src.source_key], boiler, s.req_review_coverage)
+            for src in targets if by_unit.get(src.source_key)}   # 통째로 실패한 단위는 다시 추출(fix)이 맡는다
+    gaps = {k: v for k, v in gaps.items() if len(v) >= max(1, s.req_fill_min_items)}
+    if not gaps:
+        return []
+    units = [src for src in targets if src.source_key in gaps]
+    batches = [units[i:i + s.req_batch_size] for i in range(0, len(units), s.req_batch_size)]
+
+    def ask(batch: list[RequirementSource]) -> ExtractionOut:
+        parts = _source_parts(batch, blocks, title)
+        for src in batch:
+            parts += ["", f"## [{src.source_key}] 이미 추출한 요구사항",
+                      *[f"- {r.title}: {r.description[:120]}" for r in by_unit[src.source_key]],
+                      f"## [{src.source_key}] 아직 담기지 않은 원문 항목 ({len(gaps[src.source_key])}개)",
+                      *[f"({bid}) {item}" for bid, item in gaps[src.source_key]]]
+        return llm.structured(system=SYSTEM_PROMPT, user="\n".join([*parts, "", FILL_REQUEST]), schema=ExtractionOut,
+                              purpose=f"요구사항 빠진 항목 채우기 {','.join(x.source_key for x in batch)}")
+
+    added: list[Requirement] = []
+    for batch, out, err in run_parallel(ask, batches):
+        if err or out is None:
+            log.warning("[요구사항] 빠진 항목 채우기 실패 (%s): %s", ",".join(x.source_key for x in batch), err)
+            continue
+        start = {src.source_key: max((_seq(r.requirement_id) for r in by_unit[src.source_key]), default=0) for src in batch}
+        new, _ = _to_requirements(out.model_copy(update={"questions": []}), batch, blocks, start)
+        for r in new:
+            existing = by_unit.setdefault(r.source_key, [])
+            words = grams(r.description, 4)
+            if any(overlap(words, grams(requirement_text(x), 4)) >= DUPLICATE_OVERLAP for x in existing):
+                continue   # 이미 있는 요구사항과 같은 내용
+            existing.append(r)
+            added.append(r)
+    log.info("[요구사항] 빠진 항목 채우기: 단위 %d개 (담기지 않은 항목 %d개) → 요구사항 %d건 더함",
+             len(gaps), sum(len(v) for v in gaps.values()), len(added))
+    return added
+
+
+def _to_requirements(out: ExtractionOut, batch: list[RequirementSource], blocks: dict[str, DocumentBlock],
+                     start: dict[str, int] | None = None) -> tuple[list[Requirement], dict[str, str]]:
     """LLM 응답을 Requirement로 바꾼다. ID를 부여하고 인용문이 원문에 있는지 확인한다.
 
     추출 단위는 응답의 source_key로 정한다. 배치에 없는 키를 쓰면 근거 블록이 속한 단위로 연결한다
@@ -257,7 +329,7 @@ def _to_requirements(out: ExtractionOut, batch: list[RequirementSource],
     by_key = {src.source_key: src for src in batch}
     block_source = {bid: src for src in batch for bid in src.block_ids}
     batch_blocks = set(block_source)
-    seq: dict[str, int] = {}
+    seq: dict[str, int] = dict(start or {})   # 단위별 마지막 번호 (빠진 항목 채우기는 기존 번호 다음부터)
     reqs, key_to_id = [], {}
     for item in out.requirements:
         src = by_key.get(item.source_key) \

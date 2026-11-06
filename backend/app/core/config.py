@@ -78,9 +78,13 @@ class Settings:
     anthropic_effort: str = "high"
     llm_concurrency: int = 4
     req_batch_size: int = 3
+    req_fill_gaps: bool = True                           # 추출 뒤 요구사항에 담기지 않은 원문 목록 항목을 코드로 찾아 그 단위만 한 번 더 추출 (빠진 항목 채우기)
+    req_fill_min_items: int = 2                          # 담기지 않은 항목이 이만큼 이상인 단위만 채운다 (1개만 빠진 단위는 요구사항 검토 Agent의 보충이 맡는다)
     func_group_size: int = 12
     func_common_decisions: bool = True                   # 기능 명세 전에 공통 결정(용어·분류값·공통 규칙)을 먼저 정함
     func_effort: str = ""                                # 기능 명세 그룹·확인 질문 요청의 생각 수준 (빈 값이면 ANTHROPIC_EFFORT·OPENAI_REASONING_EFFORT)
+    auto_assume: bool = True                             # 추천안이 있는 확인 대상은 꼭 확인할 것(범위·권한·핵심 데이터·금액·삭제/보존)만 묻고 나머지는 추천안으로 적용 ('(가정)' 표시). false면 아래 '(가정)' 한도 방식
+    ask_choices_only: bool = True                        # 예/아니오로 확인만 하는 것은 묻지 않고 추천안대로 확정, 고객이 서로 다른 안 중에서 골라야 하는 것만 질문 (영역 묶음 질문 대신)
     func_assumption_limit: float = 0.1                   # 기능 명세 '(가정)' 규칙 한도 (전체 업무 규칙 대비). 넘으면 질문으로 정한다. 1이면 묻지 않음
     func_rule_bundle: bool = True                        # 질문 없이 남은 영향이 작은 '(확인 필요)' 규칙을 영역마다 질문 하나로 묶는다
     func_rule_trim: bool = True                          # 고객이 정할 내용이 없는 '(가정)'·'(확인 필요)' 규칙(되풀이·중복)을 뺀다
@@ -129,9 +133,13 @@ class Settings:
             anthropic_effort=os.getenv("ANTHROPIC_EFFORT", cls.anthropic_effort),
             llm_concurrency=_int("LLM_CONCURRENCY", cls.llm_concurrency),
             req_batch_size=_int("REQ_BATCH_SIZE", cls.req_batch_size),
+            req_fill_gaps=_bool("REQ_FILL_GAPS", True),
+            req_fill_min_items=_int("REQ_FILL_MIN_ITEMS", cls.req_fill_min_items),
             func_group_size=_int("FUNC_GROUP_SIZE", cls.func_group_size),
             func_common_decisions=_bool("FUNC_COMMON_DECISIONS", True),
             func_effort=os.getenv("FUNC_EFFORT", "").strip().lower(),
+            auto_assume=_bool("AUTO_ASSUME", True),
+            ask_choices_only=_bool("ASK_CHOICES_ONLY", True),
             func_assumption_limit=float(os.getenv("FUNC_ASSUMPTION_LIMIT", "").strip() or cls.func_assumption_limit),
             func_max_questions=_int("FUNC_MAX_QUESTIONS", cls.func_max_questions),
             func_rule_bundle=os.getenv("FUNC_RULE_BUNDLE", "true").strip().lower() != "false",

@@ -52,7 +52,10 @@ def isolated_settings(tmp_path, monkeypatch):
     # 테스트는 가짜 LLM을 쓰지만 공급자 선택이 키 존재를 확인하므로, .env 키가 없는 환경(CI)에서도 돌게 한다
     if not (os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-    config._settings = config.Settings(output_dir=tmp_path / "output", validation_db_url="")
+    # auto_assume·ask_choices_only=False: 기존 테스트는 확인 질문 흐름('(가정)' 한도 방식, 영역 묶음 질문, 분류·설계 질문에
+    # 답하기)을 본다. 운영 기본값(둘 다 켬)은 tests/test_auto_assume.py·test_ask_choices.py가 켜고 본다
+    config._settings = config.Settings(output_dir=tmp_path / "output", validation_db_url="", auto_assume=False,
+                                       ask_choices_only=False)
     yield
     config._settings = None
     llm.set_llm(None)
