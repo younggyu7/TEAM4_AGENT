@@ -114,6 +114,7 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `POST /runs` (multipart `file`, `project?`, `title?`, `model?`, `effort?`, `members?`) | 문서 업로드 → 새 프로젝트면 담당자 = `members`(회원 ID, 쉼표) + 올린 사람 (같은 이름의 남의 프로젝트면 409) → (Slack이 켜져 있으면 프로젝트 비공개 채널을 만들고 담당자 초대, 실패해도 계속) → 기능 명세 초안까지 실행(`--defer --until function_designer`) → `202 {job, slack: {team, channel_name, invited, failed, existing} 또는 {error} 또는 null(Slack 꺼짐)}`. 고른 모델·생각 수준은 그 프로젝트의 ERD·최종 확정까지 쓴다 |
 | `GET /llm-options` | 업로드에서 고를 모델(키가 있는 공급자만, 모델별 effort 지원 여부)·생각 수준·`.env` 기본값 |
 | `GET /jobs?id=` | 작업 진행 상황 `{status: running·done·failed, message, log, new_version, warnings}` (담당자가 아닌 프로젝트의 작업은 404) |
+| `GET /jobs/running?project=` | 그 프로젝트에서 진행 중인 작업 `{job}` (없으면 `null`). 로그아웃·새로고침 뒤 화면이 진행 창을 다시 띄운다 |
 | `GET /capabilities` | rerun이 기능 명세 수정본(`--design`·`--spec-md`)·추천안 확인 규칙(`--confirm-rules`)을 받는지 |
 | `GET /health` | 서버 상태 |
 | `POST /auth/signup` · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` · `GET /auth/roles` | 회원가입(처음 가입자 = 관리자·팀장, 그 뒤 승인 대기, Slack 멤버 ID 선택) · 로그인(httpOnly 쿠키 세션) · 로그아웃 · 로그인한 회원과 권한 · 역할 목록. **이 밖의 API는 로그인 필요(401)** |

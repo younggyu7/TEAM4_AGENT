@@ -80,9 +80,12 @@ def test_new_version_checks_input_before_starting(client, project, monkeypatch):
     assert r.status_code == 202 and started[0]["base"] == "1" and started[0]["answers"] == {"Q-001": "예"}
     job = r.json()["job"]
     assert client.get("/api/v1/jobs", params={"id": job["id"]}).json()["job"]["status"] == "running"
+    running = client.get("/api/v1/jobs/running", params={"project": project}).json()["job"]
+    assert running["id"] == job["id"], "로그아웃·새로고침 뒤에도 프로젝트로 진행 중인 작업을 찾는다"
     assert client.post("/api/v1/projects/versions", json={"project": project, "base": "1"}).status_code == 409
     assert client.get("/api/v1/jobs", params={"id": "없음"}).status_code == 404
     jobs._jobs.clear()
+    assert client.get("/api/v1/jobs/running", params={"project": project}).json() == {"job": None}
 
 
 def test_run_rejects_unsupported_document(client, monkeypatch, tmp_path):

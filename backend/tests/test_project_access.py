@@ -76,6 +76,8 @@ def test_notices_and_jobs_of_other_projects_are_hidden(team):
         assert notices(team["data"]) == []
         assert team["planner"].get("/api/v1/jobs?id=job-two").status_code == 404
         assert team["lead"].get("/api/v1/jobs?id=job-two").status_code == 200
+        assert team["planner"].get("/api/v1/jobs/running?project=two").status_code == 404
+        assert team["lead"].get("/api/v1/jobs/running?project=two").json()["job"]["id"] == "job-two"
     finally:
         jobs._jobs.pop("job-two", None)
 

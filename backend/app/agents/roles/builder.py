@@ -513,7 +513,8 @@ def verify(out_dir: Path, built: dict[str, dict]) -> tuple[dict[str, list[str]],
             skipped.append("서버 컴파일 실패 (기능 구현 파일 밖의 오류)")
     else:
         skipped.append("서버 컴파일 (mvn·docker 없음)")
-    tsc = out_dir / "frontend/node_modules/.bin" / ("tsc.cmd" if os.name == "nt" else "tsc")
+    # 절대 경로로: 상대 경로(화면에서 시작한 개발은 --output-dir output)면 cwd를 frontend로 바꾼 뒤 실행 파일을 못 찾는다
+    tsc = (out_dir / "frontend/node_modules/.bin" / ("tsc.cmd" if os.name == "nt" else "tsc")).resolve()
     npm = exe.which("npm")
     if not tsc.exists() and npm:   # 처음 개발하면 패키지가 없다: 설치하고 타입 검사 (Docker 빌드도 tsc를 통과해야 한다)
         subprocess.run([npm, "install", "--no-audit", "--no-fund"], cwd=out_dir / "frontend", capture_output=True, shell=exe.run_shell(npm))

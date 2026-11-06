@@ -1,5 +1,6 @@
 """기능 구현 Agent (develop --build, 실험): 스펙 문서를 기능별로 잘라 넣고, 계약(경로·권한·스키마)을 벗어난 코드는 걸러 다시 묻는다 (API 불필요)."""
 import re
+from pathlib import Path
 
 from test_develop import FINAL, _app, _start
 
@@ -140,3 +141,23 @@ def test_without_build_nothing_changes(sample_doc):
     assert "frontend/src/pages/index.ts" in files and "export const pages: Record<string, ComponentType<PageProps>> = {}" in files["frontend/src/pages/index.ts"]
     assert "frontend/src/kit.tsx" in files and not any("/feature/" in p for p in files)
     assert get_settings().dev_effort
+
+
+def test_type_check_runs_with_relative_output_dir(tmp_path, monkeypatch):
+    """화면에서 시작한 개발은 --output-dir가 상대 경로(output)다. cwd를 frontend로 바꿔 tsc를 실행해도 찾아야 한다
+    (상대 경로 그대로 넘기면 FileNotFoundError로 개발 작업 전체가 실패했다)."""
+    import os
+    import pytest
+
+    if os.name == "nt":
+        pytest.skip("가짜 tsc를 셸 스크립트로 만든다")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(builder.exe, "which", lambda name: None)   # mvn·docker·npm 없음: 화면 타입 검사만
+    cls = class_name("FN-001")
+    bin_dir = tmp_path / "output/p/app/frontend/node_modules/.bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "tsc").write_text(f"#!/bin/sh\necho 'src/pages/{cls}.tsx(3,5): error TS2322: 타입이 맞지 않음'\nexit 2\n")
+    (bin_dir / "tsc").chmod(0o755)
+    errors, skipped = builder.verify(Path("output/p/app"), {"FN-001": {"status": "채움"}})
+    assert errors == {"FN-001": ["타입 오류 3행: TS2322: 타입이 맞지 않음"]}
+    assert not any("화면 타입 검사" in s for s in skipped)
