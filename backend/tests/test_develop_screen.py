@@ -1,4 +1,4 @@
-"""화면의 최종 개발하기·미리보기·git 올리기 (PM이 승인한 최종본, 개발자). 하위 프로세스·Docker·npm 없이."""
+"""화면의 최종 개발하기·미리보기·git 올리기 (최종 승인한 최종본, 개발자). 하위 프로세스·Docker·npm 없이."""
 import json
 import subprocess
 

@@ -1,4 +1,4 @@
-"""수정 초안 공유와 PM 결정.
+"""수정 초안 공유와 최종 결정.
 
   GET  /drafts               버전의 수정 초안 (편집·체크·답·지적 처리) + 변경 내역(누가·언제·무엇을) + 승인 요청
   POST /drafts               수정 초안 저장 (rev가 다르면 409: 다른 사람이 먼저 저장)
@@ -13,7 +13,7 @@
 초안은 산출물 저장소의 프로젝트 파일 draft-v<버전>.json에 둔다 (서비스 DB가 있으면 project_files 테이블, 형식은
 services/drafts.py).
 기능 명세·ERD 버전의 초안은 PM·개발자가 고친다.
-승인 요청·반려·PM 결정은 Slack을 연결한 프로젝트면 그 채널에도 올린다 (services/slack.py).
+승인 요청·반려·최종 결정은 Slack을 연결한 프로젝트면 그 채널에도 올린다 (services/slack.py).
 """
 from __future__ import annotations
 
@@ -98,7 +98,7 @@ def _can_edit(project: str, version: str, member: users.Member) -> None:
     """그 버전 단계를 고칠 권한: 기능 명세 버전은 spec_edit, ERD 버전은 erd_edit (PM·개발자, 예전 전체 실행 버전은 둘 중 하나)"""
     stage = _record(project, version).get("stage")
     if stage == "final":
-        raise BadRequest("최종본은 고치지 않습니다. PM이 '수정 지시'로 기능 명세·ERD 단계에 돌려보냅니다.")
+        raise BadRequest("최종본은 고치지 않습니다. '수정 지시'로 기능 명세·ERD 단계에 돌려보냅니다.")
     if stage == "data_modeler":
         ensure(member, "erd_edit")
         directives.ensure_unlocked(project, version)   # 기능 명세 수정 지시가 진행 중인 옛 ERD
@@ -141,7 +141,7 @@ def reject_request(body: RejectRequest, member: users.Member = Depends(current_u
     # 요청 알림을 받는 사람과 같게: 그 단계를 확정하는 회원 (기능 명세는 PM)
     stage = directives.Tree(project).stage_of(version)
     if stage == "final":
-        raise BadRequest("최종본은 승인 요청이 없습니다. PM이 '수정 지시'로 돌려보냅니다.")
+        raise BadRequest("최종본은 승인 요청이 없습니다. '수정 지시'로 돌려보냅니다.")
     ensure(member, "spec_confirm" if stage == "spec" else "erd_confirm")
     if not body.reason.strip():
         raise BadRequest("반려 사유를 적어 주세요.")

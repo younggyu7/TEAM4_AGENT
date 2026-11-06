@@ -75,6 +75,6 @@ app.include_router(versions.router, prefix=API_PREFIX, dependencies=signed_in)  
 app.include_router(review.router, prefix=API_PREFIX, dependencies=signed_in)      # ERD 최종 확정 → 최종본 (작업)
 app.include_router(runs.router, prefix=API_PREFIX, dependencies=signed_in)        # 문서 업로드 → 기능 명세 초안 (작업)
 app.include_router(jobs.router, prefix=API_PREFIX, dependencies=signed_in)        # 작업 진행 상황
-app.include_router(drafts.router, prefix=API_PREFIX, dependencies=signed_in)      # 수정 초안 공유·PM 승인
+app.include_router(drafts.router, prefix=API_PREFIX, dependencies=signed_in)      # 수정 초안 공유·최종 승인
 app.include_router(develop.router, prefix=API_PREFIX, dependencies=signed_in)     # 최종 개발하기·미리보기·git
 app.include_router(repo.router, prefix=API_PREFIX, dependencies=signed_in)        # 최종 개발물 브랜치·커밋·합치기 요청

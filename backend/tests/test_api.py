@@ -252,8 +252,8 @@ def test_signup_login_and_admin_approval():
     assert admin.post("/api/v1/users/update", json={"id": dev["id"], "role": "developer", "status": "active"}).status_code == 200
     me = anon.post("/api/v1/auth/login", json={"email": "p@co.kr", "password": "password123"})
     assert me.status_code == 200 and me.json()["user"]["permissions"] == [
-        "upload", "spec_edit", "erd_edit", "erd_confirm", "develop", "preview_stop", "repo_write", "app_accounts"], \
-        "개발자: 기능 명세 확정·최종 결정·담당자·프로젝트 관리 밖의 모든 일"
+        "upload", "spec_edit", "erd_edit", "erd_confirm", "final_decide", "develop", "preview_stop", "repo_write", "app_accounts"], \
+        "개발자: 기능 명세 확정·담당자·프로젝트 관리 밖의 모든 일 (최종 승인·수정 지시도)"
     assert me.json()["user"]["role_label"] == "개발자"
     assert anon.get("/api/v1/users").status_code == 403, "회원 관리는 관리자만"
     boss = next(u for u in admin.get("/api/v1/users").json()["users"] if u["is_admin"])
@@ -289,8 +289,8 @@ def test_roles_limit_who_confirms_each_stage(project, monkeypatch):
     assert dev.get("/api/v1/projects").status_code == 200, "보기는 누구나"
 
 
-def test_shared_draft_and_pm_decision(project):
-    """수정 초안은 서버에 버전별로 공유하고, 늦게 저장하면 409. 개발자는 기능 명세·ERD 모두 고친다. 최종본 승인·수정 지시는 PM만."""
+def test_shared_draft_and_final_decision(project):
+    """수정 초안은 서버에 버전별로 공유하고, 늦게 저장하면 409. 개발자는 기능 명세·ERD 모두 고친다. 최종본 승인·수정 지시는 PM·개발자."""
     from app.agents.tools.versions import find_version, save_version
 
     a, b = signed_in_client("developer", "dev_a"), signed_in_client("developer", "dev_b")
@@ -309,12 +309,11 @@ def test_shared_draft_and_pm_decision(project):
 
     save_version("team/demo", {"design_version": "1.1", "stage": "final", "base": "1", "parent": "1"})
     body = {"project": "team/demo", "version": "1.1", "decision": "changes", "target": "erd", "comment": "결재선 테이블 추가"}
-    assert b.post("/api/v1/projects/approval", json=body).status_code == 403
+    assert b.post("/api/v1/projects/approval", json={**body, "comment": ""}).status_code == 400
+    assert b.post("/api/v1/projects/approval", json=body).status_code == 200, "개발자도 수정 지시"
     pm = signed_in_client()
-    assert pm.post("/api/v1/projects/approval", json={**body, "comment": ""}).status_code == 400
-    assert pm.post("/api/v1/projects/approval", json=body).status_code == 200
     assert pm.post("/api/v1/projects/approval", json={**body, "decision": "approve"}).status_code == 200
-    assert pm.post("/api/v1/projects/approval", json={**body, "decision": "approve"}).status_code == 400, "두 번 승인하지 않는다"
+    assert b.post("/api/v1/projects/approval", json={**body, "decision": "approve"}).status_code == 400, "두 번 승인하지 않는다"
     record = find_version("team/demo", "1.1")
     assert record["approval"]["decision"] == "approve" and [x["decision"] for x in record["approvals"]] == ["changes", "approve"]
     assert pm.post("/api/v1/projects/approval", json={**body, "version": "1"}).status_code == 400, "최종본에만"

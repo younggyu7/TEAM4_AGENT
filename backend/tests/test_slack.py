@@ -316,8 +316,8 @@ def test_rejection_reaches_editors_in_slack_and_stays_in_home_notices(fake):
 
 
 def test_pm_decision_is_one_message_for_related_members_and_the_developers_who_must_fix(fake):
-    """수정 지시(반려): 관여한 회원 + 지시를 처리할 개발자 담당자를 멘션한 메시지 하나 (같은 지시의 '수정 지시' 알림은 따로
-    안 올림). PM 자신은 멘션하지 않는다. 최종 승인은 관여한 회원에게."""
+    """최종 승인 대기는 PM·개발자 담당자 모두에게. 수정 지시(반려): 관여한 회원 + 지시를 처리할 개발자 담당자를 멘션한 메시지
+    하나 (같은 지시의 '수정 지시' 알림은 따로 안 올림). 결정한 사람 자신은 멘션하지 않는다. 최종 승인(개발자도 함)은 관여한 회원에게."""
     c = _team("dev1", "dev2", "dev3", "pm")
     users.create_member("dev4@test.local", "dev4", "password123", "developer", slack_id="UDEVFOUR04")
     p, d, dh, pm = (_member(f"{r}@test.local") for r in ("dev1", "dev2", "dev3", "admin"))
@@ -328,12 +328,12 @@ def test_pm_decision_is_one_message_for_related_members_and_the_developers_who_m
     _assign(p, d, dh, d4)
     fake.posts.clear()
     slack.flush()
-    assert [t.split("\n")[0] for t in fake.texts()] == [f"<@{pm.slack_id}> *[최종 승인 대기]* 최종본 v1.1.1 승인 대기"]
+    everyone = " ".join(f"<@{m.slack_id}>" for m in (pm, p, d, dh, d4))
+    assert [t.split("\n")[0] for t in fake.texts()] == [f"{everyone} *[최종 승인 대기]* 최종본 v1.1.1 승인 대기"]
 
     fake.posts.clear()
     body = {"project": PROJECT, "version": "1.1.1", "decision": "changes", "targets": ["erd"], "comment": "결재선 테이블 추가",
             "items": [{"stage": "erd", "target_id": "approval_line", "label": "결재선", "note": "단계 컬럼"}]}
-    assert c["dev1"].post("/api/v1/projects/approval", json=body).status_code == 403, "최종 승인·수정 지시는 PM만"
     assert c["pm"].post("/api/v1/projects/approval", json=body).status_code == 200
     slack.flush()
     assert len(fake.texts()) == 1, "반려 메시지 하나 (수정 지시 알림을 따로 올리지 않음)"
@@ -341,7 +341,7 @@ def test_pm_decision_is_one_message_for_related_members_and_the_developers_who_m
     first = text.split("\n")[0]
     for m in (p, d, dh, d4):
         assert f"<@{m.slack_id}>" in first, m.name
-    assert f"<@{pm.slack_id}>" not in text, "PM 자신은 멘션하지 않는다"
+    assert f"<@{pm.slack_id}>" not in text, "결정한 사람 자신은 멘션하지 않는다"
     assert "*[반려 · 수정 지시]* 관리자님이 최종본 v1.1.1을 반려하고 ERD 단계로 돌려보냈습니다" in first
     assert "지시: 결재선 테이블 추가" in text and "`approval_line` 결재선 — 단계 컬럼" in text
     assert "#/p/team%2Fdemo/1.1/erd|" in text
@@ -349,11 +349,12 @@ def test_pm_decision_is_one_message_for_related_members_and_the_developers_who_m
     assert len(fake.texts()) == 1
 
     fake.posts.clear()
-    assert c["pm"].post("/api/v1/projects/approval", json={**body, "decision": "approve", "comment": ""}).status_code == 200
+    assert c["dev1"].post("/api/v1/projects/approval", json={**body, "decision": "approve", "comment": ""}).status_code == 200
     slack.flush()
     approved, waiting = fake.texts()
-    assert "*[최종 승인]* 관리자님이 최종본 v1.1.1을 승인했습니다" in approved
-    assert all(f"<@{m.slack_id}>" in approved for m in (p, d, dh)) and f"<@{d4.slack_id}>" not in approved, "관여한 회원에게"
+    assert "*[최종 승인]* dev1님이 최종본 v1.1.1을 승인했습니다" in approved, "개발자도 최종 승인"
+    assert all(f"<@{m.slack_id}>" in approved for m in (d, dh)) and f"<@{d4.slack_id}>" not in approved, "관여한 회원에게"
+    assert f"<@{p.slack_id}>" not in approved, "승인한 사람 자신은 멘션하지 않는다"
     assert "최종본 v1.1.1 승인됨 — 개발 대기" in waiting and all(f"<@{m.slack_id}>" in waiting for m in (p, d, dh, d4)), \
         "개발 대기 알림은 개발자 담당자 모두에게"
 

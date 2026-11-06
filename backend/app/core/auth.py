@@ -6,7 +6,7 @@
     spec_confirm   기능 명세 확정(내보내기)                 PM (개발자는 '수정 완료 승인 요청'을 보낸다)
     erd_edit       ERD 수정·지적 처리·저장                  PM·개발자
     erd_confirm    ERD 최종 확정                            PM·개발자 (승인 요청 없이)
-    final_decide   최종 승인·수정 지시·기술 스택            PM
+    final_decide   최종 승인·수정 지시·기술 스택            PM·개발자
     develop        최종 개발하기·합치기·반려·원격 올리기     개발자
     preview_stop   실행 미리보기 끄기                       PM·개발자
     repo_write     최종 개발물 브랜치·고치기·저장하기·합치기 요청  개발자
@@ -39,7 +39,7 @@ PERMISSIONS: dict[str, tuple[set[str], str]] = {
     "spec_confirm": (_PM, "기능 명세 확정(내보내기)은 PM만 할 수 있습니다. 개발자는 '수정 완료 승인 요청'을 보내 주세요."),
     "erd_edit": (_BOTH, "ERD 수정은 PM·개발자만 할 수 있습니다."),
     "erd_confirm": (_BOTH, "ERD 최종 확정은 PM·개발자만 할 수 있습니다."),
-    "final_decide": (_PM, "최종 승인·수정 지시와 기술 스택은 PM만 정할 수 있습니다."),
+    "final_decide": (_BOTH, "최종 승인·수정 지시와 기술 스택은 PM·개발자만 정할 수 있습니다."),
     "develop": (_DEV, "최종 개발하기·합치기·원격 올리기는 개발자만 할 수 있습니다."),
     "preview_stop": (_BOTH, "실행 미리보기 끄기는 PM·개발자만 할 수 있습니다."),
     "repo_write": (_DEV, "최종 개발물 브랜치·코드 고치기·저장하기·합치기 요청은 개발자만 할 수 있습니다."),

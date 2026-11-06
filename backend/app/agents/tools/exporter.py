@@ -671,7 +671,7 @@ def confirm_tech_stack(project: str, version: str, stack: str, parts: dict | Non
         raise ValueError(f"v{version}에는 개발 스펙이 없습니다 ('ERD 최종 확정'으로 만든 최종본에서 정하세요).")
     model = DataModel.model_validate_json(store.read(project, version, "data_model.json") or "{}")
     questions = answer_stack([Question.model_validate(q) for q in design.get("questions") or []], stack)
-    result = tech_stack(api, questions, chosen=True)   # PM이 최종 산출물 화면에서 고른 값 → 확정
+    result = tech_stack(api, questions, chosen=True)   # 최종 산출물 화면에서 고른 값 → 확정
     if result["basis"] == "원문":
         raise ValueError(f"원문이 기술 스택을 정했습니다 ({result['backend']}). 원문과 다른 스택은 정할 수 없습니다.")
     dev_spec, files = _rewrite_dev_spec(project, version, design, model, questions, result)

@@ -20,8 +20,8 @@
   SLACK_SYNC_SECONDS마다도 확인한다 (CLI로 만든 버전처럼 서버가 모르는 변화도 잡는다).
 - 승인·반려 결과는 결정할 때 바로 그 채널에 올린다:
     PM이 개발자의 기능 명세 수정 완료 요청을 확정(= 승인)·반려 → 요청한 개발자를 멘션
-    PM이 최종본을 최종 승인 → 그 최종본·ERD·기능 명세를 만들거나 고친 회원을 멘션
-    PM이 수정 지시(= 반려) → 위 회원과 지시를 처리할 개발자를 멘션한 메시지 하나 (같은 지시의 '수정 지시' 알림은 따로 안 올림)
+    최종본을 최종 승인 → 그 최종본·ERD·기능 명세를 만들거나 고친 회원을 멘션
+    수정 지시(= 반려) → 위 회원과 지시를 처리할 개발자를 멘션한 메시지 하나 (같은 지시의 '수정 지시' 알림은 따로 안 올림)
 - 보내기는 서버 안의 백그라운드 스레드 하나가 한다: Slack이 느리거나 실패해도 화면 요청은 기다리지 않고, 실패는 로그만 남긴다.
 """
 from __future__ import annotations
@@ -457,7 +457,7 @@ def request_decided(project: str, version: str, stage: str, request: dict | None
         what = f"{STAGE.get(stage, '')} v{version} 수정 완료 요청"
         if approved:
             after = ("이 기능 명세로 ERD를 만들고 있습니다." if stage == "spec"
-                     else "최종본을 만들고 있습니다. PM 최종 승인을 기다립니다.")
+                     else "최종본을 만들고 있습니다. 최종 승인을 기다립니다.")
             text = f"{head} *[승인]* {_esc(decider.name)}님이 {what}을 승인했습니다\n{after}"
         else:
             text = (f"{head} *[반려]* {_esc(decider.name)}님이 {what}을 반려했습니다\n사유: {_esc(reason)}\n"
@@ -482,7 +482,7 @@ def related(project: str, final: str, tree: directives.Tree | None = None) -> se
 
 
 def final_decided(project: str, final: str, approval: dict, decider: users.Member) -> None:
-    """PM이 최종본을 최종 승인하거나 수정 지시(반려)했을 때 → 채널에 관여한 회원(수정 지시면 처리할 개발자도)을 멘션"""
+    """PM·개발자가 최종본을 최종 승인하거나 수정 지시(반려)했을 때 → 채널에 관여한 회원(수정 지시면 처리할 개발자도)을 멘션"""
 
     def post(config: dict) -> None:
         tree = directives.Tree(project)

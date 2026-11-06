@@ -223,7 +223,7 @@ class _Runner:
             log.warning("[알림] 남기지 못함 %s: %s", self.job.id, e)
         for f in self.temp:
             f.unlink(missing_ok=True)
-        from app.services import slack   # 새 버전이 생기면 알림이 바뀐다 (최종본 → PM 승인 대기 등) → Slack으로 바로
+        from app.services import slack   # 새 버전이 생기면 알림이 바뀐다 (최종본 → 최종 승인 대기 등) → Slack으로 바로
         slack.kick()
 
 

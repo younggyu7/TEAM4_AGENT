@@ -1,11 +1,11 @@
-"""PM 수정 지시의 진행: 어느 단계가 어느 버전에서 처리할지, 옛 ERD 잠금, 항목 처리, 회원별 알림.
+"""수정 지시의 진행: 어느 단계가 어느 버전에서 처리할지, 옛 ERD 잠금, 항목 처리, 회원별 알림.
 
 수정 지시는 최종본 버전 기록의 approval(decision=changes, targets, items)에 있다. 처리 순서는 '기능 명세 먼저':
   - 기능 명세가 대상이면 개발자가 그 기능 명세(S)를 고쳐 새 기능 명세(S', 내보내기면 ERD S'.1까지)를 만든다.
     그동안 S 계보의 옛 ERD는 잠근다 (지시가 빠진 ERD로 다시 최종본을 만들지 않게).
   - ERD 항목은 기능 명세가 대상이면 새 기능 명세의 ERD(S'.1)가 생긴 뒤 그 ERD에서, ERD만 대상이면 지금 ERD 계보에서 처리한다.
   - 항목마다 '반영함 / 그대로 둠(이유)'을 고른다 (approval.resolutions, LLM 없음). 화면은 필수 확인 항목으로 둔다.
-  - 지시 뒤 그 계보에서 새 최종본이 생기면 지시는 끝난 것이다 (새 최종본의 PM 결정 칸에 처리 결과가 보인다).
+  - 지시 뒤 그 계보에서 새 최종본이 생기면 지시는 끝난 것이다 (새 최종본의 최종 결정 칸에 처리 결과가 보인다).
 날짜는 버전 기록의 created_at과 지시 시각(approval.at)을 비교한다 (둘 다 서버 로컬 ISO 시각).
 """
 from __future__ import annotations
@@ -86,7 +86,7 @@ def _open(tree: Tree) -> list[dict]:
             continue
         at, spec = a.get("at", ""), tree.spec_of(final)
         if tree.after(at, "final", spec):
-            continue   # 지시 뒤 새 최종본이 나왔다 → 끝 (새 최종본에서 PM이 확인)
+            continue   # 지시 뒤 새 최종본이 나왔다 → 끝 (새 최종본에서 최종 승인할 때 확인)
         targets = a.get("targets") or ([a["target"]] if a.get("target") else [])
         resolutions = a.get("resolutions") or {}
         items = [{**i, "resolution": resolutions.get(f"{i['stage']}:{i['target_id']}")} for i in a.get("items") or []]
@@ -266,7 +266,7 @@ def notices(member, include_dismissed: bool = False) -> list[dict]:
                     out.append({"project": project, "kind": "request", "at": req["at"], "page": stage, "version": label,
                                 "title": f"{req['by']['name']}님의 수정 완료 승인 요청 ({'기능 명세' if stage == 'spec' else 'ERD'} v{label})",
                                 "detail": req.get("note") or ""})
-            # 개발자: PM이 승인했는데 아직 개발하지 않은(또는 승인 뒤 다시 개발하지 않은) 최종본
+            # 개발자: 최종 승인했는데 아직 개발하지 않은(또는 승인 뒤 다시 개발하지 않은) 최종본
             approval = r.get("approval") or {}
             if r.get("stage") == "final" and allowed(role, "develop") and approval.get("decision") == "approve" \
                     and (r.get("develop") or {}).get("at", "") < approval.get("at", ""):
