@@ -130,7 +130,16 @@ def status(project: str) -> dict:
             "stale": s.get("stale", False), "backend": runnable(project),
             "mock": (app_dir(project) / PREVIEW / "mock" / "index.html").is_file(),
             "docker": shutil.which("docker") is not None, "log": s.get("log", [])[-40:],
-            "idle_seconds": idle, "idle_limit": IDLE_SECONDS}
+            "idle_seconds": idle, "idle_limit": IDLE_SECONDS, "url": app_url(s.get("port"))}
+
+
+def app_url(port: int | None) -> str | None:
+    """밖에서 여는 앱 주소. PREVIEW_PUBLIC_HOST(서버의 공인 IP·도메인)가 있을 때만: 화면을 다른 주소(Vercel 등)에서 띄우면
+    화면 주소에 포트를 붙여서는 앱에 닿지 않는다. 없으면 None (화면이 자기 주소에 포트를 붙인다, 로컬 개발)"""
+    host = os.getenv("PREVIEW_PUBLIC_HOST", "").strip().rstrip("/")
+    if not host or not port:
+        return None
+    return f"{host if '://' in host else 'http://' + host}:{port}/"
 
 
 def touch(project: str) -> None:

@@ -169,7 +169,7 @@ async function go(){let s=await call('./status');
  if(!s.backend){msg.textContent='서버 코드가 없어(서버 틀이 없는 기술 스택) 예시 데이터 화면을 엽니다.';bar.hidden=true;setTimeout(()=>location.href='./mock/',1200);return}
  if(s.status!=='running'||s.stale){s=await call('./start','POST')}
  while(s.status==='building'||s.status==='starting'){show(s);await new Promise(r=>setTimeout(r,2000));s=await call('./status')}
- if(s.status==='running'){msg.textContent='실행 중 — 앱을 엽니다 (로그인 화면).';location.href=appUrl(s.port);return}
+ if(s.status==='running'){msg.textContent='실행 중 — 앱을 엽니다 (로그인 화면).';location.href=s.url||appUrl(s.port);return}
  bar.hidden=true;show(s)}
 go().catch(()=>{bar.hidden=true})
 </script></body></html>"""
