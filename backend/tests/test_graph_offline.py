@@ -326,6 +326,30 @@ def test_semantic_review_failure_is_reported_as_unverified(sample_doc):
     assert "검토 실패(미검증): 데이터 모델" in report
 
 
+def test_issue_out_of_fix_rounds_does_not_loop_completion(sample_doc):
+    """보완 라운드를 다 쓴 열린 이슈(엔티티 미연결 기능)는 완료 조건 검사에서도 '더 할 일'로 보지 않는다
+    (조정 Agent는 '남은 작업 없음'인데 완료 검사만 '다시 조정 Agent로'라 단계 한도까지 되풀이하던 문제)."""
+    from app.agents.flow import nodes
+
+    _, graph, config = _start(sample_doc, "defer")
+    state = dict(graph.get_state(config).values)
+    fid = state["functions"][0]["function_id"]
+    issue = {"issue_id": "ISS-999", "kind": "TRACE_FUNC_WITHOUT_ENTITY", "severity": "ERROR",
+             "message": "저장 엔티티 없음", "target_agent": "data_modeler", "target_id": fid}
+    state["issues"] = [*state["issues"], issue]
+    state["decisions"] = [d for d in state["decisions"] if d["action"] != "data_modeler"]
+    assert nodes.check_completion(state)["completion"]["actionable"], "보완 라운드가 남으면 다시 조정 Agent로"
+    assert coordinator.decide(state)[0].action == "data_modeler"
+
+    rounds = [{"action": "data_modeler", "reason": f"{coordinator.MODEL_COVER} 1건 → 엔티티 연결 보완"}] \
+        * get_settings().fix_attempts("data_modeler")
+    state["decisions"] = [*state["decisions"], *rounds]
+    assert coordinator.decide(state)[0].action == "check_completion"
+    completion = nodes.check_completion(state)["completion"]
+    assert not completion["satisfied"] and not completion["actionable"]
+    assert nodes.route_after_completion({**state, "completion": completion}) == "met"
+
+
 class _ModelFailLLM(FakeLLM):
     def _CatalogOut(self, user):
         raise ValueError("카탈로그 응답 오류")

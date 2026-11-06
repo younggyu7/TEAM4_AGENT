@@ -14,11 +14,11 @@ from app.schemas.document import DocumentBlock, RequirementSource
 from app.schemas.function import FunctionSpec
 from app.schemas.requirement import Question, Requirement, USER_SOURCE
 from app.schemas.version import DesignVersion
-from app.agents.roles.coordinator import (STAGE_LABELS, designs_data, designs_functions, pending_stages, semantic_enabled,
+from app.agents.roles.coordinator import (STAGE_LABELS, decide, designs_data, designs_functions, semantic_enabled,
                                           stuck_stages)
 from app.agents.roles.function_designer import mark_decided, record_answers
 from app.agents.roles.requirement_reviewer import REQ_GAP, coverage_findings, record_answer as record_review_answer, settle
-from app.agents.flow.state import (SEMANTIC_BASIS_INIT, AgentState, actionable_issues, dump, finding, get_data_model, issues_of, load,
+from app.agents.flow.state import (SEMANTIC_BASIS_INIT, AgentState, dump, finding, get_data_model, issues_of, load,
                                    reconcile_issues, rev, review_stale, semantic_parts, with_result)
 from app.agents.tools.convention import apply_profile, ddl_model, profile_of
 from app.agents.tools.db_validator import validate_ddl
@@ -338,10 +338,10 @@ def check_completion(state: AgentState) -> dict:
         ("검토 최신화", not review_stale(state) and not semantic_pending, _review_detail(state, semantic_pending)),
     ]
     satisfied = all(passed for _, passed, _ in checks)
-    # 더 시도할 작업: 열린 이슈, 차단 질문, 할 일이 남은 단계 중 아직 포기하지 않은 것.
-    # 포기한 단계를 넣으면 조정 Agent가 고를 일이 없는데도 '미충족 → 조정 Agent'를 단계 한도까지 되풀이한다.
-    retryable = [a for a in pending_stages(state) if a not in stuck]
-    actionable = bool(actionable_issues(state)) or bool(retryable) or (ask and bool(pending))
+    # 더 시도할 작업: 조정 Agent가 지금 고를 작업이 있는지로 판단한다 (같은 기준).
+    # 따로 세면 보완 라운드를 다 쓴 열린 이슈·포기한 단계 때문에 조정 Agent는 '남은 작업 없음'인데
+    # 여기서는 '미충족 → 조정 Agent'라 단계 한도까지 되풀이한다.
+    actionable = decide(state)[0].action != "check_completion"
     forced = (state.get("step") or 0) >= s.max_steps
     completion = {
         "satisfied": satisfied, "forced": forced, "actionable": actionable,
