@@ -22,7 +22,9 @@
 - 근거 대조: 표시 없는 규칙을 원문과 코드로 대조해 근거가 없으면 '(가정)'을 붙인다 (tools/rule_basis.py, 모델이 표시를 빠뜨려도 확정처럼 구현되지 않게).
   이어서 고객이 정할 내용이 없는 '(가정)'·'(확인 필요)' 규칙(기능의 다른 칸을 되풀이하거나 더 긴 규칙과 같은 문장)을 뺀다.
 - 확인 질문: 설계 뒤 요청 1회로 확인 대상 후보('(확인 필요)'·'(가정)' 규칙, 공통 결정의 가정, 확정 안 된 요구사항)에서 질문을 고른다.
-  목표는 '(가정)' 규칙을 전체 업무 규칙의 FUNC_ASSUMPTION_LIMIT(기본 10%) 이하로 두는 것이다 (질문 수 한도가 아니다).
+  AUTO_ASSUME(기본 켬): 답에 따라 기능 범위·데이터 구조·권한·금액·법적 의무·삭제/보존 결과가 크게 달라지는 것만 묻고
+  (많아도 FUNC_MAX_QUESTIONS개), 나머지 후보는 추천안으로 정해 '(가정)'으로 둔다 (한도 없음. 명세서·화면 '가정'에 보인다).
+  AUTO_ASSUME=false면: 목표는 '(가정)' 규칙을 전체 업무 규칙의 FUNC_ASSUMPTION_LIMIT(기본 10%) 이하로 두는 것이다 (질문 수 한도가 아니다).
   묻지 않으면 '(가정)'이 될 후보가 한도를 넘으면 영향이 큰 것부터 질문으로 묶어 정한다 (질문은 FUNC_MAX_QUESTIONS개까지).
   묻지 않은 '(확인 필요)'는 한도 안에서만 추천안 '(가정)'으로 바꾸고, 한도를 넘는 것은 추천안을 '(확인 필요)'로 남긴다
   (기능 규칙의 '(가정)'도 한도를 넘으면 '(확인 필요)'로). 남긴 것은 화면의 '확인 필요 규칙'에서 사람이 확인한다.
@@ -36,6 +38,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from collections import Counter, OrderedDict
 from copy import deepcopy
 from difflib import SequenceMatcher
@@ -666,6 +669,33 @@ BUNDLE_OK = "추천안대로 확정한다"
 BUNDLE_APART = "규칙을 하나씩 확인한다"
 BUNDLE_IMPACT = 1   # 영향이 이보다 큰 규칙은 묶지 않는다 (사람이 하나씩 본다)
 BUNDLE_MIN = 2      # 규칙이 이보다 적으면 묶지 않는다
+AUTO_PARTIAL_QUESTIONS = 3   # AUTO_ASSUME에서 일부 그룹만 다시 설계할 때 새로 낼 확인 질문 상한
+SETTLED = "추천안대로 확정"   # ASK_CHOICES_ONLY: 예/아니오로 확인만 하는 질문이라 묻지 않고 추천안대로 정한 후보 표시 (질문 ID 자리)
+CHOICES_RULE = ("- 질문은 고객이 서로 다른 안 중에서 골라야 하는 것만 만든다. '~할까요?', '포함할까요?', '둘까요?'처럼 예/아니오로 "
+                "확인만 하는 질문은 만들지 않고 추천안으로 정한다 (C 후보면 resolutions에 쓴다). options는 실제로 서로 다른 안 2~4개다.")
+YES_NO = ({"예", "네", "그렇다", "맞다", "포함", "포함한다", "동의"}, {"아니오", "아니요", "아니다", "제외", "제외한다", "동의하지않음"})
+NEGATION = re.compile(r"않|안함|안한다|없|아니|제외|미사용|불가|금지")
+NEGATION_JAMO = 12   # 부정 문장에서 긍정 문장 밖에 남는 자모가 이보다 많으면 다른 내용이 더 있는 다른 안이다 ('지 않는' = 8)
+
+
+def confirm_only(options: list[str]) -> bool:
+    """예/아니오로 확인만 하는 선택지인지: '예 / 아니오', '포함 / 제외', '채팅을 둔다 / 채팅을 두지 않는다'처럼 둘 중 하나가
+    다른 하나를 부정할 뿐이다 (서로 다른 안을 고르는 질문이 아니다). 셋 이상이면 고르는 질문으로 본다."""
+    if len(options) != 2:
+        return False
+    a, b = (re.sub(r"[\s.·,()（）'\"]+", "", o) for o in options)
+    yes, no = YES_NO
+    if (a in yes and b in no) or (a in no and b in yes):
+        return True
+    negated_a, negated_b = bool(NEGATION.search(a)), bool(NEGATION.search(b))
+    if negated_a == negated_b:
+        return False
+    # 같은 문장에 부정만 더한 것 ('둔다' / '두지 않는다'): 긍정 문장이 부정 문장에 모두 들어 있고, 남는 글자가 짧은 부정 표현뿐.
+    # 애매하면 고르는 질문으로 둔다 ('결재선 단계 없음 / 결재선 2단계', '재발송한다 / 재발송하지 않고 실패로 기록한다'는 서로 다른 안)
+    # 활용으로 글자가 바뀌므로('둔다'→'두지', '한다'→'하지') 자모로 나눠 비교한다
+    pos, neg = (unicodedata.normalize("NFD", x) for x in ((b, a) if negated_a else (a, b)))
+    matched = sum(x.size for x in SequenceMatcher(None, pos, neg, autojunk=False).get_matching_blocks())
+    return matched == len(pos) and len(neg) - matched <= NEGATION_JAMO
 COMMON_TAG = re.compile(r"^\(공통 (P\d+)")
 TODO_RULE = re.compile(r"확인(이|을)?\s*(필요하다|필요합니다|해야 한다|한다)\.?$")
 QUESTION_TAG = re.compile(r"^\((?:[^)]*, )?(?:확인 필요|결정) (?:FQ|RC|CF)-\d+\)")   # 확인 질문으로 정하는 규칙 표시
@@ -979,7 +1009,9 @@ def _expand(rule: str, texts: dict[str, str]) -> str:
 def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dict, common_new: bool,
              requirements: list[Requirement], questions: list[Question], shared: str, whole: bool,
              asking: bool = True, start: int = 0) -> tuple[list[FunctionSpec], list[Question], dict, dict]:
-    """확인 질문 고르기: '(가정)' 규칙이 전체 업무 규칙의 FUNC_ASSUMPTION_LIMIT 이하가 되도록 질문을 고르고 나머지를 정한다.
+    """확인 질문 고르기. AUTO_ASSUME(기본)이면 꼭 확인할 것만 묻고 나머지 후보는 추천안 '(가정)'으로 정한다 (한도 없음,
+    사람이 하나씩 볼 '(확인 필요)'는 추천안을 정하지 못한 것만 남는다). AUTO_ASSUME=false면 '(가정)' 규칙이 전체 업무 규칙의
+    FUNC_ASSUMPTION_LIMIT 이하가 되도록 질문을 고르고 나머지를 정한다 (아래는 이 한도 방식).
 
     후보: C(기능 규칙의 '(확인 필요)'), A(기능 규칙의 '(가정)'), K(이번에 정한 공통 결정의 가정·확인 필요),
     R(확정되지 않은 요구사항 중 아직 질문이 없는 것). 후보의 가중치는 묻지 않으면 '(가정)'이 되는 규칙 수다
@@ -1045,7 +1077,9 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
 
     # 가정 한도: 묻지 않으면 '(가정)'이 될 규칙 수(지금 가정 + 확인 필요 + 공통 확인 필요가 붙은 곳)가 한도를 넘는 만큼 질문으로 정한다
     s = get_settings()
-    share = s.func_assumption_limit
+    auto = s.auto_assume   # 꼭 확인할 것만 묻고 나머지는 추천안으로 (한도 없음)
+    choices = s.ask_choices_only   # 예/아니오 확인은 묻지 않고 추천안대로, 남은 영향이 작은 확인 필요도 묶음 질문 대신 추천안대로
+    share = 1.0 if auto else s.func_assumption_limit
     total = sum(len(f.business_rules) for f in functions)
     allowed = total if share >= 1 else int(total * share)
     current = sum(1 for f in functions for r in f.business_rules if _is_assumed(r))
@@ -1056,6 +1090,9 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
     # 한도를 넘으면 넘는 만큼까지, 많아도 FUNC_MAX_QUESTIONS개만 묻는다 (고객에게 수십 개를 묻지 않게. 덮지 못한 것은
     # '(확인 필요)'로 남아 사람이 확인한다). 한도 안이면 전체 설계에서 가장 중요한 하나만
     budget = min(need, s.func_max_questions) if need else 1 if asking and whole and share < 1 and items else 0
+    if auto:   # 전체 설계면 FUNC_MAX_QUESTIONS개까지, 일부만 다시 설계하면 정할 C가 있을 때만 AUTO_PARTIAL_QUESTIONS개까지
+        partial = min(AUTO_PARTIAL_QUESTIONS, s.func_max_questions) if c_ids else 0   # '(가정)'만 있으면 요청하지 않는다
+        budget = (s.func_max_questions if whole else partial) if asking and items else 0
     if not c_ids and not budget:
         return functions, [], common, {}
 
@@ -1063,7 +1100,16 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
     done = [f"- [{q.question_id}] {q.question} → " + (f"답: {q.answer}" if q.status == "ANSWERED" else "답 없음")
             for q in questions]
     pct = round(share * 100)
-    if need:
+    if auto and budget:
+        limit = ("가정 한도는 없다. 질문은 꼭 확인해야 하는 것만 고른다: 답에 따라 기능의 존재·범위, 저장할 데이터 구조, 권한, "
+                 "금액·법적 의무, 삭제·보존 결과가 실질적으로 달라지는데 원문·결정·공통 결정으로 정할 수 없고, 추천안으로 진행했다가 "
+                 f"되돌리기 어려운 것. 그런 것이 없으면 questions는 비운다 (보통 0~5개, 많아도 {budget}개). "
+                 "화면 표시·문구·정렬·입력 검증·운영 설정값·일반적인 처리 방식은 묻지 않는다. "
+                 "나머지 후보는 모두 추천안으로 정한다 (묻지 않은 것은 '(가정)'으로 명세서에 보이고 담당자가 필요할 때 고친다). "
+                 "must_review는 비운다 (하나씩 봐야 할 만큼 중요하면 questions에 넣는다).")
+    elif auto:
+        limit = "이번에는 질문을 만들지 않는다 (questions·must_review는 비운다). 모든 C 후보를 추천안으로 정한다."
+    elif need:
         limit = (f"가정 한도: 업무 규칙 {total}개의 {pct}% = {allowed}개까지 '(가정)'으로 둘 수 있다. 묻지 않으면 '(가정)'이 될 규칙이 "
                  f"{projected}개(지금 가정 {current} + 확인 필요 {len(c_ids)}"
                  + (f" + 공통 확인 필요가 붙은 곳 {pending_common}" if pending_common else "") + ")라서, "
@@ -1078,9 +1124,10 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
     parts = ["## 확인 대상 후보 (C: 기능 규칙의 확인 필요, A: 기능 규칙의 가정, K: 공통 결정, R: 확정되지 않은 요구사항. "
              "ID 없는 줄은 같은 기능의 다른 규칙)", *lines, "", "## 관련 요구사항", *[_req_line(r) for r in requirements if r.requirement_id in req_ids], "",
              "## 이미 한 질문 (다시 묻지 않는다)", *(done or ["- 없음"]), "", CONFIRM_REQUEST.format(limit=limit),
+             *([CHOICES_RULE] if choices and budget else []),
              f"resolutions에 반드시 다음 C 후보 모두: {', '.join(c_ids)}" if c_ids else "C 후보가 없으므로 resolutions는 비운다."]
     summary = {"candidates": len(items), "kinds": dict(Counter(i["kind"] for i in items.values())), "budget": budget,
-               "need": need, "limit": share, "total_rules": total, "allowed": allowed, "assumed_rules": current,
+               "need": need, "limit": share, "auto": auto, "total_rules": total, "allowed": allowed, "assumed_rules": current,
                "questions": [], "assumed": 0, "unresolved": len(c_ids), "kept": 0}
     try:
         out = llm.structured(system=SYSTEM_PROMPT, user="\n".join(parts), schema=ConfirmOut, shared=shared,
@@ -1093,12 +1140,18 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
 
     seen = {q.question.strip() for q in questions}
     number, new_questions, asked_by = start, [], {}
+    settled: list[tuple[str, str]] = []   # 묻지 않고 추천안대로 확정한 규칙 (기능 ID, 규칙) — 기능 명세서 '고객 확인'에 목록으로
+    yes_no = 0
     for a in out.questions:
         options = list(dict.fromkeys(o.strip() for o in a.options if o.strip()))[:4]
         ids = [i for i in dict.fromkeys(x.strip() for x in a.item_ids) if i in items and i not in asked_by]
         if len(new_questions) >= budget or len(options) < 2 or not ids or a.question.strip() in seen:
             continue
         seen.add(a.question.strip())
+        if choices and confirm_only(options):   # 예/아니오로 확인만 하는 질문: 묻지 않고 추천안대로 정한다
+            asked_by.update({i: SETTLED for i in ids})
+            yes_no += 1
+            continue
         number += 1
         qid = f"FQ-{number:03d}"
         asked_by.update({i: qid for i in ids})
@@ -1116,25 +1169,33 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
         qid = asked_by.get(key)
         if not qid:
             continue
+        if qid == SETTLED:   # 예/아니오 확인이라 묻지 않은 후보: 추천안대로 확정 (표시 없음, 공통 결정은 근거 '가정')
+            if item["kind"] in ("C", "A"):
+                fid, index = item["function_id"], item["index"]
+                rules[fid][index] = resolved.get(key) or _plain(rules[fid][index])
+                settled.append((fid, rules[fid][index]))
+            elif item["kind"] == "K":
+                common[item["section"]][item["index"]]["basis"] = "가정"
+            continue
         if item["kind"] in ("C", "A"):
             fid, index = item["function_id"], item["index"]
             rules[fid][index] = f"(확인 필요 {qid}) {resolved.get(key) or _plain(rules[fid][index])}"
         elif item["kind"] == "K":
             common[item["section"]][item["index"]].update(basis="확인 필요", question=qid)
-    # 2) 묻지 않은 확인 필요: 한도 안에서만 추천안 '(가정)'으로 정하고, 넘으면 추천안을 '(확인 필요)'로 둔다
+    # 2) 묻지 않은 확인 필요: 한도 안에서만(AUTO_ASSUME면 한도 없이) 추천안 '(가정)'으로 정하고, 넘으면 추천안을 '(확인 필요)'로 둔다
     #    (화면·명세서가 앞 표시로 찾고 사람이 추천안을 확인하게. 추천안이 없으면 원래 문장)
     texts = common_rule_texts(common)
     assumed_now = sum(1 for fid in rules for r in rules[fid] if _is_assumed(_expand(r, texts)))
     assumed = unresolved = kept = 0
     # '(가정)' 자리는 영향이 작은 규칙부터 준다 (순서대로 주면 문서 앞쪽 기능만 확인 대상이 된다). 모델이 하나씩 봐야 한다고 한 규칙은 영향이 큰 쪽이다
-    review = {k.strip() for k in out.must_review}
+    review = set() if auto else {k.strip() for k in out.must_review}
     by_impact = sorted((i for i in items.items() if i[1]["kind"] in ("C", "A")),
                        key=lambda i: (i[0] in review, impact_of(rules[i[1]["function_id"]][i[1]["index"]])))
     for key, item in by_impact:
         if asked_by.get(key) or item["kind"] != "C":
             continue
         fid, index = item["function_id"], item["index"]
-        if key in resolved and assumed_now < allowed:
+        if key in resolved and (auto or assumed_now < allowed):
             rules[fid][index] = f"(가정) {resolved[key]}"
             assumed_now += 1
             assumed += 1
@@ -1146,7 +1207,7 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
         entry = common[item["section"]][item["index"]] if item["kind"] == "K" else None
         if asked_by.get(key) or entry is None or entry["basis"] != "확인 필요":
             continue
-        if item["weight"] == 0 or assumed_now + item["weight"] <= allowed:
+        if auto or item["weight"] == 0 or assumed_now + item["weight"] <= allowed:
             entry["basis"] = "가정"
             assumed_now += item["weight"]
         else:
@@ -1160,9 +1221,16 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
             rules[fid][index] = f"(확인 필요) {_plain(rules[fid][index])}"
             assumed_now -= 1
             kept += 1
-    # 4) 남은 '(확인 필요)' 중 영향이 작은 규칙은 영역마다 질문 하나로 묶는다 (사람이 규칙마다 확인하지 않게)
+    # 4) 남은 '(확인 필요)' 중 영향이 작은 규칙(답이 달라도 범위가 크게 바뀌지 않는 것): ASK_CHOICES_ONLY면 묻지 않고 추천안대로
+    #    확정하고(표시를 뗌), 아니면 영역마다 질문 하나로 묶는다. 추천안이 없거나 모델이 하나씩 보라고 한 규칙은 사람이 본다
     apart = {(i["function_id"], i["index"]) for k, i in items.items() if i["kind"] in ("C", "A") and (k in review or (i["kind"] == "C" and k not in resolved))}
-    bundles = _bundle(functions, rules, designed, number, apart) if asking and s.func_rule_bundle else []
+    if choices:
+        minor = _settle_minor(functions, rules, designed, apart)
+        settled += minor
+        kept = max(0, kept - len(minor))
+        bundles = []
+    else:
+        bundles = _bundle(functions, rules, designed, number, apart) if asking and s.func_rule_bundle else []
     new_questions += bundles
     texts = common_rule_texts(common)
     result = []
@@ -1171,11 +1239,30 @@ def _confirm(llm, functions: list[FunctionSpec], designed: set[str], common: dic
         result.append(f.model_copy(update={"business_rules": new_rules}) if new_rules != f.business_rules else f)
     final = sum(1 for f in result for r in f.business_rules if _is_assumed(r))
     summary.update(questions=[q.question_id for q in new_questions], assumed=assumed, unresolved=unresolved, kept=kept,
-                   assumed_rules=final, bundles=len(bundles))
+                   assumed_rules=final, bundles=len(bundles), yes_no=yes_no,
+                   settled=[{"function_id": fid, "rule": rule} for fid, rule in settled])
     log.info("[기능명세] 확인 대상 후보 %d개 %s → 질문 %d개 (최대 %d) + 영역 묶음 %d개, 추천안으로 정함 %d, 한도 때문에 확인 필요로 둠 %d, 못 정함 %d"
-             " · (가정) %d/%d개 (%.0f%%, 한도 %.0f%%)", len(items), summary["kinds"], len(new_questions) - len(bundles), budget, len(bundles), assumed,
-             kept, unresolved, final, total, 100 * final / max(1, total), 100 * share)
+             ", 묻지 않고 추천안대로 확정 %d (예/아니오 질문 %d개)"
+             " · (가정) %d/%d개 (%.0f%%, %s)", len(items), summary["kinds"], len(new_questions) - len(bundles), budget, len(bundles), assumed,
+             kept, unresolved, len(settled), yes_no, final, total, 100 * final / max(1, total),
+             "추천안 자동 적용 (AUTO_ASSUME)" if auto else f"한도 {100 * share:.0f}%")
     return result, new_questions, common, summary
+
+
+def _settle_minor(functions: list[FunctionSpec], rules: dict[str, list[str]], designed: set[str],
+                  skip: set[tuple[str, int]] = frozenset()) -> list[tuple[str, str]]:
+    """질문 없이 남은 '(확인 필요)' 중 영향이 작은 규칙(답이 달라도 범위가 크게 바뀌지 않는 것)을 묻지 않고 추천안대로 확정한다
+    (ASK_CHOICES_ONLY, 영역 묶음 질문 대신). 표시만 떼고 문장은 그대로 둔다. skip은 그대로 둘 규칙이다: 추천안이 없어 확정할 내용이
+    없거나, 모델이 사람이 하나씩 봐야 한다고 한 규칙. rules를 고치고 [(기능 ID, 확정한 규칙)]을 돌려준다 (기능 명세서에 목록으로 남긴다)."""
+    out: list[tuple[str, str]] = []
+    for f in functions:
+        if f.function_id not in designed:
+            continue
+        for index, rule in enumerate(rules[f.function_id]):
+            if rule.startswith("(확인 필요)") and impact_of(rule) <= BUNDLE_IMPACT and (f.function_id, index) not in skip:
+                rules[f.function_id][index] = _plain(rule)
+                out.append((f.function_id, rules[f.function_id][index]))
+    return out
 
 
 def _bundle(functions: list[FunctionSpec], rules: dict[str, list[str]], designed: set[str], start: int,

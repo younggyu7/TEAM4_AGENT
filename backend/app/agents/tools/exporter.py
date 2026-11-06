@@ -310,12 +310,20 @@ def _confirm_md(funcs: list[FunctionSpec], status: dict[str, str], questions: li
                    + "."
                    + (f" 후보 중 {confirm['basis_marked']}개는 표시가 없었지만 원문에 근거가 없어 코드가 '(가정)' 후보로 올렸다." if confirm.get("basis_marked") else "")
                    + (f" 고객이 정할 내용이 없는 규칙 {confirm['trimmed']}개는 코드가 뺐다 (기능의 다른 칸이나 더 긴 규칙에 같은 내용이 있다)." if confirm.get("trimmed") else ""))
+    settled = confirm.get("settled") or []
+    if settled:
+        out.append(f"- 예/아니오로 확인만 하면 되는 것과 답이 달라도 범위가 크게 바뀌지 않는 규칙 {len(settled)}개는 묻지 않고 "
+                   "추천안대로 확정했다 (규칙에 표시 없음, 아래 목록. 바꾸려면 기능 명세 화면에서 고치거나 의견으로 다시 만든다).")
     out += ["- 질문은 답이 없으면 추천안으로 설계해 두었다. 업무 규칙의 '(확인 필요 FQ-…)'가 그 질문으로 정해지는 규칙이며, "
             "추천과 같은 답은 '(결정 FQ-…)'로 바뀌고 다른 답이면 관련 기능만 고친다.", ""]
     if asked:
         out += [table(["ID", "질문", "선택지", "추천 (답이 없으면 이 안으로 설계)", "관련 요구사항", "상태", "답변"],
                       [[q.question_id, f"{q.question}\n({q.context})", "\n".join(q.options), q.recommended,
                         ", ".join(q.requirement_ids), q.status, q.answer] for q in asked]), ""]
+    if settled:
+        names = {f.function_id: f.name for f in funcs}
+        out += ["**묻지 않고 추천안대로 확정한 규칙**", "",
+                table(["기능 ID", "기능명", "규칙"], [[s["function_id"], names.get(s["function_id"], ""), s["rule"]] for s in settled]), ""]
     if pending:
         out += ["**확정되지 않은 요구사항에 기댄 기능** (요구사항이 바뀌면 이 기능도 바뀐다)", "",
                 table(["기능 ID", "기능명", "확정되지 않은 근거 요구사항", "관련 질문"],

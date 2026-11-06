@@ -39,6 +39,7 @@ from app.schemas.requirement import (Evidence, Question, Requirement, Requiremen
 from app.schemas.review import Issue
 from app.agents.flow.state import AgentState, dump, finding, load, merge_usage, rev
 from app.agents.tools.search import normalize, quote_in_text
+from app.agents.tools.source_items import grams as _grams, overlap as _overlap   # 겹침 계산 (요구사항 Agent와 같은 규칙)
 
 log = logging.getLogger(__name__)
 BY = "requirement_reviewer"
@@ -96,7 +97,7 @@ class MissingRequirement(BaseModel):
     category: RequirementCategory
     acceptance_criteria: list[str] = Field(default_factory=list)
     source_block_id: str = Field(description="근거 블록 ID (그 원문 단위의 블록)")
-    quote: str = Field(description="블록 원문에서 그대로 복사한 연속 구간 15~120자")
+    quote: str = Field(description="블록 원문에서 그대로 복사한 연속 구간 15~120자 (그 줄이 15자보다 짧으면 줄 전체)")
     reason: str = Field(description="왜 빠진 요구사항인지 한 문장")
 
 
@@ -288,16 +289,23 @@ def run(state: AgentState) -> dict:
             counts["reclassified"] += 1
             changed.append(r.requirement_id)
         elif v.confidence == "low":
-            # 근거가 애매하면 판단한 분류로 두고 표시한다 (기능이면 초안에 넣어 두고 포함 여부를 묻는다)
+            # 근거가 애매하면 판단한 분류로 두고 표시한다 (기능이면 초안에 넣어 두고 포함 여부를 묻는다).
+            # AUTO_ASSUME(기본)이면 묻지 않고 판단한 분류(추천안)를 적용해 결정으로 남긴다 (질문 없는 표시만, 기능 명세는 이 분류로)
+            auto = s.auto_assume
             if proposed != before:
-                _reclassify(r, proposed, f"[분류 검토] {label(before)} → {label(proposed)} (판단 필요, 확인 대기)")
+                _reclassify(r, proposed, f"[분류 검토] {label(before)} → {label(proposed)} "
+                                         f"(판단 필요, {'추천안 적용' if auto else '확인 대기'})")
             flag = flag_label(r)
-            qid = question(r, f"'{r.title}'({r.requirement_id})를 어떤 요구사항으로 볼까요?",
-                           f"검토 결과: {flag}. {v.reason.strip()}"
-                           + (f"\n요구사항 Agent 분류: {label(before)}" if proposed != before else "")
-                           + f"\n원문: {v.evidence.strip()}",
-                           _options(before, proposed), label(proposed))
-            r.review.append(ReviewNote(kind="CLASSIFICATION", note=f"{flag} — {v.reason.strip()}", question_id=qid))
+            if auto:
+                r.decisions.append(f"[분류 검토] {label(proposed)}로 판단 (추천안 적용, 확인 질문 없음)")
+                r.review.append(ReviewNote(kind="CLASSIFICATION", note=f"{flag} — {v.reason.strip()} (추천안 적용)"))
+            else:
+                qid = question(r, f"'{r.title}'({r.requirement_id})를 어떤 요구사항으로 볼까요?",
+                               f"검토 결과: {flag}. {v.reason.strip()}"
+                               + (f"\n요구사항 Agent 분류: {label(before)}" if proposed != before else "")
+                               + f"\n원문: {v.evidence.strip()}",
+                               _options(before, proposed), label(proposed))
+                r.review.append(ReviewNote(kind="CLASSIFICATION", note=f"{flag} — {v.reason.strip()}", question_id=qid))
             r.status = "ASSUMED"
             counts["flagged"] += 1
             changed.append(r.requirement_id)
@@ -386,17 +394,6 @@ def _supplement(missing: list[MissingRequirement], sources: dict[str, Requiremen
         ids.add(rid)
         added.append(req)
     return added, dropped
-
-
-def _grams(text: str, n: int) -> set[str]:
-    """공백·기호를 뺀 글자 n개 단위 조각 (겹침 계산용)."""
-    t = normalize(text)
-    return {t[i:i + n] for i in range(max(0, len(t) - n + 1))}
-
-
-def _overlap(part: set[str], whole: set[str]) -> float:
-    """part 조각 중 whole에 있는 비율 (part가 비면 1)."""
-    return len(part & whole) / len(part) if part else 1.0
 
 
 Plan = tuple[list[tuple[str, str]], dict[str, list[str]]]   # (담기지 않은 (블록 ID, 문장), 판정 후보 요구사항 ID → 이유)
