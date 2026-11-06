@@ -63,6 +63,16 @@ def test_request_is_cut_from_spec_documents_by_function(sample_doc):
     assert "## 화면 부품" not in request and "export function DataTable" in builder._shared(spec), "공통 앞부분(캐시)에 kit 사용법"
 
 
+def test_spec_documents_are_read_once_for_all_functions(sample_doc):
+    """기능마다 같은 개발 스펙 문서를 자르지만 저장소에서는 문서마다 한 번만 읽는다 (개발 예상이 기능 수만큼 느려지지 않게)."""
+    _, spec = _spec(sample_doc)
+    reads, read = [], spec.read
+    spec.read = lambda name: reads.append(name) or read(name)
+    before = [r for _, _, r in builder.targets(spec, None)]
+    assert len(before) > 1 and len(reads) == len(set(reads))
+    assert [r for _, _, r in builder.targets(spec, None)] == before and len(reads) == len(set(reads)), "다시 계산해도 다시 읽지 않음"
+
+
 def test_contract_violations_are_caught():
     ops = [{"method": "POST", "path": "/requests"}, {"method": "GET", "path": "/requests/{id}"}]
     good = _controller("FnA", ops)
