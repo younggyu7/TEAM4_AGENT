@@ -3,7 +3,7 @@
 - 원격 설정은 프로젝트마다 (프로젝트 파일 git.json): {url, branch(기본 main), token}. 화면·백엔드·DB는 한 저장소에 같이 올린다.
   토큰은 암호화해 저장하고(Fernet, 키는 .env GIT_SECRET_KEY, 없으면 OUTPUT_DIR/.git-secret를 만들어 씀) 화면에는 다시 보내지 않는다.
   예전 설정(화면·백엔드 저장소 두 개 {frontend, backend})은 읽을 때 백엔드(없으면 화면) 저장소 하나로 바꿔 읽는다 (토큰 유지).
-- 올리기(작업, 개발 파트장): 원격 브랜치를 받아(fetch) 원격에 main에 없는 커밋이 있으면 거부하고(강제 push 없음),
+- 올리기(작업, 개발자): 원격 브랜치를 받아(fetch) 원격에 main에 없는 커밋이 있으면 거부하고(강제 push 없음),
   `git push origin main:<branch> + final-v* 태그`. 빌드 결과·미리보기·생성기 기록은 .gitignore로 커밋되지 않는다.
 - 원격 확인(check_remote)은 화면이 '원격 확인'을 누를 때와 올릴 때만 fetch한다. 앞섬·뒤처짐은 받아 둔 origin/<branch>로 센다.
 - 토큰은 명령줄·기록에 남지 않게 http.extraHeader로만 넘기고, 기록의 토큰 글자는 가린다. LLM은 쓰지 않는다.
@@ -127,7 +127,7 @@ def _redact(text: str, *secrets: str) -> str:
 
 
 def check_remote(project: str) -> dict:
-    """'원격 확인': 원격 브랜치를 받아 앞섬·뒤처짐을 다시 센다 (개발 파트장)"""
+    """'원격 확인': 원격 브랜치를 받아 앞섬·뒤처짐을 다시 센다 (개발자)"""
     conf = _read(project)
     if not conf["url"]:
         raise BadRequest("원격 저장소 주소가 없습니다. 원격 설정에서 주소를 적으세요.")

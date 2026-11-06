@@ -1,15 +1,16 @@
-"""수정 초안 함께 쓰기: 버전별 초안, 변경 내역(누가·언제·무엇을), 파트원의 수정 완료 승인 요청.
+"""수정 초안 함께 쓰기: 버전별 초안, 변경 내역(누가·언제·무엇을), 개발자의 기능 명세 수정 완료 승인 요청.
 
 초안 파일(프로젝트 파일 draft-v<버전>.json):
     {"state": 화면 초안, "rev": 저장 번호, "updated_at", "updated_by",
      "log": [{"by", "at", "changes": [{"target", "label", "what"}]}],   # 최신이 끝, LOG_LIMIT개까지
-     "request": {"by", "at", "note"} | null,                           # 파트원의 수정 완료 승인 요청
+     "request": {"by", "at", "note"} | null,                           # 개발자의 수정 완료 승인 요청 (기능 명세)
      "rejection": {"by", "at", "reason", "request"} | null}            # 마지막 반려 (새 요청·확정이면 지움)
 
 - 변경 내역은 저장할 때 서버가 이전 초안과 비교해 만든다. 같은 사람이 MERGE_MINUTES 안에 이어 고치면 한 묶음에 합친다.
-- 파트원이 요청한 뒤 다시 고치면 요청은 취소된다 (고친 것을 보고 승인해야 하므로). 파트장·팀장이 고치는 것은 취소하지 않는다.
-- 파트장의 확정(기능 명세 내보내기·ERD 최종 확정)은 그 버전에 요청이 있어야 한다. 팀장은 요청 없이 확정할 수 있다.
-- 파트장·팀장은 요청을 반려할 수 있다 (사유 필수). 요청은 닫히고 파트원은 고친 뒤 다시 요청한다.
+- 개발자가 요청한 뒤 다시 고치면 요청은 취소된다 (고친 것을 보고 승인해야 하므로). PM이 고치는 것은 취소하지 않는다.
+- 기능 명세 확정(내보내기)은 PM만 한다 (요청이 없어도 된다). 개발자는 고친 뒤 승인 요청을 보내 PM에게 알린다.
+  ERD 최종 확정은 개발자·PM이 승인 요청 없이 한다 (ERD는 승인 요청을 받지 않는다: REQUEST_STAGES).
+- PM은 요청을 반려할 수 있다 (사유 필수). 요청은 닫히고 개발자는 고친 뒤 다시 요청한다.
 """
 from __future__ import annotations
 
@@ -17,11 +18,13 @@ import json
 from datetime import datetime, timedelta
 
 from app.agents.storage import get_store
+from app.core.auth import PM, role_of
 from app.core.exceptions import Forbidden
 
 LOG_LIMIT = 300
 MERGE_MINUTES = 10
-HEADS = {"planner_head", "data_head", "lead"}   # 고쳐도 승인 요청을 취소하지 않는 역할
+HEADS = {PM}   # 고쳐도 승인 요청을 취소하지 않는 역할 (요청을 받는 쪽)
+REQUEST_STAGES = {"spec"}   # 수정 완료 승인 요청을 받는 단계 (ERD는 개발자가 승인 요청 없이 확정)
 
 FUNCTION_FIELDS = {"name": "이름", "description": "설명", "actors": "행위자", "preconditions": "선행 조건", "inputs": "입력",
                    "outputs": "출력", "business_rules": "업무 규칙", "normal_flow": "처리 순서", "exception_flows": "예외 처리",
@@ -157,7 +160,7 @@ def save(project: str, version: str, state: dict, rev: int, member) -> dict | No
     at = _now()
     changes = diff(doc["state"], state, _base(project, version))
     _log(doc, member, changes, at)
-    if doc["request"] and member.role not in HEADS and changes:
+    if doc["request"] and role_of(member.role) not in HEADS and changes:
         doc["log"].append({"by": _who(member), "at": at, "event": "request_cancelled",
                            "changes": [{"target": "", "label": "승인 요청", "what": "요청 뒤 다시 고쳐 요청이 취소됨"}]})
         doc["request"] = None
@@ -167,7 +170,7 @@ def save(project: str, version: str, state: dict, rev: int, member) -> dict | No
 
 
 def request(project: str, version: str, member, note: str = "") -> dict:
-    """파트원의 수정 완료 승인 요청 (같은 버전에 다시 요청하면 새 요청으로 바꾼다)"""
+    """개발자의 수정 완료 승인 요청 (같은 버전에 다시 요청하면 새 요청으로 바꾼다)"""
     doc = read(project, version)
     at = _now()
     doc["request"] = {"by": _who(member), "at": at, "note": note.strip()[:500]}
@@ -179,7 +182,7 @@ def request(project: str, version: str, member, note: str = "") -> dict:
 
 
 def reject(project: str, version: str, member, reason: str) -> dict | None:
-    """파트장·팀장의 반려: 요청을 닫고 사유를 남긴다. 반려한 요청을 돌려준다 (요청이 없으면 None)"""
+    """PM의 반려: 요청을 닫고 사유를 남긴다. 반려한 요청을 돌려준다 (요청이 없으면 None)"""
     doc = read(project, version)
     req = doc["request"]
     if not req:
@@ -193,17 +196,9 @@ def reject(project: str, version: str, member, reason: str) -> dict | None:
     return req
 
 
-def require_request(project: str, version: str, member, what: str) -> None:
-    """파트장의 확정 전에: 그 버전에 파트원의 승인 요청이 있어야 한다 (팀장은 요청 없이 확정)"""
-    if member.role == "lead":
-        return
-    if not read(project, version)["request"]:
-        raise Forbidden(f"파트원의 '수정 완료 승인 요청'이 있어야 {what}할 수 있습니다.")
-
-
 def note_event(project: str, version: str, member, label: str, what: str) -> dict | None:
     """확정을 변경 내역에 남기고 승인 요청을 닫는다 (화면에서 누가 언제 확정했는지 보이게, 같은 요청이 알림에 남지 않게).
-    확정으로 승인한 파트원의 요청을 돌려준다 (팀장이 요청 없이 확정했으면 None)"""
+    확정으로 승인한 개발자의 요청을 돌려준다 (요청 없이 확정했으면 None)"""
     doc = read(project, version)
     req = doc["request"]
     doc["log"].append({"by": _who(member), "at": _now(), "event": "confirm", "changes": [{"target": "", "label": label, "what": what}]})

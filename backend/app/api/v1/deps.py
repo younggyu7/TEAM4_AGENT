@@ -13,7 +13,7 @@ from app.core.exceptions import BadRequest, Conflict, Forbidden, NotFound, Unaut
 from app.services import jobs, output_store, project_access, users
 
 SESSION_COOKIE = "reqagent_session"
-HIDDEN = "프로젝트가 없거나 이 프로젝트의 담당자가 아닙니다 (팀장이 프로젝트 화면 '담당자'에서 추가)."
+HIDDEN = "프로젝트가 없거나 이 프로젝트의 담당자가 아닙니다 (PM이 프로젝트 화면 '담당자'에서 추가)."
 
 # 이 요청을 보낸 회원: _project·_file·visible_job이 담당자가 아닌 프로젝트를 막는 데 쓴다 (요청마다 따로, 요청 밖이면 None)
 _viewer: ContextVar[users.Member | None] = ContextVar("viewer", default=None)
@@ -53,7 +53,7 @@ def admin_user(request: Request) -> users.Member:
 
 
 def _project(project: str) -> str:
-    """저장소 안에 있는 프로젝트 ID (밖을 가리키거나 없으면 400). 요청한 회원이 담당자가 아니면(팀장 밖) 404."""
+    """저장소 안에 있는 프로젝트 ID (밖을 가리키거나 없으면 400). 요청한 회원이 담당자가 아니면(PM 밖) 404."""
     if not output_store.has_project(project):
         raise BadRequest("project 값이 올바르지 않습니다.")
     if not _can_see(project):

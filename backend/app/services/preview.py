@@ -7,7 +7,7 @@
 - 쓰는 동안은 켜 두고 IDLE_SECONDS(10분) 동안 요청이 없으면 끈다. 요청은 앱의 접근 기록(ACCESS_LOG_DIR,
   Spring은 Tomcat access log)이 바뀐 시각으로 안다. 동시에 MAX_RUNNING(3)개까지 켠다 (넘으면 가장 오래 안 쓴 것을 끈다).
 - 다시 개발하면 다음에 켤 때 새 코드로 다시 빌드한다. 스키마가 바뀌면 DB를 새로 만든다 (예시 데이터로 다시 채움).
-- 시연 계정 비밀번호는 앱이 처음 뜰 때 만들어 앱 폴더 local/accounts.txt에만 적는다 (accounts()로 개발 파트에 보여 준다).
+- 시연 계정 비밀번호는 앱이 처음 뜰 때 만들어 앱 폴더 local/accounts.txt에만 적는다 (accounts()로 개발자에 보여 준다).
 상태는 메모리와 app/.preview/run.json에 둔다 (서버를 다시 띄우면 컨테이너 상태를 docker에 다시 묻는다).
 """
 from __future__ import annotations

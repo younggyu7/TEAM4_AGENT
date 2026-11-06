@@ -27,7 +27,7 @@ def _developed(version: str = "1.1.1") -> str:
 
 def _member(role: str) -> users.Member:
     signed_in_client(role)
-    return next(m for m in users.list_members() if m.email == ("admin@test.local" if role == "lead" else f"{role}@test.local"))
+    return next(m for m in users.list_members() if m.email == ("admin@test.local" if role == "pm" else f"{role}@test.local"))
 
 
 def test_develop_commits_on_main_with_tag_and_ignores_generator_state():
@@ -53,7 +53,7 @@ def test_runner_records_develop_commit(monkeypatch):
         (app / "README.md").write_text("# app\n", encoding="utf-8")
         return 0
 
-    member = type("M", (), {"id": 1, "name": "한개발", "role": "dev_head", "email": "d@x"})()
+    member = type("M", (), {"id": 1, "name": "한개발", "role": "developer", "email": "d@x"})()
     job = jobs.Job(id="d", project=P, base="1.1.1", source="develop", status="running", message="")
     runner = develop._DevelopRunner(job, P, "1.1.1", False, {}, member)
     order = []
@@ -71,10 +71,9 @@ def test_runner_records_develop_commit(monkeypatch):
 
 def test_branch_worktree_save_commit_and_permissions():
     _developed()
-    dev, data, lead, head = (signed_in_client(r) for r in ("dev", "data", "lead", "dev_head"))
+    dev, pm, other = signed_in_client("developer", "dev"), signed_in_client("pm"), signed_in_client("developer", "dev2")
     body = {"project": P, "name": "feature/dev 로그인!", "from": "main"}
-    assert data.post("/api/v1/develop/repo/branch", json=body).status_code == 403
-    assert lead.post("/api/v1/develop/repo/branch", json=body).status_code == 403, "팀장도 브랜치는 못 만든다 (개발 파트만)"
+    assert pm.post("/api/v1/develop/repo/branch", json=body).status_code == 403, "PM은 브랜치를 만들지 않는다 (개발자만)"
     made = dev.post("/api/v1/develop/repo/branch", json=body)
     assert made.status_code == 200 and made.json()["name"] == "feature/dev-로그인", made.text
     branch = made.json()["name"]
@@ -84,7 +83,7 @@ def test_branch_worktree_save_commit_and_permissions():
     edit = {"project": P, "path": "backend/src/L.java", "content": LOGIC.replace("crud.get()", "crud.list()")}
     assert dev.put("/api/v1/develop/file", json=edit).status_code == 400, "main은 직접 고치지 않는다"
     assert dev.put("/api/v1/develop/file", json={**edit, "branch": "main"}).status_code == 400
-    assert lead.put("/api/v1/develop/file", json={**edit, "branch": branch}).status_code == 403
+    assert pm.put("/api/v1/develop/file", json={**edit, "branch": branch}).status_code == 403
     saved = dev.put("/api/v1/develop/file", json={**edit, "branch": branch}).json()
     assert saved["changed"] == "M" and "crud.list()" in (wt / "backend/src/L.java").read_text(encoding="utf-8")
     assert "crud.get()" in (develop.app_dir(P) / "backend/src/L.java").read_text(encoding="utf-8"), "main은 그대로"
@@ -95,7 +94,7 @@ def test_branch_worktree_save_commit_and_permissions():
     assert dev.get("/api/v1/develop/file", params={"project": P, "branch": branch, "path": "../../../README.md"}).status_code == 404
 
     c = {"project": P, "branch": branch, "message": "목록 조회로 바꿈"}
-    assert data.post("/api/v1/develop/repo/commit", json=c).status_code == 403
+    assert pm.post("/api/v1/develop/repo/commit", json=c).status_code == 403
     assert dev.post("/api/v1/develop/repo/commit", json={**c, "message": " "}).status_code == 400
     assert dev.post("/api/v1/develop/repo/commit", json={**c, "branch": "main"}).status_code == 400
     done = dev.post("/api/v1/develop/repo/commit", json=c).json()
@@ -105,9 +104,9 @@ def test_branch_worktree_save_commit_and_permissions():
     assert listed[branch]["ahead"] == 1 and listed[branch]["changes"] == 0 and listed["main"]["protected"]
     assert listed[branch]["owner"]["name"] == "dev"
 
-    assert head.delete("/api/v1/develop/repo/branch", params={"project": P, "name": "main"}).status_code == 404
-    other = signed_in_client("dev_head")
-    assert other.delete("/api/v1/develop/repo/branch", params={"project": P, "name": branch}).json()["ok"], "개발 파트장은 지울 수 있다"
+    assert other.delete("/api/v1/develop/repo/branch", params={"project": P, "name": "main"}).status_code == 404
+    assert pm.delete("/api/v1/develop/repo/branch", params={"project": P, "name": branch}).status_code == 403, "만든 사람·개발자만 지운다"
+    assert other.delete("/api/v1/develop/repo/branch", params={"project": P, "name": branch}).json()["ok"], "다른 개발자도 지울 수 있다"
     assert not wt.exists() and branch not in _git("branch")
 
 
@@ -122,7 +121,7 @@ def test_merge_request_merge_and_notices(sample_doc):
     from test_develop_screen import _approved_final
     _approved_final(sample_doc)   # 알림은 버전이 있는 프로젝트에서만 모은다
     _developed()
-    dev, head = signed_in_client("dev"), signed_in_client("dev_head")
+    dev, head, pm = signed_in_client("developer", "dev"), signed_in_client("developer", "dev2"), signed_in_client("pm")
     branch = _branch_with_commit(dev, "feature/dev-readme", "README.md", "# app 고침\n")
     assert dev.post("/api/v1/develop/repo/request", json={"project": P, "branch": "main"}).status_code == 400
     req = dev.post("/api/v1/develop/repo/request", json={"project": P, "branch": branch, "note": "README 고침"}).json()
@@ -132,19 +131,19 @@ def test_merge_request_merge_and_notices(sample_doc):
     kinds = lambda c, k: [n for n in c.get("/api/v1/notices").json()["notices"] if n["kind"] == k]   # noqa: E731
     asked = kinds(head, "merge_request")
     assert len(asked) == 1 and asked[0]["title"] == f"dev님의 합치기 요청 ({branch})" and asked[0]["version"] == "1.1.1"
-    assert not kinds(dev, "merge_request"), "요청 알림은 개발 파트장에게만"
+    assert kinds(dev, "merge_request") and not kinds(pm, "merge_request"), "요청 알림은 개발자에게 (PM은 아님)"
 
     diff = head.get("/api/v1/develop/repo/diff", params={"project": P, "branch": branch}).json()
     assert diff["ahead"] == 1 and [(f["path"], f["status"]) for f in diff["files"]] == [("README.md", "M")] and "+# app 고침" in diff["files"][0]["diff"]
-    assert dev.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]}).status_code == 403, "개발 파트원은 못 합친다"
+    assert pm.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]}).status_code == 403, "PM은 합치지 않는다 (개발자만)"
     merged = head.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]})
     assert merged.status_code == 200 and merged.json()["status"] == "merged", merged.text
     assert (develop.app_dir(P) / "README.md").read_text(encoding="utf-8") == "# app 고침\n"
-    assert _git("log", "-1", "--format=%an|%s|%P", "main").strip().startswith(f"dev_head|합치기: {branch} (요청 dev, 승인 dev_head)|")
+    assert _git("log", "-1", "--format=%an|%s|%P", "main").strip().startswith(f"dev2|합치기: {branch} (요청 dev, 승인 dev2)|")
     assert len(_git("log", "-1", "--format=%P", "main").split()) == 2, "--no-ff 합친 커밋"
     got = kinds(dev, "merged")
-    assert len(got) == 1 and got[0]["title"] == f"dev_head님이 합치기 요청을 반영했습니다 ({branch})"
-    assert not kinds(head, "merged") and not kinds(signed_in_client("lead"), "merged"), "합친 알림은 요청한 사람에게만"
+    assert len(got) == 1 and got[0]["title"] == f"dev2님이 합치기 요청을 반영했습니다 ({branch})"
+    assert not kinds(head, "merged") and not kinds(pm, "merged"), "합친 알림은 요청한 사람에게만"
     assert head.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]}).status_code == 400, "이미 처리"
 
     # Slack: 회원을 정한 알림은 그 회원만 부른다 (그 회원이 프로젝트 담당자일 때 — 담당자가 아니면 Slack으로 부르지 않는다)
@@ -160,7 +159,7 @@ def test_conflict_returns_409_and_keeps_main_clean_then_reject_and_update_branch
     from test_develop_screen import _approved_final
     _approved_final(sample_doc)
     _developed()
-    dev, head = signed_in_client("dev"), signed_in_client("dev_head")
+    dev, head, pm = signed_in_client("developer", "dev"), signed_in_client("developer", "dev2"), signed_in_client("pm")
     a = _branch_with_commit(dev, "feature/a", "README.md", "# A\n")
     b = _branch_with_commit(dev, "feature/b", "README.md", "# B\n")
     ra = dev.post("/api/v1/develop/repo/request", json={"project": P, "branch": a}).json()
@@ -179,7 +178,7 @@ def test_conflict_returns_409_and_keeps_main_clean_then_reject_and_update_branch
     assert _git("status", "--porcelain", cwd=wt) == "" and (wt / "README.md").read_text(encoding="utf-8") == "# B\n", "브랜치도 되돌림"
 
     assert head.post("/api/v1/develop/repo/reject", json={"project": P, "request_id": rb["id"], "reason": ""}).status_code == 400
-    assert dev.post("/api/v1/develop/repo/reject", json={"project": P, "request_id": rb["id"], "reason": "x"}).status_code == 403
+    assert pm.post("/api/v1/develop/repo/reject", json={"project": P, "request_id": rb["id"], "reason": "x"}).status_code == 403
     rej = head.post("/api/v1/develop/repo/reject", json={"project": P, "request_id": rb["id"], "reason": "충돌 풀고 다시"}).json()
     assert rej["status"] == "rejected"
     notes = [n for n in dev.get("/api/v1/notices").json()["notices"] if n["kind"] == "merge_rejected"]
@@ -193,7 +192,7 @@ def test_conflict_returns_409_and_keeps_main_clean_then_reject_and_update_branch
 
 def test_log_and_commit_diff():
     _developed()
-    dev = signed_in_client("dev")
+    dev = signed_in_client("developer", "dev")
     branch = _branch_with_commit(dev, "feature/log", "README.md", "# log\n")
     commits = dev.get("/api/v1/develop/repo/log", params={"project": P}).json()["commits"]
     assert [c["ai"] for c in commits] == [False, True] and commits[0]["author"] == "dev"
@@ -229,7 +228,7 @@ def test_single_remote_push_refuses_non_fast_forward_and_migrates_old_settings(t
     monkeypatch.setattr(gitpush, "find_version", lambda p, v: {})
     recorded = {}
     monkeypatch.setattr(gitpush, "update_version", lambda p, v, **k: recorded.update(k))
-    member = type("M", (), {"id": 1, "name": "한파트장", "email": "head@team4.local"})()
+    member = type("M", (), {"id": 1, "name": "한개발", "email": "dev@team4.local"})()
 
     def push():
         job = jobs.Job(id="g", project=P, base="1.1.1", source="git", status="running", message="")
@@ -256,9 +255,9 @@ def test_single_remote_push_refuses_non_fast_forward_and_migrates_old_settings(t
     subprocess.run(["git", "-c", "user.name=o", "-c", "user.email=o@x", "-c", "commit.gpgsign=false", "add", "."], cwd=other, check=True)
     subprocess.run(["git", "-c", "user.name=o", "-c", "user.email=o@x", "-c", "commit.gpgsign=false", "commit", "-qm", "밖에서"], cwd=other, check=True)
     subprocess.run(["git", "push", "-q", "origin", "main"], cwd=other, check=True)
-    checked = signed_in_client("dev_head").post("/api/v1/develop/repo/fetch", json={"project": P}).json()
+    checked = signed_in_client("developer").post("/api/v1/develop/repo/fetch", json={"project": P}).json()
     assert (checked["ahead"], checked["behind"]) == (1, 1), checked
     job = push()
     assert job.status == "failed" and "서버에 없는 커밋" in job.message
     assert remote("log", "-1", "--format=%s", "main") == "밖에서", "강제로 덮어쓰지 않는다"
-    assert signed_in_client("dev").post("/api/v1/develop/repo/fetch", json={"project": P}).status_code == 403
+    assert signed_in_client("pm").post("/api/v1/develop/repo/fetch", json={"project": P}).status_code == 403

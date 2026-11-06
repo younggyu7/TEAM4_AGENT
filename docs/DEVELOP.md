@@ -3,7 +3,7 @@
 'ERD 최종 확정'으로 만든 최종본(개발 스펙 10개가 있는 버전, 예: `v1.1.1`)에서 웹 서비스 프로젝트를 만든다. **기본 실행은 LLM을 부르지 않아 토큰이 0이다.**
 고객에게 화면 단위로 보여 주는 데 서버·DB가 필요 없다.
 
-**화면에서** (검토 중): 기술 스택은 기능 명세의 확인 질문 TQ-001에서 화면·서버·DB를 하나씩 고른다(원문에 있으면 원문, 개발 틀이 없으면 경고). 팀장이 승인한 최종본의 산출물 보기 → '최종 개발하기'(개발 파트장·팀장): 앱 틀(로그인 admin·user, 회사 이름=프로젝트 이름의 포털, 기본 동작, DB, Docker 파일)은 코드가, '업무 기능을 AI로 구현'(기본 켬, `--build`)을 고르면 모델·effort·예상 토큰·비용을 보고 AI가 기능별 서버 API·화면을 짠다(검사·컴파일 실패 기능은 코드 틀). 다 만들면 Docker로 켜 admin 로그인 + 모든 조회 API를 불러 자동 확인한다. 단계 표시줄 '최종 개발물 미리보기'는 1단계 개발(구현 방식·고객 답 대기·자동 확인, 파일 구성·코드 보기·고쳐 저장) · 2단계 실행(앱 자체 docker-compose로 독립 실행, 팀원 PC에서 `http://<서버>:<포트>`, 계정 비밀번호, 터미널, 10분 동안 요청이 없으면 끔) · 3단계 Git으로 나뉜다. 개발 틀(층마다 고름): 화면 React(`templates/app/frontend`)·Next.js(`templates/frontend-nextjs`, 같은 화면 부품을 `ui/`에), 서버 Spring Boot(`templates/app/backend`)·FastAPI(`templates/backend-fastapi` + `tools/scaffold_fastapi.py`)·NestJS(`templates/backend-nestjs` + `tools/scaffold_nestjs.py`), DB PostgreSQL·MySQL(`ddl.py`·`sample_data.py` 방언). AI 구현 규칙은 Spring `roles/builder.py`, FastAPI `roles/builder_fastapi.py`, NestJS `roles/builder_nestjs.py`. 빈 로직만 채우는 `--logic`은 `roles/developer.py`가 세 서버 틀 모두(Java·Python·TypeScript 규칙) 한다. 개발하기 창은 '기능 전체 AI'·'빈 로직만 AI'·'AI 안 씀' 중 하나를 고르고, 기능 전체 AI면 화면 스타일 9종(`tools/themes.py`) 중 하나를 고른다. 틀이 없는 층은 `roles/scaffolder.py`가 AI로 뼈대부터 만든다. 서버 쪽은 `app/services/develop.py`·`preview.py`·`repo.py`·`gitpush.py`·`appfiles.py`, API는 `app/api/v1/develop.py`·`repo.py`, 요구사항은 FR-038~044·046.
+**화면에서** (검토 중): 기술 스택은 기능 명세의 확인 질문 TQ-001에서 화면·서버·DB를 하나씩 고른다(원문에 있으면 원문, 개발 틀이 없으면 경고). PM이 승인한 최종본의 산출물 보기 → '최종 개발하기'(개발자): 앱 틀(로그인 admin·user, 회사 이름=프로젝트 이름의 포털, 기본 동작, DB, Docker 파일)은 코드가, '업무 기능을 AI로 구현'(기본 켬, `--build`)을 고르면 모델·effort·예상 토큰·비용을 보고 AI가 기능별 서버 API·화면을 짠다(검사·컴파일 실패 기능은 코드 틀). 다 만들면 Docker로 켜 admin 로그인 + 모든 조회 API를 불러 자동 확인한다. 단계 표시줄 '최종 개발물 미리보기'는 1단계 개발(구현 방식·고객 답 대기·자동 확인, 파일 구성·코드 보기·고쳐 저장) · 2단계 실행(앱 자체 docker-compose로 독립 실행, 팀원 PC에서 `http://<서버>:<포트>`, 계정 비밀번호, 터미널, 10분 동안 요청이 없으면 끔) · 3단계 Git으로 나뉜다. 개발 틀(층마다 고름): 화면 React(`templates/app/frontend`)·Next.js(`templates/frontend-nextjs`, 같은 화면 부품을 `ui/`에), 서버 Spring Boot(`templates/app/backend`)·FastAPI(`templates/backend-fastapi` + `tools/scaffold_fastapi.py`)·NestJS(`templates/backend-nestjs` + `tools/scaffold_nestjs.py`), DB PostgreSQL·MySQL(`ddl.py`·`sample_data.py` 방언). AI 구현 규칙은 Spring `roles/builder.py`, FastAPI `roles/builder_fastapi.py`, NestJS `roles/builder_nestjs.py`. 빈 로직만 채우는 `--logic`은 `roles/developer.py`가 세 서버 틀 모두(Java·Python·TypeScript 규칙) 한다. 개발하기 창은 '기능 전체 AI'·'빈 로직만 AI'·'AI 안 씀' 중 하나를 고르고, 기능 전체 AI면 화면 스타일 9종(`tools/themes.py`) 중 하나를 고른다. 틀이 없는 층은 `roles/scaffolder.py`가 AI로 뼈대부터 만든다. 서버 쪽은 `app/services/develop.py`·`preview.py`·`repo.py`·`gitpush.py`·`appfiles.py`, API는 `app/api/v1/develop.py`·`repo.py`, 요구사항은 FR-038~044·046.
 만들어지는 폴더와 고쳐도 되는 파일은 [OUTPUTS.md 2-1](../OUTPUTS.md#2-1-개발-단계에서-생기는-폴더-develop).
 
 ```powershell
@@ -29,9 +29,9 @@ cd output/고객요구사항4/app/frontend; npm install; npm run dev  # 예시 �
 
 화면에서 최종 개발하기를 하면 코드 폴더 `OUTPUT_DIR/<프로젝트>/app`이 git 저장소(브랜치 `main`)가 된다. CLI만 돌리면 저장소를 만들지 않는다.
 
-- main은 화면에서 고치지 않는다. 최종 개발하기가 끝나면 바뀐 파일을 작성자 `req-agent`로 커밋하고 태그 `final-v<최종본>`을 붙인다(같은 최종본을 다시 개발하면 태그를 옮김). 그 밖에는 개발 파트장의 합치기로만 바뀐다.
-- 개발 파트원·파트장은 브랜치를 만든다. 브랜치마다 작업 폴더가 `app/.preview/worktrees/<브랜치, / → __>`에 생기고, 1단계 코드 보기에서 그 브랜치를 골라 고친 뒤 '저장하기'로 커밋한다(작성자 = 로그인한 회원). '메인 가져오기'는 main을 브랜치에 합친다.
-- 합치기 요청은 프로젝트 파일 `repo.json`에 남고 개발 파트장에게 알림이 간다. 개발 파트장은 차이를 보고 `git merge --no-ff`로 합치거나 반려한다. 충돌이면 `merge --abort`로 되돌리고 충돌 파일을 알려 준다(요청한 사람이 메인 가져오기로 풀고 다시 저장).
+- main은 화면에서 고치지 않는다. 최종 개발하기가 끝나면 바뀐 파일을 작성자 `req-agent`로 커밋하고 태그 `final-v<최종본>`을 붙인다(같은 최종본을 다시 개발하면 태그를 옮김). 그 밖에는 개발자의 합치기로만 바뀐다.
+- 개발자는 브랜치를 만든다 (PM은 보기만). 브랜치마다 작업 폴더가 `app/.preview/worktrees/<브랜치, / → __>`에 생기고, 1단계 코드 보기에서 그 브랜치를 골라 고친 뒤 '저장하기'로 커밋한다(작성자 = 로그인한 회원). '메인 가져오기'는 main을 브랜치에 합친다.
+- 합치기 요청은 프로젝트 파일 `repo.json`에 남고 개발자에게 알림이 간다. 개발자는 차이를 보고 `git merge --no-ff`로 합치거나 반려한다. 충돌이면 `merge --abort`로 되돌리고 충돌 파일을 알려 준다(요청한 사람이 메인 가져오기로 풀고 다시 저장).
 - 커밋하지 않는 것: `.preview/`(미리보기·작업 폴더)·`.req-agent/`(생성기 기록, 'AI가 씀'·'사람이 고침' 판단은 main의 기록으로)·`local/`(시연 계정)·패키지·빌드 결과. 생성한 `.gitignore`와 `.git/info/exclude`에 둘 다 적는다.
 - 원격은 하나(`git.json` `{url, branch, token}`)이고 main과 `final-v*` 태그만 올린다. 원격에 서버에 없는 커밋이 있으면 올리지 않는다(서버 밖에서 정리).
 

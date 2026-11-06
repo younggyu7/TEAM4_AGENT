@@ -1,7 +1,7 @@
 """문서 업로드 실행 (작업).
 
   POST /runs          문서 업로드(multipart file, project?, title?, model?, effort?, members?)
-                      → 새 프로젝트면 담당자 = 고른 회원 + 올린 사람 (담당자·팀장만 그 프로젝트를 봄)
+                      → 새 프로젝트면 담당자 = 고른 회원 + 올린 사람 (담당자·PM만 그 프로젝트를 봄)
                       → (Slack이 켜져 있으면 프로젝트 비공개 채널을 만들고 담당자 초대) → 기능 명세 초안까지 실행 → {job, slack}
   GET  /llm-options   업로드 화면에서 고를 모델·생각 수준 (키가 있는 공급자만)
 """
@@ -62,7 +62,7 @@ async def create_run(
     title: Annotated[str, Form(description="사업 이름 (LLM에 사업 맥락으로 줌)")] = "",
     model: Annotated[str, Form(description="LLM 모델 ID (GET /llm-options의 models, 비우면 .env)")] = "",
     effort: Annotated[str, Form(description="생각 수준 low·medium·high (비우면 .env)")] = "",
-    members: Annotated[str, Form(description="담당자 회원 ID (쉼표로 구분, GET /members). 올린 사람·팀장은 늘 담당자. "
+    members: Annotated[str, Form(description="담당자 회원 ID (쉼표로 구분, GET /members). 올린 사람·PM은 늘 담당자. "
                                              "담당자만 이 프로젝트를 보고 Slack 채널에 초대된다")] = "",
     member: users.Member = Depends(current_user),
 ):
@@ -102,7 +102,7 @@ async def create_run(
     except UnsupportedFormatError as e:
         shutil.rmtree(folder, ignore_errors=True)
         raise BadRequest(f"{e} — {e.hint}" if e.hint and e.hint not in str(e) else str(e)) from e
-    # 담당자: 새 프로젝트만 정한다 (같은 프로젝트에 다시 올리면 그대로 두고, 바꾸기는 팀장이 프로젝트 화면에서)
+    # 담당자: 새 프로젝트만 정한다 (같은 프로젝트에 다시 올리면 그대로 두고, 바꾸기는 PM이 프로젝트 화면에서)
     if not existing:
         await run_in_threadpool(project_access.set_members, project, [member.id, *chosen])
     # Slack(.env SLACK_BOT_TOKEN이 있을 때): 프로젝트 채널을 만들고 담당자를 초대한다. 실패해도 분석은 하고,

@@ -1,10 +1,10 @@
-"""수정 초안 공유와 팀장 결정.
+"""수정 초안 공유와 PM 결정.
 
   GET  /drafts               버전의 수정 초안 (편집·체크·답·지적 처리) + 변경 내역(누가·언제·무엇을) + 승인 요청
   POST /drafts               수정 초안 저장 (rev가 다르면 409: 다른 사람이 먼저 저장)
-  POST /drafts/request       파트원의 수정 완료 승인 요청 (파트장의 확정은 이 요청이 있어야 한다)
-  POST /drafts/request/reject  승인 요청 반려 (그 단계를 확정할 수 있는 파트장·팀장, 사유 필수)
-  POST /projects/approval    최종본 승인 / 수정 지시 (팀장)
+  POST /drafts/request       개발자의 기능 명세 수정 완료 승인 요청 (PM에게 알림, ERD는 승인 요청 없이 확정)
+  POST /drafts/request/reject  승인 요청 반려 (기능 명세를 확정하는 PM, 사유 필수)
+  POST /projects/approval    최종본 승인 / 수정 지시 (PM)
   GET  /projects/directives  끝나지 않은 수정 지시와 진행 (어느 버전에서 처리할지, 옛 ERD 잠금, 항목 처리)
   POST /projects/directives/resolve  지시 항목 처리: 반영함 / 그대로 둠(이유) — LLM 없음
   GET  /notices              나에게 온 알림 (역할별 수정 지시·승인 요청·승인 대기·개발 대기 + 업로드 분석 완료·ERD 초안·개발 초안)
@@ -12,8 +12,8 @@
 
 초안은 산출물 저장소의 프로젝트 파일 draft-v<버전>.json에 둔다 (서비스 DB가 있으면 project_files 테이블, 형식은
 services/drafts.py).
-기능 명세 버전의 초안은 기획 파트, ERD 버전의 초안은 데이터 파트가 고친다 (예전 전체 실행 버전은 둘 다).
-승인 요청·반려·팀장 결정은 Slack을 연결한 프로젝트면 그 채널에도 올린다 (services/slack.py).
+기능 명세·ERD 버전의 초안은 PM·개발자가 고친다.
+승인 요청·반려·PM 결정은 Slack을 연결한 프로젝트면 그 채널에도 올린다 (services/slack.py).
 """
 from __future__ import annotations
 
@@ -95,15 +95,15 @@ def get_draft(project: str, version: str, _: users.Member = Depends(current_user
 
 
 def _can_edit(project: str, version: str, member: users.Member) -> None:
-    """그 버전 단계를 고칠 권한: 기능 명세 버전은 기획 파트, ERD 버전은 데이터 파트 (예전 전체 실행 버전은 둘 다)"""
+    """그 버전 단계를 고칠 권한: 기능 명세 버전은 spec_edit, ERD 버전은 erd_edit (PM·개발자, 예전 전체 실행 버전은 둘 중 하나)"""
     stage = _record(project, version).get("stage")
     if stage == "final":
-        raise BadRequest("최종본은 고치지 않습니다. 팀장이 '수정 지시'로 기능 명세·ERD 단계에 돌려보냅니다.")
+        raise BadRequest("최종본은 고치지 않습니다. PM이 '수정 지시'로 기능 명세·ERD 단계에 돌려보냅니다.")
     if stage == "data_modeler":
         ensure(member, "erd_edit")
         directives.ensure_unlocked(project, version)   # 기능 명세 수정 지시가 진행 중인 옛 ERD
     elif stage in (None, "full") and not allowed(member.role, "spec_edit"):
-        ensure(member, "erd_edit")   # 예전 전체 실행 버전은 기능 명세와 ERD 초안이 함께 있어 두 파트 모두
+        ensure(member, "erd_edit")   # 예전 전체 실행 버전은 기능 명세와 ERD 초안이 함께 있다 (둘 중 하나의 권한)
     elif stage not in (None, "full"):
         ensure(member, "spec_edit")
 
@@ -123,35 +123,37 @@ def save_draft(body: DraftSave, member: users.Member = Depends(current_user)):
             "log": doc["log"], "request": doc["request"]}
 
 
-@router.post("/drafts/request", summary="수정 완료 승인 요청 (파트원 → 파트장)")
+@router.post("/drafts/request", summary="기능 명세 수정 완료 승인 요청 (개발자 → PM)")
 def request_review(body: ReviewRequest, member: users.Member = Depends(current_user)):
     project, version = _project(body.project), guards.version(body.version)
     _can_edit(project, version, member)
+    if directives.Tree(project).stage_of(version) not in drafts.REQUEST_STAGES:
+        raise BadRequest("ERD는 승인 요청 없이 개발자가 바로 확정합니다 ('ERD 최종 확정하기').")
     req = drafts.request(project, version, member, body.note)
-    slack.kick()   # 파트장·팀장의 '나에게 온 알림'에 승인 요청이 생겼다 → Slack으로
+    slack.kick()   # PM의 '나에게 온 알림'에 승인 요청이 생겼다 → Slack으로
     return {"request": req, "log": drafts.read(project, version)["log"]}
 
 
-@router.post("/drafts/request/reject", summary="승인 요청 반려 (파트장·팀장 → 파트원)")
+@router.post("/drafts/request/reject", summary="승인 요청 반려 (PM → 개발자)")
 def reject_request(body: RejectRequest, member: users.Member = Depends(current_user)):
     project, version = _project(body.project), guards.version(body.version)
     _record(project, version)
-    # 요청 알림을 받는 사람과 같게: 기능 명세 단계는 기획 파트장·팀장, ERD 단계는 데이터 파트장·팀장
+    # 요청 알림을 받는 사람과 같게: 그 단계를 확정하는 회원 (기능 명세는 PM)
     stage = directives.Tree(project).stage_of(version)
     if stage == "final":
-        raise BadRequest("최종본은 승인 요청이 없습니다. 팀장이 '수정 지시'로 돌려보냅니다.")
+        raise BadRequest("최종본은 승인 요청이 없습니다. PM이 '수정 지시'로 돌려보냅니다.")
     ensure(member, "spec_confirm" if stage == "spec" else "erd_confirm")
     if not body.reason.strip():
         raise BadRequest("반려 사유를 적어 주세요.")
     req = drafts.reject(project, version, member, body.reason)
     if req is None:
-        raise NotFound("반려할 승인 요청이 없습니다 (이미 확정·반려됐거나 파트원이 다시 고쳐 취소됨).")
+        raise NotFound("반려할 승인 요청이 없습니다 (이미 확정·반려됐거나 개발자가 다시 고쳐 취소됨).")
     slack.request_decided(project, version, stage, req, member, approved=False, reason=body.reason.strip())
     doc = drafts.read(project, version)
     return {"request": None, "rejection": doc["rejection"], "log": doc["log"]}
 
 
-@router.post("/projects/approval", summary="최종본 승인 / 수정 지시 (팀장)")
+@router.post("/projects/approval", summary="최종본 승인 / 수정 지시 (PM)")
 def decide(body: Approval, member: users.Member = Depends(current_user)):
     if not allowed(member.role, "final_decide"):
         raise Forbidden(denied_message("final_decide"))
@@ -173,7 +175,7 @@ def decide(body: Approval, member: users.Member = Depends(current_user)):
                 "by": {"id": member.id, "name": member.name, "role": member.role}}
     update_version(project, version, approval=decision, approvals=[*(record.get("approvals") or []), decision])
     slack.final_decided(project, version, decision, member)   # 관여한 회원에게 최종 승인 / 반려(수정 지시)
-    slack.kick()   # 수정 지시를 받은 파트의 '나에게 온 알림'
+    slack.kick()   # 수정 지시를 받은 개발자의 '나에게 온 알림'
     return {"approval": decision}
 
 

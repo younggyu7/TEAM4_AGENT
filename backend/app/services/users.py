@@ -1,6 +1,6 @@
 """회원·로그인 세션 저장 (서비스 DB가 있으면 PostgreSQL의 users·user_sessions, 없으면 OUTPUT_DIR/service.sqlite).
 
-- 처음 가입한 사람은 관리자·팀장으로 바로 쓸 수 있다 (회원을 승인할 사람이 있어야 하므로).
+- 처음 가입한 사람은 관리자·PM으로 바로 쓸 수 있다 (회원을 승인할 사람이 있어야 하므로).
 - 그 뒤 가입은 '승인 대기'이고, 관리자가 역할을 정해 승인해야 로그인된다.
 - 관리자가 한 명도 남지 않게 바꾸는 것은 막는다.
 """
@@ -16,7 +16,7 @@ from functools import cache
 from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.auth import ROLES, hash_password, new_token, token_hash, verify_password
+from app.core.auth import PM, ROLES, hash_password, new_token, role_label, token_hash, verify_password
 from app.core.config import get_settings
 from app.core.database import sqlalchemy_url
 from app.core.exceptions import BadRequest, Conflict, Forbidden, NotFound, Unauthorized
@@ -45,7 +45,7 @@ class Member:
     def to_dict(self) -> dict:
         from app.core.auth import permissions_of
         return {"id": self.id, "email": self.email, "name": self.name, "role": self.role,
-                "role_label": ROLES.get(self.role, "역할 없음"), "requested_role": self.requested_role,
+                "role_label": role_label(self.role), "requested_role": self.requested_role,
                 "is_admin": self.is_admin, "status": self.status, "created_at": self.created_at,
                 "slack_id": self.slack_id,
                 "permissions": permissions_of(self.role) if self.status == "active" else []}
@@ -113,7 +113,7 @@ def signup(email: str, name: str, password: str, requested_role: str = "", slack
             raise Conflict("이미 가입한 이메일입니다.")
         first = not db.scalar(select(func.count()).select_from(User))
         user = User(email=email, name=name, password_hash=hash_password(password), requested_role=requested_role,
-                    role="lead" if first else "", is_admin=first, status="active" if first else "pending",
+                    role=PM if first else "", is_admin=first, status="active" if first else "pending",
                     slack_id=slack_id)
         db.add(user)
         db.flush()
@@ -226,18 +226,20 @@ def service_db():
 # 계정은 git이 아니라 각 PC의 DB에 있어서, 다른 PC에서도 같은 계정으로 로그인하려고 코드에 둔다.
 # 서버가 시작할 때 목록에서 빠진 계정만 만든다 (있는 계정·다른 회원은 건드리지 않음). 끄기: .env SEED_TEST_ACCOUNTS=false
 TEST_PASSWORD = "Team4!2026"
-TEST_ACCOUNTS = [   # (이메일, 이름, 역할, 관리자, Slack 멤버 ID — 팀 시연 워크스페이스의 실제 멤버. 팀장·기획 / 데이터 / 개발을 한 사람씩 맡는다)
-    ("admin@team4.local", "김관리", "lead", True, "U0CERR5EPT4"),
-    ("plan.head@team4.local", "이기획", "planner_head", False, "U0CERR5EPT4"),
-    ("plan1@team4.local", "박기획", "planner", False, "U0CERR5EPT4"),
-    ("plan2@team4.local", "최기획", "planner", False, "U0CERR5EPT4"),
-    ("data.head@team4.local", "정데이터", "data_head", False, "U0CD7CD4R2L"),
-    ("data1@team4.local", "강데이터", "data", False, "U0CD7CD4R2L"),
-    ("data2@team4.local", "조데이터", "data", False, "U0CD7CD4R2L"),
-    ("dev.head@team4.local", "한개발", "dev_head", False, "U0CEQ2674R4"),
-    ("dev1@team4.local", "윤개발", "dev", False, "U0CEQ2674R4"),
-    ("dev2@team4.local", "임개발", "dev", False, "U0CEQ2674R4"),
+TEST_ACCOUNTS = [   # (이메일, 이름, 역할, 관리자, Slack 멤버 ID — 팀 시연 워크스페이스의 실제 멤버. 예전 시연 계정의 ID를 그대로 옮김)
+    ("pm1@team4.local", "김PM", "pm", True, "U0CERR5EPT4"),
+    ("pm2@team4.local", "이PM", "pm", False, "U0CERR5EPT4"),
+    ("developer1@team4.local", "개발자1", "developer", False, "U0CERR5EPT4"),
+    ("developer2@team4.local", "개발자2", "developer", False, "U0CERR5EPT4"),
+    ("developer3@team4.local", "개발자3", "developer", False, "U0CD7CD4R2L"),
+    ("developer4@team4.local", "개발자4", "developer", False, "U0CD7CD4R2L"),
+    ("developer5@team4.local", "개발자5", "developer", False, "U0CEQ2674R4"),
+    ("developer6@team4.local", "개발자6", "developer", False, "U0CEQ2674R4"),
 ]
+# 역할을 PM·개발자로 나누기 전의 시연 계정: 새 계정을 만든 뒤 사용 중지한다 (지우지 않아 기록은 남는다)
+OLD_TEST_EMAILS = ["admin@team4.local", "plan.head@team4.local", "plan1@team4.local", "plan2@team4.local",
+                   "data.head@team4.local", "data1@team4.local", "data2@team4.local",
+                   "dev.head@team4.local", "dev1@team4.local", "dev2@team4.local"]
 
 
 def seed_test_accounts(password: str = TEST_PASSWORD, only_if_empty: bool = True) -> list[str]:
@@ -249,8 +251,25 @@ def seed_test_accounts(password: str = TEST_PASSWORD, only_if_empty: bool = True
     for email, name, role, admin, slack_id in TEST_ACCOUNTS:
         if email in existing:
             continue
-        member = signup(email, name, password, slack_id=slack_id) if not list_members()             else create_member(email, name, password, role, admin, slack_id)
+        member = (signup(email, name, password, slack_id=slack_id) if not list_members()
+                  else create_member(email, name, password, role, admin, slack_id))
         if member.role != role or member.is_admin != admin:
             update_member(member.id, role=role, status="active", is_admin=admin)
         made.append(email)
+    retire_old_test_accounts()
     return made
+
+
+def retire_old_test_accounts() -> list[str]:
+    """예전 시연 계정(팀장·파트장·파트원 시절)을 사용 중지한다. 새 시연 계정에 관리자가 있을 때만 (관리자가 한 명은 남게). 중지한 이메일"""
+    members = {m.email: m for m in list_members()}
+    if not any(members.get(email) and members[email].is_admin and members[email].status == "active"
+               for email, *_ in TEST_ACCOUNTS):
+        return []
+    done = []
+    for email in OLD_TEST_EMAILS:
+        m = members.get(email)
+        if m and m.status == "active":
+            update_member(m.id, status="disabled", is_admin=False)
+            done.append(email)
+    return done

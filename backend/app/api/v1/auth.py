@@ -1,6 +1,6 @@
 """회원가입·로그인·회원 관리.
 
-  POST /auth/signup     회원가입 (처음 가입자는 관리자·팀장, 그 뒤는 승인 대기, Slack 멤버 ID 선택)
+  POST /auth/signup     회원가입 (처음 가입자는 관리자·PM, 그 뒤는 승인 대기, Slack 멤버 ID 선택)
   POST /auth/login      로그인 → httpOnly 쿠키 세션
   POST /auth/logout     로그아웃
   GET  /auth/me         로그인한 회원·권한
@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 
 from app.api.v1.deps import SESSION_COOKIE, admin_user, current_user
-from app.core.auth import ROLES
+from app.core.auth import ROLES, role_label
 from app.services import slack, users
 
 router = APIRouter(tags=["auth"])
@@ -91,7 +91,7 @@ def roles():
 
 @router.get("/members", summary="승인된 회원 (Slack 담당자 고르기) + Slack 알림이 켜졌는지")
 def list_active_members(_: users.Member = Depends(current_user)):
-    return {"members": [{"id": m.id, "name": m.name, "role": m.role, "role_label": ROLES.get(m.role, "역할 없음"),
+    return {"members": [{"id": m.id, "name": m.name, "role": m.role, "role_label": role_label(m.role),
                          "has_slack": bool(m.slack_id)} for m in users.list_members() if m.status == "active"],
             "slack_enabled": slack.enabled()}
 

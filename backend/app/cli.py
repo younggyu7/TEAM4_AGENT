@@ -149,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
                           help="ERD 화면에서 정한 검토 지적 처리 JSON (rerun --dispositions와 같은 형식)")
     p_review.add_argument("--output-dir")
 
-    p_seed = sub.add_parser("seed-accounts", help="[임시] 시연용 계정 7개 만들기 (관리자·기획/데이터 파트장·파트원, 없는 계정만)")
+    p_seed = sub.add_parser("seed-accounts", help="[임시] 시연용 계정 8개 만들기 (PM 2·개발자 6, 없는 계정만)")
     p_seed.add_argument("--password", default="", help="비밀번호 (생략하면 services/users.py TEST_PASSWORD)")
     p_seed.add_argument("--output-dir")
 

@@ -1,15 +1,15 @@
-"""최종 개발하기·미리보기·git 올리기 (팀장이 승인한 최종본에서).
+"""최종 개발하기·미리보기·git 올리기 (PM이 승인한 최종본에서).
 
   GET  /develop/plan?project=&version=   화면·파일 수, 서버를 만드는지, 틀 없는 층 경고, AI 업무 기능 구현 예상 토큰 (LLM 없음)
-  POST /develop                           최종 개발하기 → 코드(+AI 구현) + 예시 데이터 화면 + 자동 확인(Docker) → {job}  (개발 파트장·팀장)
+  POST /develop                           최종 개발하기 → 코드(+AI 구현) + 예시 데이터 화면 + 자동 확인(Docker) → {job}  (개발자)
   GET  /preview/{프로젝트}/                 미리보기 안내 페이지: 앱을 Docker로 켜고 준비되면 앱 주소(http://<서버>:<포트>)로 (로그인한 회원)
   GET  /preview/{프로젝트}/mock/…           예시 데이터 화면 (서버 없이)
-  GET  /preview/{프로젝트}/accounts         앱 시연 계정 (admin·user 비밀번호, 개발 파트원·파트장·팀장)
-  GET  /preview/{프로젝트}/status · POST /preview/{프로젝트}/start · POST /preview/{프로젝트}/stop (끄기는 팀장·개발 파트장)
-  GET·POST /develop/git?project=          원격 설정 하나 {url, branch, token} (토큰은 다시 보내지 않음, 개발 파트장)
-  POST /develop/git/push                  원격에 main·최종본 태그 올리기 → {job} (개발 파트장)
+  GET  /preview/{프로젝트}/accounts         앱 시연 계정 (admin·user 비밀번호, PM·개발자)
+  GET  /preview/{프로젝트}/status · POST /preview/{프로젝트}/start · POST /preview/{프로젝트}/stop (끄기는 PM·개발자)
+  GET·POST /develop/git?project=          원격 설정 하나 {url, branch, token} (토큰은 다시 보내지 않음, 개발자)
+  POST /develop/git/push                  원격에 main·최종본 태그 올리기 → {job} (개발자)
   GET  /develop/files?project=&branch=    코드 파일 목록 (main 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고침·커밋 안 한 변경 표시)
-  GET·PUT /develop/file?project=&path=&branch=  파일 내용 보기 · 브랜치에서 고쳐 저장 (main 거부, 개발 파트원·파트장)
+  GET·PUT /develop/file?project=&path=&branch=  파일 내용 보기 · 브랜치에서 고쳐 저장 (main 거부, 개발자)
   브랜치·저장하기(커밋)·합치기 요청·이력은 api/v1/repo.py
   GET  /preview/{프로젝트}/terminal         실행 미리보기 터미널: 빌드·실행 기록 + 앱 서버 로그
 """
@@ -127,13 +127,13 @@ def run_start(project: str):
     return preview.start(_project(project))
 
 
-@router.post("/preview/{project}/stop", summary="실행 미리보기 끄기 (팀장·개발 파트장)")
+@router.post("/preview/{project}/stop", summary="실행 미리보기 끄기 (PM·개발자)")
 def run_stop(project: str, member: users.Member = Depends(current_user)):
     ensure(member, "preview_stop")
     return preview.stop(_project(project), f"{member.name}님이 껐습니다.")
 
 
-@router.get("/preview/{project}/accounts", summary="앱 시연 계정 (개발 파트원·파트장·팀장)")
+@router.get("/preview/{project}/accounts", summary="앱 시연 계정 (PM·개발자)")
 def run_accounts(project: str, member: users.Member = Depends(current_user)):
     ensure(member, "app_accounts")
     return {"accounts": preview.accounts(_project(project))}
@@ -205,7 +205,7 @@ def get_file(project: str, path: str, branch: str = ""):
     return appfiles.read(_project(project), path, branch or None)
 
 
-@router.put("/develop/file", summary="브랜치에서 파일 고쳐 저장 (개발 파트원·파트장, main 거부)")
+@router.put("/develop/file", summary="브랜치에서 파일 고쳐 저장 (개발자, main 거부)")
 def put_file(body: FileBody, member: users.Member = Depends(current_user)):
     ensure(member, "repo_write")
     return appfiles.save(_project(body.project), body.path, body.content, body.branch or None)

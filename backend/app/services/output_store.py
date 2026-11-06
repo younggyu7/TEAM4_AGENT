@@ -74,7 +74,7 @@ def _project_versions(project: str) -> list[dict]:
 
 
 def find_projects() -> list[dict]:
-    # name: 화면에 보일 이름 (팀장이 바꾼 이름, 없으면 ID의 끝 이름). id는 바뀌지 않는다
+    # name: 화면에 보일 이름 (PM이 바꾼 이름, 없으면 ID의 끝 이름). id는 바뀌지 않는다
     projects = [{"id": p, "name": display_name(p), "versions": _project_versions(p)}
                 for p in get_store().list_projects()]
     projects = [p for p in projects if p["versions"]]

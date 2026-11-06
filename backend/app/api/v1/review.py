@@ -27,9 +27,8 @@ def create_review(body: ReviewCreate, member: users.Member = Depends(current_use
         raise BadRequest(f"v{version}에는 ERD(데이터 모델)가 없어 최종 확정할 수 없습니다.")
     _no_running_job(body.project)
     directives.ensure_unlocked(project, version)
-    drafts.require_request(project, version, member, "ERD를 최종 확정")
     approved = drafts.note_event(project, version, member, "확정", "ERD 최종 확정 → 최종본 만들기")
-    slack.request_decided(project, version, "erd", approved, member, approved=True)   # 요청한 파트원에게 '승인'
+    slack.request_decided(project, version, "erd", approved, member, approved=True)   # (예전) 승인 요청이 남아 있었으면 요청한 개발자에게 '승인'
     return {"job": jobs.start_review(output_dir=output_store.output_root(), project=body.project, version=version,
                                      dispositions=body.dispositions,
                                      on_done=lambda v: output_store.record_maker(project, v, member)).to_dict()}

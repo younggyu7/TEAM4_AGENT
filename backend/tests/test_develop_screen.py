@@ -1,4 +1,4 @@
-"""화면의 최종 개발하기·미리보기·git 올리기 (팀장이 승인한 최종본, 개발 파트장·팀장). 하위 프로세스·Docker·npm 없이."""
+"""화면의 최종 개발하기·미리보기·git 올리기 (PM이 승인한 최종본, 개발자). 하위 프로세스·Docker·npm 없이."""
 import json
 import subprocess
 
@@ -24,18 +24,18 @@ def test_develop_needs_approved_final_and_dev_role(sample_doc, monkeypatch):
     final = _approved_final(sample_doc)
     monkeypatch.setattr(develop, "start_develop", lambda **kw: jobs.Job(id="d", project="sample", base=final, source="develop",
                                                                        status="running", message=""))
-    dev, dev_head, data_head = signed_in_client("dev"), signed_in_client("dev_head"), signed_in_client("data_head")
+    dev, pm = signed_in_client("developer"), signed_in_client("pm")
     q = f"/api/v1/develop/plan?project=sample&version={final}"
-    assert dev_head.get(q).status_code == 400, "승인 전에는 개발하지 않는다"
-    update_version("sample", final, approval={"decision": "approve", "at": "2999-01-01T00:00:00", "by": {"name": "팀장"}})
-    plan = dev_head.get(q).json()
+    assert dev.get(q).status_code == 400, "승인 전에는 개발하지 않는다"
+    update_version("sample", final, approval={"decision": "approve", "at": "2999-01-01T00:00:00", "by": {"name": "PM"}})
+    plan = dev.get(q).json()
     assert plan["screens"] > 0 and plan["files"] > 0 and "Haiku 5.5" in plan["logic"]["cost"], "개발 전 화면·파일 수와 AI 예상 비용"
-    assert dev.get(q).status_code == 403 and data_head.get(q).status_code == 403, "개발은 개발 파트장·팀장만"
+    assert pm.get(q).status_code == 403, "개발은 개발자만 (PM은 아님)"
     body = {"project": "sample", "version": final, "logic": False}
-    assert dev.post("/api/v1/develop", json=body).status_code == 403
-    assert dev_head.post("/api/v1/develop", json=body).status_code == 202
+    assert pm.post("/api/v1/develop", json=body).status_code == 403
+    assert dev.post("/api/v1/develop", json=body).status_code == 202
     notices = [n for n in dev.get("/api/v1/notices").json()["notices"] if n["kind"] == "develop"]
-    assert notices and notices[0]["version"] == final, "승인하면 개발 파트에 '개발 대기' 알림"
+    assert notices and notices[0]["version"] == final, "승인하면 개발자에게 '개발 대기' 알림"
     update_version("sample", final, develop={"at": "2999-01-01T00:00:01", "version": final})
     assert not [n for n in dev.get("/api/v1/notices").json()["notices"] if n["kind"] == "develop"], "개발하면 알림이 사라진다"
 
@@ -52,7 +52,7 @@ def test_preview_files_stay_inside_and_need_login(sample_doc):
     (get_settings().output_dir / "sample" / "v1").mkdir(exist_ok=True)
     (get_settings().output_dir / "sample" / "v1" / "design.json").write_text("{}", encoding="utf-8")
     assert TestClient(app).get("/api/v1/preview/sample/mock/").status_code == 401, "로그인한 회원만"
-    member = signed_in_client("dev")
+    member = signed_in_client("developer")
     assert member.get("/api/v1/preview/sample/mock/").text == "<p>preview</p>"
     assert member.get("/api/v1/preview/sample/mock/assets/a.js").text == "1"
     assert "root:" not in member.get("/api/v1/preview/sample/mock/..%2F..%2F..%2F..%2Fetc%2Fpasswd").text, "폴더 밖은 열지 않는다"
@@ -68,8 +68,7 @@ def test_preview_files_stay_inside_and_need_login(sample_doc):
     status = member.get("/api/v1/preview/sample/status").json()
     assert (status["status"], status["backend"], status["mock"]) == ("stopped", False, True)
     assert member.post("/api/v1/preview/sample/start").json()["status"] == "no_backend", "백엔드가 없으면 실행하지 않는다"
-    assert member.post("/api/v1/preview/sample/stop").status_code == 403, "끄기는 팀장·개발 파트장만"
-    for role in ("lead", "dev_head"):
+    for role in ("pm", "developer"):   # 끄기는 PM·개발자 (로그인한 회원 모두)
         assert signed_in_client(role).post("/api/v1/preview/sample/stop").status_code == 200, role
 
 
@@ -114,8 +113,9 @@ def test_git_settings_hide_tokens_and_push_one_repo(tmp_path, monkeypatch):
     assert saved == {"url": "https://example.com/app.git", "branch": "main", "has_token": True}
     raw = (get_settings().output_dir / project / "git.json").read_text(encoding="utf-8")
     assert "ghp_secret" not in raw and gitpush._token(project) == "ghp_secret", "토큰은 암호화해 저장"
-    assert signed_in_client("dev").get("/api/v1/develop/git?project=sample").json()["has_token"] is True
-    assert signed_in_client("dev").post("/api/v1/develop/git", json={"project": project, "url": "https://x/y.git"}).status_code == 403
+    assert signed_in_client("pm").get("/api/v1/develop/git?project=sample").json()["has_token"] is True
+    assert signed_in_client("pm").post("/api/v1/develop/git", json={"project": project, "url": "https://x/y.git"}).status_code == 403, \
+        "원격 설정은 개발자만"
 
     remote = tmp_path / "app.git"
     subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
@@ -133,8 +133,8 @@ def test_git_settings_hide_tokens_and_push_one_repo(tmp_path, monkeypatch):
     assert not any("ghp_secret" in line for line in job.log), "기록에 토큰이 남지 않는다"
 
 
-def test_code_files_show_empty_logic_and_only_dev_part_saves():
-    """최종 개발물 1단계 파일 탐색기: 빈 업무 로직을 세고, 고친 파일을 표시하고, 개발 파트·팀장만 저장한다."""
+def test_code_files_show_empty_logic_and_only_developers_save():
+    """최종 개발물 1단계 파일 탐색기: 빈 업무 로직을 세고, 고친 파일을 표시하고, 개발자만 저장한다 (PM은 보기만)."""
     import hashlib
 
     app = develop.app_dir("sample")
@@ -148,24 +148,23 @@ def test_code_files_show_empty_logic_and_only_dev_part_saves():
     manifest = {"files": {p: hashlib.sha256(t.encode()).hexdigest() for p, t in files.items() if p in ("README.md", "backend/src/main/java/app/logic/L.java")}}
     (app / ".req-agent" / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
-    dev, data_head, lead = signed_in_client("dev"), signed_in_client("data_head"), signed_in_client("lead")
-    tree = data_head.get("/api/v1/develop/files?project=sample").json()
+    dev, pm = signed_in_client("developer"), signed_in_client("pm")
+    tree = pm.get("/api/v1/develop/files?project=sample").json()
     assert [f["path"] for f in tree["files"]] == ["README.md", "backend/src/main/java/app/logic/L.java"], "패키지·생성기 기록·비밀번호 폴더는 숨김"
     assert (tree["holes"], tree["empty_holes"], tree["edited"]) == (2, 1, 0), "기본값 그대로인 업무 로직 자리만 빈 로직"
-    opened = data_head.get("/api/v1/develop/file", params={"project": "sample", "path": "backend/src/main/java/app/logic/L.java"}).json()
+    opened = pm.get("/api/v1/develop/file", params={"project": "sample", "path": "backend/src/main/java/app/logic/L.java"}).json()
     assert opened["content"] == logic and [(h["name"], h["line"], h["empty"]) for h in opened["hole_list"]] == [("a", 3, True), ("b", 8, False)]
     for hidden in ("local/accounts.txt", "frontend/node_modules/x.js", "../../etc/passwd"):
-        assert data_head.get("/api/v1/develop/file", params={"project": "sample", "path": hidden}).status_code == 404, hidden
+        assert pm.get("/api/v1/develop/file", params={"project": "sample", "path": hidden}).status_code == 404, hidden
 
     branch = dev.post("/api/v1/develop/repo/branch", json={"project": "sample", "name": "feature/dev-readme"}).json()["name"]
     body = {"project": "sample", "path": "README.md", "content": "# 고친 앱\n", "branch": branch}
-    assert data_head.put("/api/v1/develop/file", json=body).status_code == 403, "개발 파트만 고친다"
-    assert lead.put("/api/v1/develop/file", json=body).status_code == 403, "팀장도 코드는 고치지 않는다 (개발 파트원·파트장)"
+    assert pm.put("/api/v1/develop/file", json=body).status_code == 403, "PM은 코드를 고치지 않는다 (개발자만)"
     saved = dev.put("/api/v1/develop/file", json=body).json()
-    assert saved["edited"] and saved["changed"] == "M", "개발 파트원은 브랜치에서 고치고 '사람이 고침'·커밋 안 한 변경으로 표시"
+    assert saved["edited"] and saved["changed"] == "M", "개발자는 브랜치에서 고치고 '사람이 고침'·커밋 안 한 변경으로 표시"
     assert (app / "README.md").read_text(encoding="utf-8") == "# app", "main은 그대로"
     assert dev.put("/api/v1/develop/file", json={**body, "path": "local/accounts.txt"}).status_code == 404
-    assert lead.get("/api/v1/preview/sample/terminal").json()["app_log"] == [], "실행 전에는 앱 서버 로그 없음"
+    assert pm.get("/api/v1/preview/sample/terminal").json()["app_log"] == [], "실행 전에는 앱 서버 로그 없음"
 
 
 def test_oracle_is_design_only_and_develop_refuses(sample_doc):
@@ -205,25 +204,25 @@ def test_code_browser_marks_what_ai_wrote():
 
 
 def test_event_notices_go_to_roles_and_disappear_when_confirmed(sample_doc):
-    """일 알림: 업로드 분석 완료 → 모든 회원, ERD 초안 → 데이터 파트, 개발 초안 → 개발 파트. '확인'하면 그 회원에게서만 사라진다.
-    최종 개발하기는 개발 파트장만 (팀장도 아님)."""
+    """일 알림: 업로드 분석 완료 → 모든 회원, ERD 초안·개발 초안 → 개발자. '확인'하면 그 회원에게서만 사라진다.
+    최종 개발하기는 개발자만 (PM은 아님)."""
     from app.services import directives
     _approved_final(sample_doc)   # 프로젝트가 있어야 알림을 모은다
     for source, base, new in (("run", "", "1"), ("spec", "1", "1.1"), ("develop", "1.1.1", "1.1.1")):
         directives.job_event(jobs.Job(id="j", project="sample", base=base, source=source, status="done", message="", new_version=new))
     kinds = lambda c: sorted(n["kind"] for n in c.get("/api/v1/notices").json()["notices"] if n["kind"] in ("uploaded", "erd_draft", "developed"))  # noqa: E731
-    planner, data, dev, lead = (signed_in_client(r) for r in ("planner", "data", "dev", "lead"))
-    assert kinds(planner) == ["uploaded"] and kinds(data) == ["erd_draft", "uploaded"] and kinds(dev) == ["developed", "uploaded"]
-    assert kinds(lead) == ["uploaded"]
-    first = next(n for n in data.get("/api/v1/notices").json()["notices"] if n["kind"] == "erd_draft")
-    assert data.post("/api/v1/notices/dismiss", json={"project": "sample", "id": first["id"]}).json()["ok"]
-    assert kinds(data) == ["uploaded"], "확인한 알림은 사라진다"
-    assert kinds(signed_in_client("data_head")) == ["erd_draft", "uploaded"], "다른 회원에게는 그대로"
-    assert lead.get("/api/v1/develop/plan?project=sample&version=1.1").status_code == 403, "개발은 개발 파트장만"
+    dev1, dev2, pm = signed_in_client("developer", "dev1"), signed_in_client("developer", "dev2"), signed_in_client("pm")
+    assert kinds(dev1) == kinds(dev2) == ["developed", "erd_draft", "uploaded"], "개발자는 파트를 나누지 않고 모두 받는다"
+    assert kinds(pm) == ["uploaded"]
+    first = next(n for n in dev1.get("/api/v1/notices").json()["notices"] if n["kind"] == "erd_draft")
+    assert dev1.post("/api/v1/notices/dismiss", json={"project": "sample", "id": first["id"]}).json()["ok"]
+    assert kinds(dev1) == ["developed", "uploaded"], "확인한 알림은 사라진다"
+    assert kinds(dev2) == ["developed", "erd_draft", "uploaded"], "다른 회원에게는 그대로"
+    assert pm.get("/api/v1/develop/plan?project=sample&version=1.1").status_code == 403, "개발은 개발자만"
 
 
-def test_lead_deletes_project_with_its_data(sample_doc):
-    """프로젝트 삭제: 팀장만, 확인 칸에 이름을 그대로 적어야 한다. 버전·프로젝트 파일·코드 폴더가 모두 지워진다."""
+def test_pm_deletes_project_with_its_data(sample_doc):
+    """프로젝트 삭제: PM만, 확인 칸에 이름을 그대로 적어야 한다. 버전·프로젝트 파일·코드 폴더가 모두 지워진다."""
     from app.agents.storage import get_store
     from app.services import directives
     _approved_final(sample_doc)
@@ -231,8 +230,8 @@ def test_lead_deletes_project_with_its_data(sample_doc):
     folder = get_settings().output_dir / "sample" / "app"
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "README.md").write_text("x", encoding="utf-8")
-    lead = signed_in_client("lead")
-    assert signed_in_client("dev_head").delete("/api/v1/projects?project=sample&confirm=sample").status_code == 403, "팀장만"
+    lead = signed_in_client("pm")
+    assert signed_in_client("developer").delete("/api/v1/projects?project=sample&confirm=sample").status_code == 403, "PM만"
     assert lead.delete("/api/v1/projects?project=sample&confirm=sampl").status_code == 400, "이름이 다르면 안 지운다"
     assert get_store().has_project("sample")
     r = lead.delete("/api/v1/projects?project=sample&confirm=sample")
@@ -245,7 +244,7 @@ def test_lead_deletes_project_with_its_data(sample_doc):
 
 def test_old_final_without_behavior_is_filled_once(sample_doc, monkeypatch):
     """업무 동작 분석 전에 만든 예전 최종본(BEHAVIOR.md 없음): 채우기는 업무 동작 설계를 한 번 묻고 개발 스펙을 다시 쓴다.
-    다시 누르면 묻지 않는다. 데이터 파트장·팀장만."""
+    다시 누르면 묻지 않는다. PM·개발자 ('ERD 최종 확정'과 같은 권한)."""
     from app.agents.storage import get_store
     final = _approved_final(sample_doc)
     store = get_store()
@@ -259,11 +258,10 @@ def test_old_final_without_behavior_is_filled_once(sample_doc, monkeypatch):
     fake = FakeLLM(broken_fk=False)
     llm_module.set_llm(fake)
     body = {"project": "sample", "version": final}
-    assert signed_in_client("data").post("/api/v1/projects/dev-spec/fill", json=body).status_code == 403
-    r = signed_in_client("data_head").post("/api/v1/projects/dev-spec/fill", json=body)
+    r = signed_in_client("developer").post("/api/v1/projects/dev-spec/fill", json=body)
     assert r.status_code == 200, r.text
     assert fake.calls["BehaviorOut"] == 1 and store.exists("sample", final, "BEHAVIOR.md")
     after = json.loads(store.read("sample", final, "design.json"))
     assert after["api_design"]["behavior"]["fingerprint"] and "BEHAVIOR.md" in after["meta"]["dev_spec"]["files"]
-    again = signed_in_client("lead").post("/api/v1/projects/dev-spec/fill", json=body)
+    again = signed_in_client("pm").post("/api/v1/projects/dev-spec/fill", json=body)
     assert again.status_code == 400 and fake.calls["BehaviorOut"] == 1, "이미 채운 최종본은 다시 묻지 않는다"

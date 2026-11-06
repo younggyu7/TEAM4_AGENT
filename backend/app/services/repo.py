@@ -1,7 +1,7 @@
 """최종 개발물 코드 관리 (git): 서버의 코드 폴더 하나를 로컬 저장소로 두고 브랜치·커밋·합치기 요청으로 고친다.
 
 - 코드 폴더(OUTPUT_DIR/<프로젝트>/app)가 저장소이고 그 작업 폴더는 main 브랜치다. main은 화면에서 직접 고치거나 커밋하지 않는다.
-  main이 바뀌는 길은 둘: ① 최종 개발하기(작성자 req-agent, 태그 final-v<최종본>) ② 개발 파트장이 합치기 요청을 합침.
+  main이 바뀌는 길은 둘: ① 최종 개발하기(작성자 req-agent, 태그 final-v<최종본>) ② 개발자가 합치기 요청을 합침.
 - 브랜치마다 작업 폴더(git worktree)를 app/.preview/worktrees/<이름>에 둔다. 파일 고치기·저장하기(커밋)는 그 폴더에서 한다.
 - 합치기 요청은 프로젝트 파일 repo.json에 둔다 (최신이 앞). 요청·합침·반려는 알림(services/directives.add_event)으로 알린다.
 - 생성기 기록(.req-agent)·미리보기(.preview)·시연 계정(local)·패키지는 커밋하지 않는다 (.gitignore + .git/info/exclude).
@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.agents.storage import get_store
+from app.core.auth import DEVELOPER, allowed
 from app.core.exceptions import BadRequest, Conflict, Forbidden, NotFound
 from app.services.develop import PREVIEW, app_dir
 
@@ -228,14 +229,14 @@ def create_branch(project: str, name: str, member, base: str = MAIN) -> dict:
 
 
 def delete_branch(project: str, name: str, member) -> None:
-    """브랜치 지우기 (만든 사람 또는 개발 파트장). 열린 합치기 요청이 있으면 거부"""
+    """브랜치 지우기 (만든 사람 또는 개발자). 열린 합치기 요청이 있으면 거부"""
     app = ensure_repo(project)
     if name == MAIN or not _exists(app, name):
         raise NotFound(f"지울 수 있는 브랜치가 없습니다: {name}")
     data = _data(project)
     owner = (data["branches"].get(name) or {}).get("owner") or {}
-    if member.role != "dev_head" and owner.get("id") != member.id:
-        raise Forbidden("브랜치는 만든 사람이나 개발 파트장만 지웁니다.")
+    if not allowed(member.role, "develop") and owner.get("id") != member.id:
+        raise Forbidden("브랜치는 만든 사람이나 개발자만 지웁니다.")
     if any(r["branch"] == name and r["status"] == "open" for r in data["requests"]):
         raise BadRequest("열린 합치기 요청이 있는 브랜치는 지우지 않습니다 (반려되거나 합친 뒤 지우세요).")
     with _lock:
@@ -318,7 +319,7 @@ def _request(data: dict, request_id: int) -> dict:
 
 
 def request_merge(project: str, branch: str, note: str, member) -> dict:
-    """합치기 요청: main보다 앞선 커밋이 있고 커밋 안 한 변경이 없어야 한다. 개발 파트장에게 알림"""
+    """합치기 요청: main보다 앞선 커밋이 있고 커밋 안 한 변경이 없어야 한다. 개발자에게 알림"""
     from app.services import directives
 
     if not branch or branch == MAIN:
@@ -339,12 +340,12 @@ def request_merge(project: str, branch: str, note: str, member) -> dict:
         data["requests"].insert(0, req)
         _write(project, data)
     directives.add_event(project, "merge_request", f"{member.name}님의 합치기 요청 ({branch})", req["note"] or f"커밋 {ahead}개",
-                         "develop", final_version(project), {"dev_head"})
+                         "develop", final_version(project), {DEVELOPER})
     return req
 
 
 def merge(project: str, request_id: int, member) -> dict:
-    """개발 파트장이 합친다: main 작업 폴더에서 git merge --no-ff. 충돌이면 되돌리고 409(요청은 열린 채 conflicts 표시)"""
+    """개발자가 합친다: main 작업 폴더에서 git merge --no-ff. 충돌이면 되돌리고 409(요청은 열린 채 conflicts 표시)"""
     from app.services import directives, preview
 
     app = ensure_repo(project)

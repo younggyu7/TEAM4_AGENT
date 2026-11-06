@@ -64,15 +64,17 @@ def isolated_settings(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def every_member_sees_every_project(request, monkeypatch):
-    """담당자 규칙(services/project_access: 담당자와 팀장만 그 프로젝트를 봄)은 @pytest.mark.assignees 테스트가 본다.
+    """담당자 규칙(services/project_access: 담당자와 PM만 그 프로젝트를 봄)은 @pytest.mark.assignees 테스트가 본다.
     다른 테스트는 저장소에 바로 만든 프로젝트를 여러 역할로 쓰므로 모든 회원이 모든 프로젝트를 보게 둔다."""
     if request.node.get_closest_marker("assignees") is None:
         from app.services import project_access
         monkeypatch.setattr(project_access, "sees_all", lambda member: True)
 
 
-def signed_in_client(role: str = "lead"):
-    """로그인한 화면 요청 (처음 가입자는 관리자·팀장, 다른 역할은 관리자가 승인한 회원). API는 로그인한 회원만 쓴다."""
+def signed_in_client(role: str = "pm", name: str = ""):
+    """로그인한 화면 요청 (처음 가입자는 관리자·PM, 다른 회원은 관리자가 승인한 회원). API는 로그인한 회원만 쓴다.
+    role은 pm·developer. 같은 역할의 다른 회원이 필요하면 name을 준다 (이메일 <name>@test.local, 이름도 name).
+    name 없이 pm이면 처음 가입자(관리자), developer면 developer@test.local."""
     from fastapi.testclient import TestClient
 
     from app.main import app
@@ -80,9 +82,9 @@ def signed_in_client(role: str = "lead"):
 
     if not users.list_members():
         users.signup("admin@test.local", "관리자", "password123")
-    email = "admin@test.local" if role == "lead" else f"{role}@test.local"
+    email = f"{name}@test.local" if name else "admin@test.local" if role == "pm" else f"{role}@test.local"
     if not any(m.email == email for m in users.list_members()):
-        member = users.signup(email, role, "password123")
+        member = users.signup(email, name or role, "password123")
         users.update_member(member.id, role=role, status="active")
     client = TestClient(app)
     assert client.post("/api/v1/auth/login", json={"email": email, "password": "password123"}).status_code == 200

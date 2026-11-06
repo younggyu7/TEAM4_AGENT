@@ -77,7 +77,7 @@
 │   ├── 📄 __init__.py                             # 패키지 표시
 │   ├── 📄 output_store.py                         # 화면용 산출물 읽기: 프로젝트·버전 목록, design 합치기, 파일, 버전 제목
 │   ├── 📄 output_import.py                        # 로컬 output 폴더 → 서비스 DB 가져오기 (import-output, 체크포인트 포함)
-│   ├── 📄 project_access.py                       # 프로젝트 담당자: 담당자만 그 프로젝트를 봄(목록·알림·API 404), 팀장은 모두
+│   ├── 📄 project_access.py                       # 프로젝트 담당자: 담당자만 그 프로젝트를 봄(목록·알림·API 404), PM은 모두
 │   ├── 📄 slack.py                                # Slack 알림: 프로젝트별 비공개 채널 자동 생성·담당자 초대·바꾸기, 나에게 온 알림·승인·반려를 채널에 @멘션
 │   └── 📁 jobs/                                   # 화면 요청을 CLI 하위 프로세스 작업으로 실행·기록
 │       ├── 📄 __init__.py                         # 패키지 공개 이름 (jobs.start_run 등)

@@ -533,7 +533,7 @@ def answer_stack(questions: list[Question], answer: str) -> list[Question]:
 
 
 def tech_stack(design: dict | None, questions: list[Question], chosen: bool = False) -> dict:
-    """개발 스펙에 쓸 기술 스택: 원문이 정했으면 원문, 팀장이 최종 산출물 화면에서 골랐으면(chosen) 확정,
+    """개발 스펙에 쓸 기술 스택: 원문이 정했으면 원문, PM이 최종 산출물 화면에서 골랐으면(chosen) 확정,
     아니면 가정 (기능 명세에서 답한 값이 있으면 그 값, 없으면 추천안). 기능 명세의 답은 '먼저 넣어 둔 값'일 뿐 확정이 아니다.
 
     {"backend": 백엔드 스택, "basis": 원문|확정|가정|없음, "question": 질문 ID, "from_answer": 기능 명세 답인지,

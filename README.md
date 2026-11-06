@@ -105,14 +105,14 @@ python -m app resume <실행 ID> --defer                                  # 확�
 
 | 경로 | 내용 |
 | --- | --- |
-| `GET /projects` | 프로젝트와 설계 버전 목록 (버전 번호는 문자열 `"4"`, `"4.1"`). 내가 담당자인 프로젝트만 (팀장은 모두) |
+| `GET /projects` | 프로젝트와 설계 버전 목록 (버전 번호는 문자열 `"4"`, `"4.1"`). 내가 담당자인 프로젝트만 (PM은 모두) |
 | `GET /design?project=&version=` | design.json (`data_model`·`trace_links`를 합쳐서) |
 | `GET·HEAD /file?project=&version=&name=` | 산출물 원문 (`schema.sql`, `erd.mmd`, `functions.md`, 최종본의 개발 스펙 `API.md`·`openapi.yaml` …) |
 | `GET /spec-format` | 개발 스펙 문서의 형식 정의 (`backend/SPEC_FORMAT.md`) |
 | `POST /projects/title` | 버전 제목 저장 |
-| `POST /projects/name` | 프로젝트 이름 바꾸기 (`{project, name}`, 팀장만, 80자, 다른 프로젝트와 같은 이름은 409, 비우면 처음 이름). 목록·Slack 메시지·다음 최종 개발하기의 회사 이름에 보이는 이름만 바뀌고 프로젝트 ID(주소·코드 폴더·Slack 채널 이름)는 그대로. 프로젝트 파일 `project.json`의 `name` |
-| `DELETE /projects?project=&confirm=` | 프로젝트 삭제 (팀장만, `confirm`에 프로젝트 이름 그대로, 작업 중이면 409). 버전·산출물·프로젝트 파일·코드 폴더(git)·미리보기 컨테이너와 DB·작업·담당자·Slack 기록을 지움 (Slack 채널·원격 저장소는 그대로, 되돌릴 수 없음) |
-| `POST /projects/dev-spec/fill` | 업무 동작 분석 전에 만든 예전 최종본의 빠진 개발 스펙 채우기: 업무 동작 설계 LLM 1회 → 개발 스펙 다시 쓰기 (`{project, version}`, 데이터 파트장·팀장, 이미 채웠으면 400, LLM 실패면 502로 파일을 그대로 둠) |
+| `POST /projects/name` | 프로젝트 이름 바꾸기 (`{project, name}`, PM만, 80자, 다른 프로젝트와 같은 이름은 409, 비우면 처음 이름). 목록·Slack 메시지·다음 최종 개발하기의 회사 이름에 보이는 이름만 바뀌고 프로젝트 ID(주소·코드 폴더·Slack 채널 이름)는 그대로. 프로젝트 파일 `project.json`의 `name` |
+| `DELETE /projects?project=&confirm=` | 프로젝트 삭제 (PM만, `confirm`에 프로젝트 이름 그대로, 작업 중이면 409). 버전·산출물·프로젝트 파일·코드 폴더(git)·미리보기 컨테이너와 DB·작업·담당자·Slack 기록을 지움 (Slack 채널·원격 저장소는 그대로, 되돌릴 수 없음) |
+| `POST /projects/dev-spec/fill` | 업무 동작 분석 전에 만든 예전 최종본의 빠진 개발 스펙 채우기: 업무 동작 설계 LLM 1회 → 개발 스펙 다시 쓰기 (`{project, version}`, PM·개발자, 이미 채웠으면 400, LLM 실패면 502로 파일을 그대로 둠) |
 | `GET /tech-stacks` · `POST /projects/tech-stack` | 개발 스펙의 기술 스택 선택지 · 최종본의 기술 스택 확정 → 개발 스펙 9개를 LLM 없이 다시 쓰기 (`{project, version, stack}`) |
 | `POST /projects/versions` | 기능 명세 내보내기(`source: spec`) → ERD 새 버전, ERD 저장(`source: erd`, `dispositions`: 의미 검토 지적 처리) → 다음 ERD 버전, `source: answers`(또는 `spec` + `answers`) → 기능 명세 새 버전 (답이 없어도 수정·의견으로). `confirm_rules`('추천안 맞음'으로 확인한 규칙)는 LLM 없이 `(결정)` → `202 {job}` |
 | `POST /projects/review` | ERD 최종 확정 (`{project, version, dispositions?}`) → 지적 처리 기록·DDL 검증 → 최종본 v<ERD>.1 (추적 검토·API 설계·개발 스펙) → `202 {job}` |
@@ -121,55 +121,55 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET /jobs?id=` | 작업 진행 상황 `{status: running·done·failed, message, log, new_version, warnings}` (담당자가 아닌 프로젝트의 작업은 404) |
 | `GET /capabilities` | rerun이 기능 명세 수정본(`--design`·`--spec-md`)·추천안 확인 규칙(`--confirm-rules`)을 받는지 |
 | `GET /health` | 서버 상태 |
-| `POST /auth/signup` · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` · `GET /auth/roles` | 회원가입(처음 가입자 = 관리자·팀장, 그 뒤 승인 대기, Slack 멤버 ID 선택) · 로그인(httpOnly 쿠키 세션) · 로그아웃 · 로그인한 회원과 권한 · 역할 목록. **이 밖의 API는 로그인 필요(401)** |
+| `POST /auth/signup` · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` · `GET /auth/roles` | 회원가입(처음 가입자 = 관리자·PM, 그 뒤 승인 대기, Slack 멤버 ID 선택) · 로그인(httpOnly 쿠키 세션) · 로그아웃 · 로그인한 회원과 권한 · 역할 목록. **이 밖의 API는 로그인 필요(401)** |
 | `GET /users` · `POST /users/update` · `POST /users/create` · `POST /users/password` | 회원 목록 · 역할·승인·중지·관리자 지정·Slack 멤버 ID(`slack_id`) · 계정 바로 만들기(역할을 정해 승인된 상태, `slack_id?`) · 비밀번호 초기화 (관리자만, 화면 '관리자 페이지') |
 | `GET /members` | 승인된 회원 `{id, name, role, role_label, has_slack}` + `slack_enabled` (업로드·프로젝트 화면에서 담당자 고르기, 로그인한 회원 누구나) |
-| `GET·POST /drafts` · `POST /drafts/request` · `POST /drafts/request/reject` | 버전의 수정 초안 함께 쓰기 (`{project, version, state, rev}`, 늦은 저장은 409, 응답에 변경 내역 `log`·승인 요청 `request`·마지막 반려 `rejection`) · 파트원의 수정 완료 승인 요청 (파트장의 확정은 이 요청이 있어야, 팀장은 없이) · 승인 요청 반려 (`{project, version, reason}`, 그 단계를 확정할 수 있는 파트장·팀장, 사유 필수, 요청이 없으면 404) |
-| `POST /projects/approval` | 최종본 승인 / 수정 지시 (`{project, version, decision: approve·changes, targets?: [spec, erd], items?: [{stage, target_id, label, note}], comment}`, 팀장만) |
+| `GET·POST /drafts` · `POST /drafts/request` · `POST /drafts/request/reject` | 버전의 수정 초안 함께 쓰기 (`{project, version, state, rev}`, 늦은 저장은 409, 응답에 변경 내역 `log`·승인 요청 `request`·마지막 반려 `rejection`) · 개발자의 기능 명세 수정 완료 승인 요청 (PM은 요청 없이도 확정, ERD는 승인 요청 없이 PM·개발자가 바로 확정하므로 400) · 승인 요청 반려 (`{project, version, reason}`, PM, 사유 필수, 요청이 없으면 404) |
+| `POST /projects/approval` | 최종본 승인 / 수정 지시 (`{project, version, decision: approve·changes, targets?: [spec, erd], items?: [{stage, target_id, label, note}], comment}`, PM만) |
 | `GET /projects/directives?project=` · `POST /projects/directives/resolve` | 끝나지 않은 수정 지시와 진행(처리할 버전, 기능 명세 대기, 옛 ERD 잠금) · 지시 항목 처리 반영함·그대로 둠(이유) |
-| `GET /notices` · `POST /notices/dismiss` | 나에게 온 알림 (담당자인 프로젝트만. 상태: 수정 지시·대기·승인 요청·승인 대기·개발 대기, 회원별 반려 `kind: rejected` — 내가 요청했거나 고친 초안 / 일: 업로드 분석 완료(모든 회원)·ERD 초안(데이터 파트)·개발 초안(개발 파트)) · 확인(나에게서만 지움, Slack 전송과 무관) |
-| `GET /develop/plan` · `POST /develop` | 승인 최종본의 최종 개발하기: 예상(화면·파일, 틀 없는 층 경고, AI 업무 기능 구현 예상 토큰) · 코드(+`build`·`model`·`effort`면 AI 구현) + 예시 데이터 화면 + Docker 자동 확인 → `202 {job}` (개발 파트장만) |
-| `GET /preview/<프로젝트>/` (`mock/` · `status` · `start` · `stop` · `accounts`) | 최종 개발물 실행: 안내 페이지 → 앱 자체 docker-compose로 독립 실행 → 앱 주소 `http://<서버>:<포트>`(`PREVIEW_BIND`, 기본 0.0.0.0). 10분 동안 요청이 없으면 끔, 동시 3개. `accounts`는 admin·user 비밀번호(개발 파트·팀장) |
+| `GET /notices` · `POST /notices/dismiss` | 나에게 온 알림 (담당자인 프로젝트만. 상태: 수정 지시·대기·승인 요청·승인 대기·개발 대기, 회원별 반려 `kind: rejected` — 내가 요청했거나 고친 초안 / 일: 업로드 분석 완료(모든 회원)·ERD 초안(개발자)·개발 초안(개발자)) · 확인(나에게서만 지움, Slack 전송과 무관) |
+| `GET /develop/plan` · `POST /develop` | 승인 최종본의 최종 개발하기: 예상(화면·파일, 틀 없는 층 경고, AI 업무 기능 구현 예상 토큰) · 코드(+`build`·`model`·`effort`면 AI 구현) + 예시 데이터 화면 + Docker 자동 확인 → `202 {job}` (개발자만) |
+| `GET /preview/<프로젝트>/` (`mock/` · `status` · `start` · `stop` · `accounts`) | 최종 개발물 실행: 안내 페이지 → 앱 자체 docker-compose로 독립 실행 → 앱 주소 `http://<서버>:<포트>`(`PREVIEW_BIND`, 기본 0.0.0.0). 10분 동안 요청이 없으면 끔, 동시 3개. `accounts`는 admin·user 비밀번호(PM·개발자) |
 | `GET /projects/stack` | 버전의 기술 스택 상태: 원문·확정(기능 명세 TQ-001)·미정, 개발 틀이 없는 층 경고 |
-| `GET /develop/files` · `GET·PUT /develop/file` | 최종 개발물 코드 파일 구성(`branch`: main 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고친 파일·커밋 안 한 변경 표시) · 내용 보기 · 브랜치에서 고쳐 저장(main 거부, 개발 파트원·파트장 `repo_write`) |
+| `GET /develop/files` · `GET·PUT /develop/file` | 최종 개발물 코드 파일 구성(`branch`: main 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고친 파일·커밋 안 한 변경 표시) · 내용 보기 · 브랜치에서 고쳐 저장(main 거부, 개발자 `repo_write`) |
 | `GET /preview/<프로젝트>/terminal` | 실행 미리보기 터미널: 서버가 실행한 명령·출력 + 앱 서버 로그 |
-| `GET·POST /develop/git` · `POST /develop/git/push` | 원격 하나 `{url, branch, token}`(토큰 암호화, 화면엔 `has_token`·받아 둔 원격 기준 앞섬·뒤처짐) · 코드 저장소의 main과 `final-v*` 태그를 push(원격에 main에 없는 커밋이 있으면 거부) → `202 {job}` (개발 파트장) |
+| `GET·POST /develop/git` · `POST /develop/git/push` | 원격 하나 `{url, branch, token}`(토큰 암호화, 화면엔 `has_token`·받아 둔 원격 기준 앞섬·뒤처짐) · 코드 저장소의 main과 `final-v*` 태그를 push(원격에 main에 없는 커밋이 있으면 거부) → `202 {job}` (개발자) |
 | `GET /develop/repo` (`/log` · `/commit` · `/diff`) | 코드 저장소: 브랜치(앞섬·뒤처짐·커밋 안 한 변경·열린 요청)·합치기 요청 · 모든 브랜치 커밋(이력 그래프, `ai`=req-agent) · 커밋 하나의 diff · main...브랜치 차이 |
-| `POST·DELETE /develop/repo/branch` · `POST /develop/repo/commit` · `/update-branch` · `/request` | 브랜치(+작업 폴더) 만들기·지우기 · 저장하기(작성자=로그인 회원) · 메인 가져오기(충돌이면 409 `conflicts`) · 합치기 요청(→ 개발 파트장 알림) (개발 파트원·파트장) |
-| `POST /develop/repo/merge` · `/reject` · `/fetch` | 합치기(`--no-ff`, 충돌이면 되돌리고 409 `conflicts`) · 반려(사유 필수) — 요청한 회원에게만 알림 · 원격 확인(fetch) (개발 파트장) |
-| `GET·POST /projects/members` | 프로젝트 담당자 `{members: [{id, name, role, role_label, has_slack, in_channel, always}], slack: {team, channel_name, members} 또는 null, slack_enabled}` · 담당자 바꾸기 (`{project, members: [회원 ID]}`, 팀장만, 결과 `result: {added, removed, failed}`. Slack 채널이 있으면 채널도 맞춤, Slack이 없어도 됨) |
+| `POST·DELETE /develop/repo/branch` · `POST /develop/repo/commit` · `/update-branch` · `/request` | 브랜치(+작업 폴더) 만들기·지우기 · 저장하기(작성자=로그인 회원) · 메인 가져오기(충돌이면 409 `conflicts`) · 합치기 요청(→ 개발자 알림) (개발자) |
+| `POST /develop/repo/merge` · `/reject` · `/fetch` | 합치기(`--no-ff`, 충돌이면 되돌리고 409 `conflicts`) · 반려(사유 필수) — 요청한 회원에게만 알림 · 원격 확인(fetch) (개발자) |
+| `GET·POST /projects/members` | 프로젝트 담당자 `{members: [{id, name, role, role_label, has_slack, in_channel, always}], slack: {team, channel_name, members} 또는 null, slack_enabled}` · 담당자 바꾸기 (`{project, members: [회원 ID]}`, PM만, 결과 `result: {added, removed, failed}`. Slack 채널이 있으면 채널도 맞춤, Slack이 없어도 됨) |
 
-역할별 권한(서버가 검사, `app/core/auth.py`): 업로드·기능 명세 수정 = 기획 파트원 이상 · 기능 명세 확정(내보내기) = 기획 파트장 · ERD 수정·저장 = 데이터 파트원 이상 · ERD 최종 확정 = 데이터 파트장 · 최종 승인·수정 지시·기술 스택 = 팀장(모든 단계 가능). 회원 테이블은 `alembic upgrade head`로 만든다 (서비스 DB가 없으면 `OUTPUT_DIR/service.sqlite`).
+역할은 **PM**과 **개발자** 둘이다 (기획·데이터·개발 파트로 나누지 않는다). 역할별 권한(서버가 검사, `app/core/auth.py`): 업로드·기능 명세 수정·ERD 수정·저장·ERD 최종 확정·실행 끄기·앱 시연 계정 = PM·개발자 · 기능 명세 확정(내보내기)·승인 요청 반려·최종 승인·수정 지시·기술 스택·담당자 바꾸기·프로젝트 이름·삭제 = PM · 최종 개발하기·브랜치·코드 고치기·저장하기·합치기 요청·합치기·반려·원격 올리기 = 개발자. 개발자는 기능 명세를 고친 뒤 PM에게 '수정 완료 승인 요청'을 보내고, ERD는 승인 요청 없이 바로 확정한다. 예전 역할(팀장 → PM, 기획·데이터·개발 파트장·파트원 → 개발자)은 마이그레이션 `f3b5d7e9a1c2`가 바꾸고, 기록에 남은 예전 역할 값도 같은 규칙으로 읽는다. 회원 테이블은 `alembic upgrade head`로 만든다 (서비스 DB가 없으면 `OUTPUT_DIR/service.sqlite`).
 
-**프로젝트 담당자** (`backend/app/services/project_access.py`, `project_members` 테이블): 담당자로 고른 회원만 그 프로젝트를 본다. **팀장은 모든 프로젝트를 보고 늘 담당자로 친다.**
+**프로젝트 담당자** (`backend/app/services/project_access.py`, `project_members` 테이블): 담당자로 고른 회원만 그 프로젝트를 본다. **PM은 모든 프로젝트를 보고 늘 담당자로 친다.**
 
 - 정하기: 업로드할 때 홈 '새 문서 분석'의 '담당자'에서 고른 회원 + 올린 사람. 같은 프로젝트에 다시 올리면 담당자는 그대로다.
-- 바꾸기: 프로젝트 화면 오른쪽 '담당자' 카드에서 팀장만 '바꾸기'(`POST /projects/members`). 뺀 회원은 바로 못 본다.
+- 바꾸기: 프로젝트 화면 오른쪽 '담당자' 카드에서 PM만 '바꾸기'(`POST /projects/members`). 뺀 회원은 바로 못 본다.
 - 담당자가 아니면 없는 프로젝트처럼: 프로젝트 목록·'나에게 온 알림'에서 빠지고, 그 프로젝트를 받는 API(`project=`·작업 조회 등)는 404, Slack 알림도 받지 않는다. 같은 이름으로 업로드하면 409.
-- 담당자를 정한 적이 없는 프로젝트(CLI로 만든 프로젝트 등)는 팀장만 보고, 팀장이 담당자를 정한다. 이 기능 전에 만든 프로젝트는 마이그레이션이 Slack 채널 담당자를 그대로 옮겨 왔다.
+- 담당자를 정한 적이 없는 프로젝트(CLI로 만든 프로젝트 등)는 PM만 보고, PM이 담당자를 정한다. 이 기능 전에 만든 프로젝트는 마이그레이션이 Slack 채널 담당자를 그대로 옮겨 왔다.
 - 서버 검사: `api/v1/deps.py`의 `current_user`가 요청한 회원을 남기고 `_project`·`_file`이 담당자인지 본다. 테스트는 `@pytest.mark.assignees`가 붙은 것만 이 규칙을 그대로 쓴다(`tests/test_project_access.py`·`test_slack.py`, 나머지는 `conftest`가 모두에게 보이게 둠).
 
 **Slack 알림** (`backend/app/services/slack.py`): 팀 Slack 워크스페이스 하나에 프로젝트마다 비공개 채널을 자동으로 만들어 그 채널에 알림을 올린다.
 
 - 준비: 이 웹의 회원이 모두 들어 있는 워크스페이스에 Slack 앱을 만들고(<https://api.slack.com/apps>, Bot Token Scopes `chat:write`·`groups:write`) 설치 → 'Bot User OAuth Token'(`xoxb-…`)을 루트 `.env` `SLACK_BOT_TOKEN`에 넣고 서버를 다시 시작한다. 비우면 Slack 알림을 끈다.
-- 채널: 업로드하면 서버가 비공개 채널 `#team4-<프로젝트>`를 만들고 그 프로젝트의 담당자(팀장 포함)를 초대한다(이름이 있으면 `-2`, 한글 이름을 받지 않는 워크스페이스면 영문 이름). 채널이 없는 프로젝트는 서버가 알아서 만들고 담당자를 초대한다. Slack이 실패해도 업로드·분석은 그대로 하고, 서버가 `RETRY_SECONDS`(10분) 뒤에 다시 만든다. 채널·초대한 회원은 `slack_projects` 테이블.
+- 채널: 업로드하면 서버가 비공개 채널 `#team4-<프로젝트>`를 만들고 그 프로젝트의 담당자(PM 포함)를 초대한다(이름이 있으면 `-2`, 한글 이름을 받지 않는 워크스페이스면 영문 이름). 채널이 없는 프로젝트는 서버가 알아서 만들고 담당자를 초대한다. Slack이 실패해도 업로드·분석은 그대로 하고, 서버가 `RETRY_SECONDS`(10분) 뒤에 다시 만든다. 채널·초대한 회원은 `slack_projects` 테이블.
 - 채널 멤버 = 담당자 중 채널에 실제로 초대된 회원. Slack 멤버 ID가 없거나 워크스페이스에 없는 ID면 초대하지 못하고 업로드 결과·'담당자' 카드에 보여 준다. 담당자가 아닌 회원은 초대하지도 멘션하지도 않는다.
-- 멘션: 알림마다 그 알림을 받는 담당자(역할별 규칙: 업로드 분석 완료 → 모든 담당자, ERD 초안 → 데이터 파트, 개발 대기·개발 초안 → 개발 파트, 승인 요청 → 그 파트장·팀장 등) 중 채널에 있는 회원을 멘션한다. 받을 담당자가 아무도 채널에 없으면 알림이 묻히지 않게 팀장을 대신 멘션하고 `⚠️ 알림 받을 ○○ 파트(이름)이(가) 이 채널에 없어 멘션하지 못했습니다` 안내를 붙인다. 승인·반려 결과도 부를 사람이 채널에 없으면 같은 안내를 붙인다.
-- 담당자 바꾸기: 중간에 담당자가 바뀌면 프로젝트 화면 오른쪽 '담당자' 카드에서 팀장이 '바꾸기'로 다시 고른다(`POST /projects/members`). 더한 회원은 채널에 초대하고(전에 초대하지 못한 담당자도 다시 초대), 뺀 회원은 채널에서 내보내고, 채널에 `[담당자 변경]`을 올린다. 그 뒤 멘션은 새 담당자 기준이다.
-- 회원 Slack 멤버 ID(`U…`, Slack 프로필 → ⋮ → '멤버 ID 복사')는 회원가입·관리자 페이지에서 넣는다. [임시] 시연용 계정 10개에는 팀 시연 워크스페이스의 실제 멤버 ID가 들어 있다 (팀장·기획 / 데이터 / 개발을 한 사람씩 맡음). 새 DB에서 계정을 만들 때만 들어가고, 이미 있는 계정은 바꾸지 않는다 (관리자 페이지에서 바꾼다).
+- 멘션: 알림마다 그 알림을 받는 담당자(역할별 규칙: 업로드 분석 완료 → 모든 담당자, ERD 초안·개발 대기·개발 초안·합치기 요청·수정 지시 → 개발자, 기능 명세 승인 요청·최종 승인 대기 → PM 등) 중 채널에 있는 회원을 멘션한다. 받을 담당자가 아무도 채널에 없으면 알림이 묻히지 않게 PM을 대신 멘션하고 `⚠️ 알림 받을 개발자(이름)이(가) 이 채널에 없어 멘션하지 못했습니다` 안내를 붙인다. 승인·반려 결과도 부를 사람이 채널에 없으면 같은 안내를 붙인다.
+- 담당자 바꾸기: 중간에 담당자가 바뀌면 프로젝트 화면 오른쪽 '담당자' 카드에서 PM이 '바꾸기'로 다시 고른다(`POST /projects/members`). 더한 회원은 채널에 초대하고(전에 초대하지 못한 담당자도 다시 초대), 뺀 회원은 채널에서 내보내고, 채널에 `[담당자 변경]`을 올린다. 그 뒤 멘션은 새 담당자 기준이다.
+- 회원 Slack 멤버 ID(`U…`, Slack 프로필 → ⋮ → '멤버 ID 복사')는 회원가입·관리자 페이지에서 넣는다. [임시] 시연용 계정 8개에는 팀 시연 워크스페이스의 실제 멤버 ID가 들어 있다 (예전 시연 계정의 ID를 그대로 옮김: PM1·PM2·개발자1·2 / 개발자3·4 / 개발자5·6이 한 사람씩). 계정을 만들 때만 들어가고, 이미 있는 계정은 바꾸지 않는다 (관리자 페이지에서 바꾼다).
 
 | 언제 | 채널에 올리는 메시지 (멘션) |
 | --- | --- |
 | 홈 '나에게 온 알림'에 새 항목 (승인 요청·최종 승인 대기·수정 지시·수정 대기) | `[승인 요청]` 등 + 화면 링크, 알림마다 하나씩 (그 알림을 받는 담당자). 같은 알림은 한 번만 (`slack_notifications`) |
-| 파트장·팀장이 확정('내보내기 → ERD 만들기'·'ERD 최종 확정하기') | `[승인]` (요청한 파트원) |
-| 파트장·팀장이 반려 (`POST /drafts/request/reject`) | `[반려]` + 사유 (요청한 파트원 + 그 초안을 고친 같은 파트 담당자). 홈 '나에게 온 알림'에도 '반려'가 남는다(Slack에는 다시 안 올림) |
-| 팀장이 최종 승인 | `[최종 승인]` (그 최종본·바탕 ERD·기능 명세를 만들거나 고친 회원) |
-| 팀장이 수정 지시 | `[반려 · 수정 지시]` + 지시 내용 (위 회원 + 지시를 처리할 파트, 팀장 자신 빼고). 같은 지시의 `[수정 지시]` 알림은 따로 올리지 않음 |
+| PM이 기능 명세 확정('내보내기 → ERD 만들기') | `[승인]` (요청한 개발자) |
+| PM이 반려 (`POST /drafts/request/reject`) | `[반려]` + 사유 (요청한 개발자 + 그 초안을 고친 개발자 담당자). 홈 '나에게 온 알림'에도 '반려'가 남는다(Slack에는 다시 안 올림) |
+| PM이 최종 승인 | `[최종 승인]` (그 최종본·바탕 ERD·기능 명세를 만들거나 고친 회원) |
+| PM이 수정 지시 | `[반려 · 수정 지시]` + 지시 내용 (위 회원 + 지시를 처리할 개발자, PM 자신 빼고). 같은 지시의 `[수정 지시]` 알림은 따로 올리지 않음 |
 | 담당자 바꾸기 | `[담당자 변경]` 추가·제외 (새 담당자) |
 
 알림은 승인 요청·결정·작업 완료 때 바로, 그 밖에는 `SLACK_SYNC_SECONDS`(30)초마다 확인한다(채널이 없는 프로젝트도 이때 만든다). 링크 주소는 `APP_BASE_URL`(기본 `http://localhost:5173`). Slack이 실패해도 화면 요청은 그대로 되고 서버 로그에만 남는다.
 
-**[임시] 시연용 계정**: 계정은 git이 아니라 각 PC의 DB에 있다. 그래서 회원이 한 명도 없는 DB면 서버가 시작할 때 계정 7개를 만든다(`admin@team4.local` 관리자·팀장, `plan.head`·`plan1`·`plan2`(기획), `data.head`·`data1`·`data2`(데이터) `@team4.local`, 비밀번호 `Team4!2026`, 목록은 `backend/app/services/users.py` `TEST_ACCOUNTS`). 이미 회원이 있으면 만들지 않는다. 없는 계정만 직접 만들기: `python -m app seed-accounts`. 끄기: `.env` `SEED_TEST_ACCOUNTS=false`. 실제로 쓸 때는 끄고 지운다.
+**[임시] 시연용 계정**: 계정은 git이 아니라 각 PC의 DB에 있다. 그래서 서버가 시작할 때 없는 시연 계정 8개를 만든다(`pm1@team4.local` 관리자·PM, `pm2` PM, `developer1`~`developer6` 개발자 `@team4.local`, 비밀번호 `Team4!2026`, 목록은 `backend/app/services/users.py` `TEST_ACCOUNTS`). 이미 있는 계정은 그대로 둔다. 역할을 PM·개발자로 나누기 전의 시연 계정 10개(`admin`·`plan.head`·`plan1`·`plan2`·`data.head`·`data1`·`data2`·`dev.head`·`dev1`·`dev2` `@team4.local`)는 새 관리자 `pm1`이 있으면 사용 중지한다(지우지 않아 기록은 남음, 관리자 페이지에서 다시 켤 수 있음). 그 계정이 담당자였던 프로젝트는 PM이 '담당자 → 바꾸기'에서 새 계정으로 다시 고른다. 없는 계정만 직접 만들기: `python -m app seed-accounts`. 끄기: `.env` `SEED_TEST_ACCOUNTS=false`. 실제로 쓸 때는 끄고 지운다.
 
 오류 응답은 `{"detail": "..."}`. LLM 작업(몇 분)은 서버 안에서 돌리지 않고 `python -m app …` 하위 프로세스로 띄운다.
 작업 기록은 서비스 DB `jobs` 테이블에도 남아 서버를 다시 띄워도 조회된다 (그때 진행 중이던 작업은 실패로 닫는다). 서버는 작업자 1개로 띄운다.

@@ -1,4 +1,4 @@
-"""최종 개발하기 (화면): 팀장이 승인한 최종본의 개발 스펙으로 서비스 코드를 만들고 미리보기 화면을 빌드한다.
+"""최종 개발하기 (화면): PM이 승인한 최종본의 개발 스펙으로 서비스 코드를 만들고 미리보기 화면을 빌드한다.
 
 흐름 (작업 하나, source=develop):
   1) `python -m app develop <프로젝트> --from v<최종본> [--logic]` → 코드 OUTPUT_DIR/<프로젝트>/app (agents/tools/scaffold.py)
@@ -35,14 +35,14 @@ def app_dir(project: str) -> Path:
 
 
 def approved_final(project: str, version: str) -> dict:
-    """팀장이 승인한 최종본 기록 (아니면 400). 개발은 승인한 최종본에서만 한다"""
+    """PM이 승인한 최종본 기록 (아니면 400). 개발은 승인한 최종본에서만 한다"""
     record = find_version(project, version)
     if record is None:
         raise NotFound(f"v{version}이 없습니다.")
     if record.get("stage") != "final":
         raise BadRequest("최종 개발하기는 'ERD 최종 확정'으로 만든 최종본에서만 합니다.")
     if (record.get("approval") or {}).get("decision") != "approve":
-        raise BadRequest("팀장이 최종 승인한 최종본만 개발할 수 있습니다.")
+        raise BadRequest("PM이 최종 승인한 최종본만 개발할 수 있습니다.")
     return record
 
 

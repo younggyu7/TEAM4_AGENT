@@ -18,7 +18,7 @@ router = APIRouter(tags=["projects"])   # 화면 문서(OpenAPI)에서 한 묶�
 
 @router.post("/projects/versions", status_code=202, summary="새 설계 버전 만들기 (작업)")
 def create_version(body: VersionCreate, member: users.Member = Depends(current_user)):
-    # 기능 명세 내보내기(확정) = 기획 파트장·팀장, 기능 명세 새 버전(답·수정·의견) = 기획 파트, ERD 저장 = 데이터 파트
+    # 기능 명세 내보내기(확정) = PM, 기능 명세 새 버전(답·수정·의견)·ERD 저장 = PM·개발자
     ensure(member, "spec_confirm" if body.source == "spec" and not body.answers
            else "spec_edit" if body.source in ("spec", "answers") else "erd_edit")
     project = _project(body.project)
@@ -28,10 +28,9 @@ def create_version(body: VersionCreate, member: users.Member = Depends(current_u
     _no_running_job(body.project)
     if body.source == "erd":   # 기능 명세 수정 지시가 진행 중인 옛 ERD는 저장하지 않는다
         directives.ensure_unlocked(project, base)
-    if body.source == "spec" and not body.answers:   # 기능 명세 확정: 파트원의 승인 요청이 있어야 (팀장은 바로)
-        drafts.require_request(project, base, member, "기능 명세를 확정(내보내기)")
+    if body.source == "spec" and not body.answers:   # 기능 명세 확정 (PM, 승인 요청이 없어도 된다)
         approved = drafts.note_event(project, base, member, "확정", "기능 명세 확정 → ERD 만들기")
-        slack.request_decided(project, base, "spec", approved, member, approved=True)   # 요청한 파트원에게 '승인'
+        slack.request_decided(project, base, "spec", approved, member, approved=True)   # 요청한 개발자에게 '승인'
     title = (body.title or "").strip()
     job = jobs.start_rerun(
         output_dir=output_store.output_root(), project=body.project, base=base, source=body.source,
