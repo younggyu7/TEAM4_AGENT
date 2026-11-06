@@ -17,6 +17,7 @@ import os
 import re
 import shutil
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -132,24 +133,40 @@ class BuildOut(BaseModel):
 
 # ------------------------------------------------------------------ 스펙 문서 자르기 (ID로 찾는다)
 def _doc(spec: Spec, name: str) -> str:
-    return (spec.read(name) or "").replace("\r\n", "\n")   # 산출물 저장소(DB 또는 폴더)의 개발 스펙 문서
+    """산출물 저장소(DB 또는 폴더)의 개발 스펙 문서. 기능마다 같은 문서를 자르므로 스펙당 한 번만 읽는다
+    (기능 372개면 저장소 읽기 약 1,860번 → 문서 수만큼)."""
+    docs = spec.__dict__.setdefault("_docs", {})
+    if name not in docs:
+        docs[name] = (spec.read(name) or "").replace("\r\n", "\n")
+    return docs[name]
 
 
 def _section(text: str, level: int, start: str) -> str:
     """'#'*level + ' ' + start로 시작하는 제목부터 같은 수준 이상의 다음 제목 앞까지."""
-    lines, out, on = text.split("\n"), [], False
+    head = "#" * level + " " + start
+    return next((body for title, body in _headed(text, level) if title.startswith(head)), "")
+
+
+# 아래 나누기는 기능마다 같은 문서로 되풀이하므로 문서마다 한 번만 한다 (_doc이 같은 문자열을 돌려줘 캐시 키 비교가 빠르다)
+@lru_cache(maxsize=32)
+def _headed(text: str, level: int) -> tuple[tuple[str, str], ...]:
+    """수준 level인 제목마다 (제목 줄, 그 제목부터 같은 수준 이상의 다음 제목 앞까지)."""
+    out, title, body = [], None, []
     head = "#" * level + " "
-    for line in lines:
+    for line in text.split("\n"):
         m = re.match(r"(#+) ", line)
-        if on and m and len(m.group(1)) <= level:
-            break
-        if line.startswith(head + start):
-            on = True
-        if on:
-            out.append(line)
-    return "\n".join(out).strip()
+        if m and len(m.group(1)) <= level:
+            if title is not None:
+                out.append((title, "\n".join(body).strip()))
+            title, body = (line, [line]) if line.startswith(head) else (None, [])
+        elif title is not None:
+            body.append(line)
+    if title is not None:
+        out.append((title, "\n".join(body).strip()))
+    return tuple(out)
 
 
+@lru_cache(maxsize=8)
 def _op_blocks(api_md: str) -> dict[tuple[str, str], str]:
     """API.md의 API 절(#### 메서드 경로 …) → 내용. '함께 씀' 절은 빼고 처음 나온 정의만."""
     out: dict[tuple[str, str], str] = {}
@@ -177,16 +194,30 @@ def _behavior(text: str, labels: list[str], function_id: str) -> str:
 
 def _schema(sql: str, tables: set[str]) -> str:
     """schema.sql에서 테이블의 CREATE TABLE·주석·외래 키, 그리고 외래 키가 가리키는 테이블(한 단계)."""
-    parents = set(re.findall(r'ALTER TABLE "?(\w+)"? ADD CONSTRAINT \w+ FOREIGN KEY \(\w+\) REFERENCES "?(\w+)"?', sql))
+    parents, creates, extras = _schema_index(sql)
     wanted = tables | {p for t, p in parents if t in tables}
     out = []
     for t in sorted(wanted):
-        name = rf'"?{re.escape(t)}"?'   # 예약어 이름은 따옴표로 감싸져 있다
-        if m := re.search(rf"^CREATE TABLE {name} \(.*?^\);", sql, re.M | re.S):
-            out.append(m.group(0))
+        if t in creates:
+            out.append(creates[t])
         if t in tables:
-            out += [x for x in sql.split("\n") if re.match(rf"(COMMENT ON TABLE {name} |COMMENT ON COLUMN {name}\.|ALTER TABLE {name} )", x)]
+            out += extras.get(t, [])
     return "\n".join(out)
+
+
+@lru_cache(maxsize=8)
+def _schema_index(sql: str) -> tuple[set, dict[str, str], dict[str, list[str]]]:
+    """schema.sql → (외래 키 (테이블, 가리키는 테이블), 테이블별 CREATE TABLE, 테이블별 주석·ALTER 줄 (파일 순서)).
+    예약어 이름은 따옴표로 감싸져 있다."""
+    parents = set(re.findall(r'ALTER TABLE "?(\w+)"? ADD CONSTRAINT \w+ FOREIGN KEY \(\w+\) REFERENCES "?(\w+)"?', sql))
+    creates: dict[str, str] = {}
+    for m in re.finditer(r'^CREATE TABLE "?(\w+)"? \(.*?^\);', sql, re.M | re.S):
+        creates.setdefault(m.group(1), m.group(0))
+    extras: dict[str, list[str]] = {}
+    for line in sql.split("\n"):
+        if m := re.match(r'(?:COMMENT ON TABLE "?(\w+)"? |COMMENT ON COLUMN "?(\w+)"?\.|ALTER TABLE "?(\w+)"? )', line):
+            extras.setdefault(next(g for g in m.groups() if g), []).append(line)
+    return parents, creates, extras
 
 
 def _task(text: str, function_id: str) -> str:
@@ -482,7 +513,8 @@ def verify(out_dir: Path, built: dict[str, dict]) -> tuple[dict[str, list[str]],
             skipped.append("서버 컴파일 실패 (기능 구현 파일 밖의 오류)")
     else:
         skipped.append("서버 컴파일 (mvn·docker 없음)")
-    tsc = out_dir / "frontend/node_modules/.bin" / ("tsc.cmd" if os.name == "nt" else "tsc")
+    # 절대 경로로: 상대 경로(화면에서 시작한 개발은 --output-dir output)면 cwd를 frontend로 바꾼 뒤 실행 파일을 못 찾는다
+    tsc = (out_dir / "frontend/node_modules/.bin" / ("tsc.cmd" if os.name == "nt" else "tsc")).resolve()
     npm = exe.which("npm")
     if not tsc.exists() and npm:   # 처음 개발하면 패키지가 없다: 설치하고 타입 검사 (Docker 빌드도 tsc를 통과해야 한다)
         subprocess.run([npm, "install", "--no-audit", "--no-fund"], cwd=out_dir / "frontend", capture_output=True, shell=exe.run_shell(npm))

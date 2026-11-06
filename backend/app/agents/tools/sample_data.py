@@ -147,8 +147,8 @@ def _reference(a: Attribute, i: int, entity: Entity, row: dict, rows: list[dict]
     parent = by_id.get(a.references)
     key = _key_of(parent)
     if a.references == entity.entity_id:
-        if i:
-            return rows[i - 1].get(key)
+        if rows:   # 앞 행 (유일 조건으로 뺀 행은 rows에 없다)
+            return rows[-1].get(key)
         return None if a.nullable else row.get(key, 1)
     ready = out.get(a.references)
     if ready and key:
@@ -157,11 +157,14 @@ def _reference(a: Attribute, i: int, entity: Entity, row: dict, rows: list[dict]
 
 
 def sample_rows(model: DataModel, words: tuple = ()) -> dict[str, list[dict]]:
-    """테이블 → 예시 행 (설계 이름, 부모 먼저)."""
+    """테이블 → 예시 행 (설계 이름, 부모 먼저). 유일 조건(unique 컬럼·unique_together)에 걸리는 행은 넣지 않는다
+    (허용값이 행 수보다 적은 unique 컬럼, 부모가 적은 1:1 외래키 — 넣으면 seed.sql이 실패해 앱 DB가 뜨지 않는다)."""
     out: dict[str, list[dict]] = {}
     by_id = {e.entity_id: e for e in model.entities}
     for entity in table_order(model):
         rows = []
+        uniques = [[a.name] for a in entity.attributes if a.unique and not a.primary_key] + entity.unique_together
+        seen: set[tuple] = set()
         for i in range(ROWS):
             row: dict = {}
             for a in entity.attributes:
@@ -179,6 +182,11 @@ def sample_rows(model: DataModel, words: tuple = ()) -> dict[str, list[dict]]:
                         row[name] = None
             parents = {a.references: [r.get(_key_of(by_id.get(a.references))) for r in out.get(a.references, [])] for a in entity.attributes if a.references}
             _satisfy(row, entity, parents)
+            keys = {(n, tuple(row.get(c) for c in names)) for n, names in enumerate(uniques)}
+            keys = {k for k in keys if None not in k[1]}   # NULL은 겹쳐도 된다
+            if keys & seen:
+                continue
+            seen |= keys
             rows.append(row)
         out[entity.entity_id] = rows
     return out

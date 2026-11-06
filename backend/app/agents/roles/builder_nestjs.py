@@ -123,7 +123,7 @@ def verify(out_dir: Path, by_module: dict[str, str], folder: str = "feature") ->
     backend = out_dir / "backend"
     if not by_module:
         return {}, []
-    tsc = backend / "node_modules/.bin" / ("tsc.cmd" if os.name == "nt" else "tsc")
+    tsc = (backend / "node_modules/.bin" / ("tsc.cmd" if os.name == "nt" else "tsc")).resolve()   # 상대 경로면 cwd=backend에서 못 찾는다
     npm = exe.which("npm")
     try:
         if not tsc.exists() and npm:

@@ -414,6 +414,26 @@ def test_sample_rows_keep_constraints():
         assert r["end_date"] >= r["start_date"] and r["approver_id"] != r["requester_id"] and r["amount"] > 0 and len(r["title"]) <= 5
 
 
+def test_sample_rows_skip_rows_that_break_unique_constraints():
+    """허용값이 행 수보다 적은 unique 컬럼·부모가 적은 1:1 외래키·unique_together는 겹치는 행을 넣지 않는다
+    (seed.sql이 duplicate key로 실패하면 앱 DB 컨테이너가 종료 코드 3으로 꺼져 실행 미리보기가 뜨지 않았다)."""
+    pk = {"primary_key": True, "nullable": False, "data_type": "bigint"}
+    setting = _entity("setting", {"name": "setting_id", **pk},
+                      {"name": "target_type", "allowed_values": ["A", "B", "C"], "unique": True, "nullable": False})
+    parent = _entity("parent", {"name": "parent_id", **pk}, {"name": "kind", "allowed_values": ["X", "Y"], "unique": True, "nullable": False})
+    child = _entity("child", {"name": "child_id", **pk}, {"name": "parent_id", "data_type": "bigint", "references": "parent", "unique": True, "nullable": False},
+                    {"name": "prev_id", "data_type": "bigint", "references": "child"})
+    pair = _entity("pair", {"name": "pair_id", **pk}, {"name": "a", "allowed_values": ["1", "2"], "nullable": False},
+                   {"name": "b", "data_type": "boolean", "nullable": False}, unique_together=[["a", "b"]])
+    rows = sample_rows(_model(setting, parent, child, pair))
+    assert [r["target_type"] for r in rows["setting"]] == ["A", "B", "C"]
+    assert [r["parent_id"] for r in rows["child"]] == [r["parent_id"] for r in rows["parent"]] == [1, 2], "남은 부모만 가리킨다"
+    assert rows["child"][1]["prev_id"] == rows["child"][0]["child_id"], "자기 참조는 남은 앞 행"
+    assert len({(r["a"], r["b"]) for r in rows["pair"]}) == len(rows["pair"]) == 2
+    assert len(sample_rows(_model(_entity("free", {"name": "free_id", **pk}, {"name": "k", "allowed_values": ["A"]})))["free"]) == 6, \
+        "유일 조건이 없으면 행을 줄이지 않는다"
+
+
 def test_button_name_is_object_and_verb_of_first_action():
     assert _button("결재문서를 결재선과 함께 상신한다", "") == "결재문서 상신"
     assert _button("예약을 취소한다 (예약자 본인과 시스템 관리자만 가능)", "") == "예약 취소", "괄호 설명은 넣지 않는다"
