@@ -13,7 +13,7 @@
     app_accounts   앱 시연 계정 보기                        PM·개발자
     assign_members 프로젝트 담당자 바꾸기                   PM
     project_delete·project_rename  프로젝트 삭제·이름 바꾸기  PM
-PM은 모든 프로젝트를 본다 (services/project_access). 보기는 그 프로젝트의 담당자가 한다. 회원 승인·역할 지정은 관리자(is_admin)가 한다.
+보기는 그 프로젝트의 담당자가 한다 (PM도 고른 PM만, PM 최소 한 명: services/project_access). 회원 승인·역할 지정은 관리자(is_admin)가 한다.
 예전 역할(팀장·기획/데이터/개발 파트장·파트원)은 DB 마이그레이션이 바꾸고, 저장된 기록(변경 내역·알림·승인)에 남은 예전 역할 값은
 role_of로 새 역할로 읽는다.
 """

@@ -64,11 +64,12 @@ def isolated_settings(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def every_member_sees_every_project(request, monkeypatch):
-    """담당자 규칙(services/project_access: 담당자와 PM만 그 프로젝트를 봄)은 @pytest.mark.assignees 테스트가 본다.
+    """담당자 규칙(services/project_access: 고른 담당자만 그 프로젝트를 봄)은 @pytest.mark.assignees 테스트가 본다.
     다른 테스트는 저장소에 바로 만든 프로젝트를 여러 역할로 쓰므로 모든 회원이 모든 프로젝트를 보게 둔다."""
     if request.node.get_closest_marker("assignees") is None:
         from app.services import project_access
-        monkeypatch.setattr(project_access, "sees_all", lambda member: True)
+        monkeypatch.setattr(project_access, "can_see", lambda member, project: True)
+        monkeypatch.setattr(project_access, "visible", lambda member, projects: list(projects))
 
 
 def signed_in_client(role: str = "pm", name: str = ""):

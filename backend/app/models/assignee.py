@@ -1,4 +1,4 @@
-"""프로젝트 담당자 (services/project_access.py): 담당자로 고른 회원만 그 프로젝트를 보고 쓴다. PM은 모든 프로젝트를 본다."""
+"""프로젝트 담당자 (services/project_access.py): 담당자로 고른 회원만 그 프로젝트를 보고 쓴다 (PM도 고른 PM만, 최소 한 명)."""
 from __future__ import annotations
 
 from datetime import datetime

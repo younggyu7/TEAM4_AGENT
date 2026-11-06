@@ -223,7 +223,7 @@ def notices(member, include_dismissed: bool = False) -> list[dict]:
     + 일 알림(업로드 분석 완료·ERD 초안·개발 초안). 확인한 것은 뺀다 (include_dismissed=True면 빼지 않는다: Slack 전송용)"""
     out = []
     role = role_of(member.role)
-    # 담당자인 프로젝트만 (PM은 모두): 담당자가 아닌 프로젝트의 알림은 보이지 않는다 (services/project_access)
+    # 담당자인 프로젝트만 (PM을 고른 적이 없는 프로젝트는 PM 모두): 담당자가 아닌 프로젝트의 알림은 보이지 않는다 (services/project_access)
     for project in project_access.visible(member, [p["id"] for p in output_store.find_projects()]):
         tree = Tree(project)
         for d in _open(tree):

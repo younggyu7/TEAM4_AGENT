@@ -1,5 +1,5 @@
 """Slack 알림 (services/slack.py): 팀 워크스페이스 봇 토큰 하나로 프로젝트마다 비공개 채널을 자동으로 만들고 담당자를 초대,
-알림을 채널에 하나씩 @멘션으로 올린다. 담당자(services/project_access, PM은 늘 포함)만 초대하고 멘션한다.
+알림을 채널에 하나씩 @멘션으로 올린다. 담당자(services/project_access, PM 최소 한 명)만 초대하고 멘션한다.
 
 Slack API는 부르지 않는다 (_call을 가짜로 바꿔 채널 만들기·초대·내보내기·올린 메시지를 모은다).
 """
@@ -115,7 +115,7 @@ def _team(*names):
 
 
 def _assign(*members, project=PROJECT):
-    """담당자를 정하고(PM은 늘 담당자) 그 담당자로 프로젝트 채널을 만든다 (업로드할 때처럼)"""
+    """담당자를 정하고(PM을 고르지 않으면 PM 모두가 담당자) 그 담당자로 프로젝트 채널을 만든다 (업로드할 때처럼)"""
     project_access.set_members(project, [m.id for m in members])
     return slack.create_channel(project, [m.id for m in project_access.assignees(project)])
 
@@ -134,7 +134,7 @@ def test_slack_is_off_without_a_workspace_token(monkeypatch):
 
 
 def test_upload_makes_the_project_channel_with_the_chosen_members(fake, monkeypatch):
-    """업로드 때 담당자(고른 회원 + 올린 사람 + PM)로 채널을 만든다 (토큰은 .env 하나). 초대하지 못한 담당자는 채널 멤버에
+    """업로드 때 담당자(고른 회원(PM 최소 한 명) + 올린 사람)로 채널을 만든다 (토큰은 .env 하나). 초대하지 못한 담당자는 채널 멤버에
     넣지 않는다. 같은 프로젝트에 다시 올리면 채널을 새로 만들지 않고, Slack이 실패해도 분석은 시작한다."""
     started = []
     monkeypatch.setattr(jobs, "start_run", lambda **kw: started.append(kw) or jobs.Job(
@@ -146,7 +146,7 @@ def test_upload_makes_the_project_channel_with_the_chosen_members(fake, monkeypa
     ghost = users.create_member("g@test.local", "없는ID", "password123", "developer", slack_id="U0FAKE0001")
     assert c["dev1"].get("/api/v1/members").json()["slack_enabled"] is True
     files = docx_upload()
-    form = {"project": "회사A 포털", "members": f"{dev2.id},{nobody.id},{ghost.id}"}   # 올린 사람은 고르지 않아도 담당자
+    form = {"project": "회사A 포털", "members": f"{pm.id},{dev2.id},{nobody.id},{ghost.id}"}   # 올린 사람은 고르지 않아도 담당자
     r = c["dev1"].post("/api/v1/runs", files=files, data=form)
     assert r.status_code == 202, r.text
     got = r.json()["slack"]
@@ -154,7 +154,8 @@ def test_upload_makes_the_project_channel_with_the_chosen_members(fake, monkeypa
     assert got["invited"] == ["관리자", "dev1", "dev2"] and [f["name"] for f in got["failed"]] == ["Slack없음", "없는ID"]
     assert "xoxb" not in r.text
     assert slack.project_config("회사A_포털")["members"] == [pm.id, dev1.id, dev2.id], "채널 멤버 = 초대된 담당자 (PM 포함)"
-    assert project_access.member_ids("회사A_포털") == [dev1.id, dev2.id, nobody.id, ghost.id], "담당자는 Slack과 상관없이"
+    everyone = sorted([pm.id, dev1.id, dev2.id, nobody.id, ghost.id])
+    assert sorted(project_access.member_ids("회사A_포털")) == everyone, "담당자는 Slack과 상관없이"
     intro = fake.texts()[0]
     assert intro.startswith("*[연결]* dev1님이 올린 프로젝트") and f"<@{_sid(pm)}> <@{_sid(dev1)}> <@{_sid(dev2)}>" in intro
 
@@ -166,8 +167,8 @@ def test_upload_makes_the_project_channel_with_the_chosen_members(fake, monkeypa
     r = c["dev1"].post("/api/v1/runs", files=files, data={**form, "project": "회사B"})
     assert r.status_code == 202 and started, "Slack이 실패해도 분석은 시작한다"
     assert "봇 토큰이 올바르지 않습니다" in r.json()["slack"]["error"]
-    assert slack.project_config("회사B")["channel_id"] == "" and project_access.member_ids("회사B") == \
-        [dev1.id, dev2.id, nobody.id, ghost.id], "채널은 못 만들어도 담당자는 정해진다 (나중에 서버가 채널을 만들어 초대)"
+    assert slack.project_config("회사B")["channel_id"] == "" and sorted(project_access.member_ids("회사B")) == everyone, \
+        "채널은 못 만들어도 담당자는 정해진다 (나중에 서버가 채널을 만들어 초대)"
 
 
 def test_projects_without_a_channel_get_one_automatically(fake):
@@ -215,7 +216,7 @@ def test_each_notice_is_one_channel_message_mentioning_the_members_who_get_it(fa
     for v in range(1, 8):
         _rec(str(v), "function_designer")
         drafts.request(PROJECT, str(v), p, note=f"요청 {v}")
-    _assign(p, d2)   # PM은 고르지 않아도 늘 담당자
+    _assign(p, d2)   # PM을 고르지 않으면 PM 모두가 담당자
     fake.posts.clear()
     slack.flush()
     texts = fake.texts()
@@ -368,15 +369,17 @@ def test_pm_changes_assignees_later_invite_new_and_remove_old(fake):
     _rec("1", "function_designer")
     _assign(p, d)
     fake.posts.clear()
-    body = {"project": PROJECT, "members": [p.id, new.id, head.id]}
+    body = {"project": PROJECT, "members": [pm.id, p.id, new.id, head.id]}
     for name in ("dev1", "dev2"):
         r = c[name].post("/api/v1/projects/members", json=body)
         assert r.status_code == 403 and "PM만" in r.json()["detail"], name
+    r = c["pm"].post("/api/v1/projects/members", json={**body, "members": [p.id, new.id, head.id]})
+    assert r.status_code == 400 and "PM 최소 한 명" in r.json()["detail"] and not fake.kicks, "PM이 없으면 바꾸지 않는다"
     r = c["pm"].post("/api/v1/projects/members", json=body)
     assert r.status_code == 200, r.text
     assert r.json()["result"] == {"added": ["dev2", "신규"], "removed": ["dev3"], "failed": []}
-    assert [(m["name"], m["in_channel"], m["always"]) for m in r.json()["members"]] == \
-        [("관리자", True, True), ("dev1", True, False), ("dev2", True, False), ("신규", True, False)]
+    assert [(m["name"], m["in_channel"]) for m in r.json()["members"]] == \
+        [("관리자", True), ("dev1", True), ("dev2", True), ("신규", True)]
     assert [m["name"] for m in r.json()["slack"]["members"]] == ["관리자", "dev1", "dev2", "신규"]
     assert fake.kicks == [("C001", d.slack_id)], "뺀 담당자는 채널에서 내보낸다"
     assert {u for _, u in fake.invites} == {pm.slack_id, p.slack_id, new.slack_id, head.slack_id}, "이미 있던 담당자는 그대로"
@@ -396,7 +399,7 @@ def test_pm_changes_assignees_later_invite_new_and_remove_old(fake):
 
     _rec("1", "function_designer", project="other/unlinked")   # 채널이 아직 없는 프로젝트: 담당자만 바뀐다
     slack._retry_at["other/unlinked"] = float("inf")
-    r = c["pm"].post("/api/v1/projects/members", json={"project": "other/unlinked", "members": [d.id]})
+    r = c["pm"].post("/api/v1/projects/members", json={"project": "other/unlinked", "members": [pm.id, d.id]})
     assert r.status_code == 200 and r.json()["slack"] is None and r.json()["result"]["added"] == ["dev3"]
     assert c["dev3"].get("/api/v1/projects/members?project=other/unlinked").status_code == 200
 

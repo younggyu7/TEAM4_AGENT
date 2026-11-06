@@ -1,6 +1,6 @@
 """프로젝트·버전 목록과 버전 제목.
 
-  GET  /projects          프로젝트와 설계 버전 목록 (버전 번호는 '4', '4.1' 같은 문자열). 내가 담당자인 프로젝트만 (PM은 모두)
+  GET  /projects          프로젝트와 설계 버전 목록 (버전 번호는 '4', '4.1' 같은 문자열). 내가 담당자인 프로젝트만 (PM을 고른 적이 없는 프로젝트는 PM 모두)
   POST /projects/title    버전 제목 저장
   POST /projects/name     프로젝트 이름 바꾸기 (PM만): 화면·Slack에 보이는 이름만, 프로젝트 ID·주소·코드 폴더는 그대로
   GET  /tech-stacks       개발 스펙의 기술 스택 선택지 (화면·서버·DB, 개발 틀이 있는지)
@@ -27,7 +27,7 @@ from app.agents.tools.exporter import confirm_tech_stack, fill_dev_spec
 from app.agents.tools.versions import display_name, save_project_info
 from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
-from app.core.auth import role_label
+from app.core.auth import role_label, role_of
 from app.core.exceptions import AppError, BadRequest, Conflict, Forbidden, NotFound
 from app.schemas.version import TechStackUpdate, TitleUpdate, VersionRef
 from app.services import output_store, project_access, project_delete, slack, users
@@ -42,10 +42,10 @@ class ProjectRename(BaseModel):
 
 class ProjectMembers(BaseModel):
     project: str
-    members: list[int] = Field(default_factory=list, max_length=200)   # 새 담당자 회원 ID 전체 (GET /members, PM은 늘 포함)
+    members: list[int] = Field(default_factory=list, max_length=200)   # 새 담당자 회원 ID 전체 (GET /members, PM 최소 한 명)
 
 
-@router.get("/projects", summary="프로젝트와 설계 버전 목록 (내가 담당자인 프로젝트만, PM은 모두)")
+@router.get("/projects", summary="프로젝트와 설계 버전 목록 (내가 담당자인 프로젝트만)")
 def list_projects(member: users.Member = Depends(current_user)):
     projects = output_store.find_projects()
     mine = set(project_access.visible(member, [p["id"] for p in projects]))
@@ -131,11 +131,11 @@ def fill_spec(body: VersionRef, member: users.Member = Depends(current_user)):
 
 
 def _members_view(project: str) -> dict:
-    """담당자 카드: 담당자(Slack 채널에 들어 있는지)와 채널. PM은 고르지 않아도 늘 담당자"""
+    """담당자 카드: 담당자(Slack 채널에 들어 있는지)와 채널. PM을 고른 적이 없는 프로젝트는 PM 모두가 담당자"""
     channel = slack.project_config(project) if slack.enabled() else None
     in_channel = set(channel["members"]) if channel and channel["channel_id"] else set()
-    return {"members": [{"id": m.id, "name": m.name, "role": m.role, "role_label": role_label(m.role),
-                         "has_slack": bool(m.slack_id), "in_channel": m.id in in_channel, "always": project_access.always(m)}
+    return {"members": [{"id": m.id, "name": m.name, "role": role_of(m.role), "role_label": role_label(m.role),
+                         "has_slack": bool(m.slack_id), "in_channel": m.id in in_channel}
                         for m in project_access.assignees(project)],
             "slack": slack.project_info(project), "slack_enabled": slack.enabled()}
 
@@ -149,6 +149,8 @@ def get_project_members(project: str):
 def set_project_members(body: ProjectMembers, member: users.Member = Depends(current_user)):
     ensure(member, "assign_members")
     project = _project(body.project)
+    if not project_access.has_pm(body.members):
+        raise BadRequest(project_access.NEED_PM)
     before = {m.id: m for m in project_access.assignees(project)}
     after = {m.id: m for m in project_access.set_members(project, body.members)}
     result = {"added": [m.name for i, m in after.items() if i not in before],

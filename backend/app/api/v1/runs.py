@@ -62,7 +62,8 @@ async def create_run(
     title: Annotated[str, Form(description="사업 이름 (LLM에 사업 맥락으로 줌)")] = "",
     model: Annotated[str, Form(description="LLM 모델 ID (GET /llm-options의 models, 비우면 .env)")] = "",
     effort: Annotated[str, Form(description="생각 수준 low·medium·high (비우면 .env)")] = "",
-    members: Annotated[str, Form(description="담당자 회원 ID (쉼표로 구분, GET /members). 올린 사람·PM은 늘 담당자. "
+    members: Annotated[str, Form(description="담당자 회원 ID (쉼표로 구분, GET /members). 올린 사람은 늘 담당자, "
+                                             "새 프로젝트는 PM 최소 한 명 (없으면 400). "
                                              "담당자만 이 프로젝트를 보고 Slack 채널에 초대된다")] = "",
     member: users.Member = Depends(current_user),
 ):
@@ -82,6 +83,8 @@ async def create_run(
     existing = output_store.has_project(project)
     if existing and not project_access.can_see(member, project):
         raise Conflict("같은 이름의 프로젝트가 이미 있습니다 (담당자만 볼 수 있음). 다른 회사 이름을 적어 주세요.")
+    if not existing and not project_access.has_pm([member.id, *chosen]):
+        raise BadRequest(f"{project_access.NEED_PM} 담당자에서 PM을 골라 주세요.")
     _no_running_job(project)
     # 올린 시각별 폴더에 원래 파일 이름 그대로 둔다 (산출물의 문서 이름이 원본과 같게)
     folder = get_settings().data_dir.resolve() / "uploads" / f"{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"

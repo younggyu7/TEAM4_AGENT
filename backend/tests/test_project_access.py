@@ -1,5 +1,6 @@
-"""프로젝트 담당자 (services/project_access.py): 담당자로 고른 회원만 그 프로젝트를 보고, PM은 모든 프로젝트를 본다.
-담당자가 아니면 목록·알림에서 빠지고 API는 없는 프로젝트처럼 404. 담당자는 업로드할 때 정하고 PM만 바꾼다."""
+"""프로젝트 담당자 (services/project_access.py): 담당자로 고른 회원만 그 프로젝트를 본다. PM도 고른 PM만 보고(PM 최소 한 명),
+PM을 고른 적이 없는 프로젝트는 PM 모두가 본다. 담당자가 아니면 목록·알림에서 빠지고 API는 없는 프로젝트처럼 404.
+담당자는 업로드할 때 정하고 PM만 바꾼다."""
 import json
 
 import pytest
@@ -41,8 +42,8 @@ def team(monkeypatch):
     return clients
 
 
-def test_members_see_only_their_projects_and_the_pm_sees_all(team):
-    assert _ids(team["pm"]) == ["one", "two"], "PM은 모든 프로젝트"
+def test_members_see_only_their_projects_and_the_pm_sees_projects_without_a_chosen_pm(team):
+    assert _ids(team["pm"]) == ["one", "two"], "PM을 고른 적이 없는 프로젝트는 PM이 본다"
     assert _ids(team["dev1"]) == ["one"], "담당자인 프로젝트만"
     assert _ids(team["dev2"]) == [], "담당자가 아니면 목록에 없다"
     assert team["dev1"].get("/api/v1/design?project=one&version=1").status_code == 200
@@ -82,30 +83,50 @@ def test_notices_and_jobs_of_other_projects_are_hidden(team):
         jobs._jobs.pop("job-two", None)
 
 
-def test_upload_makes_the_uploader_and_the_chosen_members_assignees(team):
-    dev1, dev2 = _member("dev1@test.local"), _member("dev2@test.local")
+def test_only_the_chosen_pms_see_a_project(team):
+    """PM도 고른 PM만 그 프로젝트를 본다. PM을 고른 적이 없거나 고른 PM이 모두 사용 중지되면 PM 모두가 본다"""
+    pm2 = signed_in_client("pm", "pm2")
+    p1, p2, dev1 = _member("admin@test.local"), _member("pm2@test.local"), _member("dev1@test.local")
+    assert _ids(pm2) == ["one", "two"], "PM을 고른 적이 없으면 PM 모두"
+    project_access.set_members("one", [p2.id, dev1.id])
+    assert _ids(team["pm"]) == ["two"] and _ids(pm2) == ["one", "two"], "PM을 고르면 고른 PM만"
+    assert team["pm"].get("/api/v1/design?project=one&version=1").status_code == 404
+    assert {m.name for m in project_access.assignees("one")} == {"pm2", "dev1"}
+    assert {m.name for m in project_access.assignees("two")} == {"관리자", "pm2"}, "PM을 고른 적이 없으면 PM 모두가 담당자"
+    users.update_member(p2.id, status="disabled")
+    assert _ids(team["pm"]) == ["one", "two"], "고른 PM이 모두 사용 중지되면 다시 PM 모두"
+    assert p1.id not in project_access.member_ids("one")
+
+
+def test_upload_needs_a_pm_and_makes_the_uploader_and_the_chosen_members_assignees(team):
+    pm, dev1, dev2 = _member("admin@test.local"), _member("dev1@test.local"), _member("dev2@test.local")
     r = team["dev1"].post("/api/v1/runs", files=docx_upload(), data={"project": "three", "members": str(dev2.id)})
+    assert r.status_code == 400 and "PM 최소 한 명은 필요합니다" in r.json()["detail"], "새 프로젝트는 PM을 골라야 한다"
+    assert project_access.member_ids("three") == []
+    r = team["dev1"].post("/api/v1/runs", files=docx_upload(), data={"project": "three", "members": f"{pm.id},{dev2.id}"})
     assert r.status_code == 202, r.text
-    assert project_access.member_ids("three") == [dev1.id, dev2.id], "올린 사람은 고르지 않아도 담당자"
+    assert sorted(project_access.member_ids("three")) == sorted([pm.id, dev1.id, dev2.id]), "올린 사람은 고르지 않아도 담당자"
     _project("three")
     assert "three" in _ids(team["dev2"]) and "three" in _ids(team["pm"])
     # 같은 이름의 남의 프로젝트에는 올릴 수 없다 (담당자만 보는 프로젝트를 덮어쓰지 않게)
     r = team["dev1"].post("/api/v1/runs", files=docx_upload(), data={"project": "two"})
     assert r.status_code == 409 and "같은 이름의 프로젝트" in r.json()["detail"]
     assert team["pm"].post("/api/v1/runs", files=docx_upload(), data={"project": "two"}).status_code == 202
-    assert project_access.member_ids("two") == [], "있던 프로젝트에 다시 올려도 담당자는 그대로 (바꾸기는 PM이)"
+    assert project_access.member_ids("two") == [], "있던 프로젝트에 다시 올리면 담당자는 그대로 (PM 검사도 없음, 바꾸기는 PM이)"
 
 
-def test_only_the_pm_changes_assignees_and_slack_is_not_needed(team):
-    dev2 = _member("dev2@test.local")
-    body = {"project": "two", "members": [dev2.id]}
+def test_only_the_pm_changes_assignees_with_at_least_one_pm_and_slack_is_not_needed(team):
+    pm, dev2 = _member("admin@test.local"), _member("dev2@test.local")
+    body = {"project": "two", "members": [pm.id, dev2.id]}
     assert team["dev1"].post("/api/v1/projects/members", json=body).status_code == 403
+    r = team["pm"].post("/api/v1/projects/members", json={"project": "two", "members": [dev2.id]})
+    assert r.status_code == 400 and r.json()["detail"] == "PM 최소 한 명은 필요합니다."
     r = team["pm"].post("/api/v1/projects/members", json=body)
     assert r.status_code == 200 and r.json()["result"] == {"added": ["dev2"], "removed": [], "failed": []}
     assert r.json()["slack"] is None and r.json()["slack_enabled"] is False
-    assert [(m["name"], m["always"]) for m in r.json()["members"]] == [("관리자", True), ("dev2", False)], "PM은 늘 담당자"
+    assert [(m["name"], m["role"]) for m in r.json()["members"]] == [("관리자", "pm"), ("dev2", "developer")]
     assert _ids(team["dev2"]) == ["two"]
-    r = team["pm"].post("/api/v1/projects/members", json={"project": "two", "members": []})
+    r = team["pm"].post("/api/v1/projects/members", json={"project": "two", "members": [pm.id]})
     assert r.json()["result"]["removed"] == ["dev2"] and _ids(team["dev2"]) == [], "빼면 바로 못 본다"
 
 

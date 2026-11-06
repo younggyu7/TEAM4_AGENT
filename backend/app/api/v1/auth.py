@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 
 from app.api.v1.deps import SESSION_COOKIE, admin_user, current_user
-from app.core.auth import ROLES, role_label
+from app.core.auth import ROLES, role_label, role_of
 from app.services import slack, users
 
 router = APIRouter(tags=["auth"])
@@ -91,7 +91,7 @@ def roles():
 
 @router.get("/members", summary="승인된 회원 (Slack 담당자 고르기) + Slack 알림이 켜졌는지")
 def list_active_members(_: users.Member = Depends(current_user)):
-    return {"members": [{"id": m.id, "name": m.name, "role": m.role, "role_label": role_label(m.role),
+    return {"members": [{"id": m.id, "name": m.name, "role": role_of(m.role), "role_label": role_label(m.role),
                          "has_slack": bool(m.slack_id)} for m in users.list_members() if m.status == "active"],
             "slack_enabled": slack.enabled()}
 
