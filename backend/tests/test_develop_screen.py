@@ -98,7 +98,7 @@ def test_stack_is_chosen_in_three_parts_and_warns_when_there_is_no_template():
 
 def test_git_settings_hide_tokens_and_push_one_repo(tmp_path, monkeypatch):
     """원격은 하나 (화면·백엔드·DB를 한 저장소에, 로컬 bare 저장소로). 토큰은 암호화해 두고 화면에는 있는지만 보낸다.
-    올리는 것은 코드 저장소의 main (빌드 결과·패키지·생성기 기록은 커밋되지 않음). 자세한 경우는 test_repo.py"""
+    올리는 것은 고른 브랜치 dev·main (빌드 결과·패키지·생성기 기록은 커밋되지 않음). 자세한 경우는 test_repo.py"""
     project = "sample"
     app = develop.app_dir(project)
     for path, text in {"README.md": "# app", "frontend/src/App.tsx": "x", "frontend/node_modules/m.js": "skip",
@@ -108,7 +108,7 @@ def test_git_settings_hide_tokens_and_push_one_repo(tmp_path, monkeypatch):
         (app / path).parent.mkdir(parents=True, exist_ok=True)
         (app / path).write_text(text, encoding="utf-8")
     from app.services import repo
-    repo.commit_develop(project, "1.1", "최종본 v1.1 개발")
+    repo.commit_develop(project, "1.1", "최종본 v1.1 개발", type("M", (), {"id": 999, "name": "한개발", "email": "d@x"})())
     saved = gitpush.save_settings(project, {"url": "https://example.com/app.git", "branch": "", "token": "ghp_secret"})
     assert saved == {"url": "https://example.com/app.git", "branch": "main", "has_token": True}
     raw = (get_settings().output_dir / project / "git.json").read_text(encoding="utf-8")
@@ -126,10 +126,20 @@ def test_git_settings_hide_tokens_and_push_one_repo(tmp_path, monkeypatch):
     monkeypatch.setattr(gitpush, "update_version", lambda *a, **k: None)
     member = type("M", (), {"id": 1, "name": "한개발", "email": "dev@team4.local"})()
     job = jobs.Job(id="g", project=project, base="1.1", source="git", status="running", message="")
-    gitpush._GitRunner(job, project, "1.1", member)._run([])
+    gitpush._GitRunner(job, project, "1.1", member, "dev")._run([])
     assert job.status == "done", job.log
-    files = subprocess.run(["git", "--git-dir", str(remote), "ls-tree", "-r", "--name-only", "main"], capture_output=True, text=True).stdout.split()
+    heads = lambda: subprocess.run(["git", "--git-dir", str(remote), "branch", "--format=%(refname:short)"],   # noqa: E731
+                                   capture_output=True, text=True).stdout.split()
+    assert heads() == ["dev"], "고른 브랜치만 같은 이름으로 올린다"
+    files = subprocess.run(["git", "--git-dir", str(remote), "ls-tree", "-r", "--name-only", "dev"], capture_output=True, text=True).stdout.split()
     assert sorted(files) == [".gitignore", "README.md", "backend/pom.xml", "db/schema.sql", "frontend/src/App.tsx", "spec/API.md"]
+    early = jobs.Job(id="m", project=project, base="1.1", source="git", status="running", message="")
+    gitpush._GitRunner(early, project, "1.1", member, "main")._run([])
+    assert early.status == "failed" and "릴리스" in early.message and gitpush.remote_status(project)["targets"]["main"]["missing"], \
+        "main은 첫 릴리스 전에는 없어 올리지 않는다"
+    repo.release(project, member)
+    gitpush._GitRunner(jobs.Job(id="m", project=project, base="1.1", source="git", status="running", message=""), project, "1.1", member, "main")._run([])
+    assert heads() == ["dev", "main"] and gitpush.remote_status(project)["targets"]["main"]["exists"] is True
     assert not any("ghp_secret" in line for line in job.log), "기록에 토큰이 남지 않는다"
 
 

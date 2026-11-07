@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import rawDesign from './generated/screens.json'
+import rawLayout from './generated/layout.json'
 import { checkLogin, fetchRows, logout, SERVER } from './api'
 import { Login } from './Login'
-import { Cell, ScreenPage, statusField, titleField, waiting } from './Screen'
+import { applyLayout, DefaultMenuPage } from './menu'
+import type { Layout } from './menu'
+import { menus } from './menus'
+import { Cell, statusField, titleField, waiting } from './Screen'
 import { pages as built } from './pages'
 import { getSession, setSession } from './session'
 import type { Session } from './session'
@@ -10,13 +14,16 @@ import type { Design, Row, Screen } from './types'
 
 // 앱 틀: 로그인 → 왼쪽 메뉴(업무 홈 · 업무 영역 · 그 영역의 업무) + 가운데 화면.
 // 주소: #home 업무 홈, #m-<영역> 영역의 업무 카드, #<화면ID> 화면.
+// 메뉴 이름·순서·숨김과 홈 칸은 generated/layout.json(화면 구성)을 따르고, 메뉴 화면은 menus/<메뉴>.tsx가 그린다.
 const design = rawDesign as unknown as Design
+const layout = rawLayout as Layout
+const MENU = applyLayout(design.menu, layout)
 const BRAND = design.company || design.title
 const byId = new Map(design.screens.map((s) => [s.screen_id, s]))
 const ALL_ROLES = '전체 보기'
 
 interface PageInfo { name: string; screens: string[]; group: string }
-const pages: PageInfo[] = design.menu.flatMap((m) => m.pages.map((p) => ({ ...p, group: m.group })))
+const pages: PageInfo[] = MENU.flatMap((m) => m.pages.map((p) => ({ ...p, group: m.group })))
 const pageOf = new Map(pages.flatMap((p) => p.screens.map((id) => [id, p] as const)))
 
 function useHash(): string {
@@ -38,7 +45,7 @@ const today = () => new Intl.DateTimeFormat('ko-KR', { dateStyle: 'long' }).form
 
 /** 업무 카드: 영역 / 번호, 업무 이름, 설명 */
 function Cards({ group, role }: { group: string; role: string }) {
-  const module = design.menu.find((m) => m.group === group)!
+  const module = MENU.find((m) => m.group === group)!
   return (
     <div className="cards">
       {pagesOf(group, role).map((p, i) => {
@@ -79,8 +86,9 @@ function Home({ role }: { role: string }) {
 
   const items = todo.flatMap((w) => w.rows.map((row) => ({ ...w, row }))).slice(0, 8)
   const total = todo.reduce((n, w) => n + w.rows.length, 0)
-  const modules = design.menu.filter((m) => pagesOf(m.group, role).length > 0)
+  const modules = MENU.filter((m) => pagesOf(m.group, role).length > 0)
   const count = modules.reduce((n, m) => n + pagesOf(m.group, role).length, 0)
+  const show = { todo: layout.home?.todo !== false, notices: layout.home?.notices !== false, areas: layout.home?.areas !== false }
   return (
     <div className="home">
       <div className="hero">
@@ -98,7 +106,7 @@ function Home({ role }: { role: string }) {
         ))}
       </dl>
       <div className="home-grid">
-        <section className="panel">
+        {show.todo && <section className="panel">
           <h2>처리할 일</h2>
           {items.length === 0 ? <p className="dim">대기 중인 업무가 없습니다.</p> : (
             <ul className="todo">
@@ -117,8 +125,8 @@ function Home({ role }: { role: string }) {
               })}
             </ul>
           )}
-        </section>
-        {notices && (
+        </section>}
+        {show.notices && notices && (
           <section className="panel">
             <h2><a href={`#${notices.screen.screen_id}`}>공지사항</a></h2>
             {notices.rows.length === 0 ? <p className="dim">공지가 없습니다.</p> : (
@@ -132,12 +140,18 @@ function Home({ role }: { role: string }) {
           </section>
         )}
       </div>
-      {modules.map((m) => (
-        <section key={m.group} className="area">
-          <h2 className="section-title"><a href={`#m-${encodeURIComponent(m.group)}`}>{m.name}</a> <span className="dim num">{pagesOf(m.group, role).length}</span></h2>
-          <Cards group={m.group} role={role} />
+      {show.areas && modules.length > 0 && (
+        <section className="panel areas">
+          <h2>업무 영역</h2>
+          <ul className="area-list">
+            {modules.map((m) => (
+              <li key={m.group}>
+                <a href={`#m-${encodeURIComponent(m.group)}`}><b>{m.name}</b><span className="dim num">업무 {pagesOf(m.group, role).length}</span></a>
+              </li>
+            ))}
+          </ul>
         </section>
-      ))}
+      )}
       {count === 0 && <p className="dim">아직 쓸 수 있는 업무가 없습니다.</p>}
     </div>
   )
@@ -153,8 +167,8 @@ export function App() {
   const screen = byId.get(hash)
   const page = screen ? pageOf.get(screen.screen_id) : undefined
   const area = hash.startsWith('m-') ? hash.slice(2) : page?.group
-  const module = design.menu.find((m) => m.group === area)
-  const Built = screen ? built[screen.function_id] : undefined   // 개발 Agent가 기능 전체를 구현한 화면
+  const module = MENU.find((m) => m.group === area)
+  const MenuView = (module && menus[module.group]) || DefaultMenuPage   // 메뉴 화면 (menus/<메뉴>.tsx)
 
   useEffect(() => { document.title = design.company ? `${design.company} 업무 포털` : design.title }, [])
   useEffect(() => { window.scrollTo(0, 0) }, [hash])
@@ -182,7 +196,7 @@ export function App() {
 
   if (!session) return <Login design={design} brand={BRAND} notice={notice} onDone={(s) => { setCurrent(s); setNotice('') }} />
 
-  const modules = design.menu.filter((m) => pagesOf(m.group, role).length > 0)
+  const modules = MENU.filter((m) => pagesOf(m.group, role).length > 0)
   return (
     <div className="app">
       <aside className="side">
@@ -227,24 +241,17 @@ export function App() {
               <h1>{page.name}</h1>
               {screen.description && <p>{screen.description}</p>}
             </div>
-            {page.screens.length > 1 && (
-              <nav className="tabs" aria-label="화면">
-                {tabsOf(page, role).map((s) => <a key={s.screen_id} className={s === screen ? 'on' : ''} href={`#${s.screen_id}`}>{s.name}</a>)}
-              </nav>
-            )}
             {review && (
               <p className="chips">
                 <span className="chip">{screen.screen_id}</span>
                 <span className="chip">{screen.pattern_label}</span>
-                {Built && <span className="chip">LLM 구현</span>}
+                {built[screen.function_id] && <span className="chip">LLM 구현</span>}
                 {screen.roles.map((r) => <span key={r} className="chip">{r}</span>)}
               </p>
             )}
             {!allows(screen, role)
               ? <p className="error">'{role}' 역할은 이 화면을 쓸 수 없습니다.</p>
-              : Built
-                ? <Built key={screen.screen_id} role={role} notify={notify} />
-                : <ScreenPage key={screen.screen_id} screen={screen} role={role} notify={notify} review={review} />}
+              : <MenuView menu={module!} page={page} screen={screen} screens={tabsOf(page, role)} role={role} notify={notify} review={review} built={built} />}
           </>
         ) : module ? (
           <div className="home">

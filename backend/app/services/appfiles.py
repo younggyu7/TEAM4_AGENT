@@ -1,10 +1,10 @@
 """최종 개발물 코드 보기·고치기 (최종 개발물 1단계의 파일 탐색기).
 
-- 서버 코드 폴더(OUTPUT_DIR/<프로젝트>/app = main)나 브랜치 작업 폴더(services/repo.py)의 파일 목록과 내용을 보여 준다.
-  고쳐 저장하기는 브랜치에서만 (개발자, repo_write). main은 최종 개발하기와 합치기로만 바뀐다.
+- 서버 코드 폴더(OUTPUT_DIR/<프로젝트>/app = dev)나 브랜치 작업 폴더(services/repo.py)의 파일 목록과 내용을 보여 준다.
+  고쳐 저장하기는 브랜치에서만 (개발자, repo_write). dev는 합치기로, gen은 최종 개발하기로, main은 릴리스로만 바뀐다.
 - 커밋하지 않은 파일은 changed('M'·'A'·'D')로 표시한다 (그 작업 폴더의 git status).
 - 업무 로직 자리(// <hole …>)가 코드가 넣은 기본값('return crud.get();' · '// 구현 전') 그대로면 '빈 로직'으로 센다.
-- 생성기 기록(main의 .req-agent/manifest.json)의 해시와 다르면 '사람이 고침'. 다시 개발해도 그 파일은 덮어쓰지 않는다 (scaffold.write_app).
+- 생성기 기록(gen 작업 폴더의 .req-agent/manifest.json = 마지막 생성 결과)의 해시와 다르면 '사람이 고침' (또는 아직 합치지 않은 생성 결과).
 - 빌드 결과·패키지·미리보기·비밀번호 폴더는 목록에 넣지 않고 열거나 고칠 수 없다. 새 파일 만들기·지우기는 하지 않는다.
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 
 from app.core.exceptions import BadRequest, NotFound
 from app.services import repo
-from app.services.develop import PREVIEW, app_dir
+from app.services.develop import PREVIEW, app_dir, gen_dir
 
 HIDDEN = {"node_modules", "dist", "target", PREVIEW, ".req-agent", ".git", "local"}
 MAX_BYTES = 1_000_000
@@ -95,8 +95,8 @@ def tree(project: str, branch: str | None = None) -> dict:
     if not (app_dir(project) / "README.md").is_file():
         raise BadRequest("아직 개발한 코드가 없습니다. 산출물 보기에서 '최종 개발하기'를 먼저 하세요.")
     app = repo.worktree(project, branch)
-    manifest = _manifest(app_dir(project))
-    ai = _ai_work(app_dir(project))
+    manifest = _manifest(gen_dir(project))
+    ai = _ai_work(gen_dir(project))
     changed = repo.changes(app)
     files = []
 
@@ -110,7 +110,7 @@ def tree(project: str, branch: str | None = None) -> dict:
                 files.append(_info(app, child, manifest, ai, changed=changed))
 
     walk(app)
-    return {"branch": branch or repo.MAIN, "changes": len(changed), "deleted": sorted(p for p, c in changed.items() if c == "D"), "files": files, "empty_holes": sum(f["empty_holes"] for f in files), "holes": sum(f["holes"] for f in files),
+    return {"branch": branch or repo.DEV, "changes": len(changed), "deleted": sorted(p for p, c in changed.items() if c == "D"), "files": files, "empty_holes": sum(f["empty_holes"] for f in files), "holes": sum(f["holes"] for f in files),
             "edited": sum(f["edited"] for f in files), "ai_holes": sum(f["ai_holes"] for f in files), "ai_files": sum(f["ai_file"] for f in files)}
 
 
@@ -122,14 +122,14 @@ def read(project: str, rel: str, branch: str | None = None) -> dict:
         text = target.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         raise BadRequest("글자 파일이 아니라 화면에서 열 수 없습니다.") from None
-    ai = _ai_work(app_dir(project))
-    return {**_info(app, target, _manifest(app_dir(project)), ai, text, repo.changes(app)), "content": text, "hole_list": holes(text, ai[0])}
+    ai = _ai_work(gen_dir(project))
+    return {**_info(app, target, _manifest(gen_dir(project)), ai, text, repo.changes(app)), "content": text, "hole_list": holes(text, ai[0])}
 
 
 def save(project: str, rel: str, content: str, branch: str | None = None) -> dict:
-    """브랜치 작업 폴더의 있는 글자 파일만 고친다 (main은 거부). 커밋은 repo.commit('저장하기')"""
-    if not branch or branch == repo.MAIN:
-        raise BadRequest("main은 직접 고칠 수 없습니다 — 브랜치를 만들어 고치세요.")
+    """브랜치 작업 폴더의 있는 글자 파일만 고친다 (dev·main·gen은 거부). 커밋은 repo.commit('저장하기')"""
+    if not branch or branch in repo.PROTECTED:
+        raise BadRequest("dev·main·gen은 직접 고칠 수 없습니다 — 브랜치를 만들어 고치세요.")
     app, target = _target(project, rel, branch)
     if len(content.encode("utf-8")) > MAX_BYTES:
         raise BadRequest("1MB가 넘는 내용은 저장하지 않습니다.")

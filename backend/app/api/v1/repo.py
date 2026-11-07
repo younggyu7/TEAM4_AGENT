@@ -3,14 +3,15 @@
   GET  /develop/repo?project=                       브랜치(앞섬·뒤처짐·커밋 안 한 변경·열린 요청)·합치기 요청·최종본 버전
   GET  /develop/repo/log?project=&limit=80          모든 브랜치의 커밋 (이력 그래프)
   GET  /develop/repo/commit?project=&sha=           커밋 하나의 바뀐 파일과 diff
-  GET  /develop/repo/diff?project=&branch=          main...브랜치 차이 (합치기 요청 차이 보기)
+  GET  /develop/repo/diff?project=&branch=          dev...브랜치 차이 (합치기 요청 차이 보기, main이면 릴리스할 차이)
   POST /develop/repo/branch                         브랜치 만들기 {project, name, from} (개발자)
   DELETE /develop/repo/branch?project=&name=        브랜치 지우기 (만든 사람·개발자, 열린 요청 있으면 거부)
-  POST /develop/repo/commit                         저장하기 {project, branch, message, paths?} (개발자, main 거부)
-  POST /develop/repo/update-branch                  메인 가져오기 {project, branch} (충돌이면 409 + conflicts)
+  POST /develop/repo/commit                         저장하기 {project, branch, message, paths?} (개발자, dev·main 거부)
+  POST /develop/repo/update-branch                  dev 가져오기 {project, branch} (충돌이면 409 + conflicts)
   POST /develop/repo/request                        합치기 요청 {project, branch, note} → 개발자 알림
   POST /develop/repo/merge                          합치기 {project, request_id} (개발자, 충돌이면 409 + conflicts)
   POST /develop/repo/reject                         반려 {project, request_id, reason} (개발자)
+  POST /develop/repo/release                        릴리스: dev를 main으로 앞으로 감고 태그 release-<날짜>-<n> (개발자)
   POST /develop/repo/fetch                          원격 확인: 원격 브랜치를 받아 앞섬·뒤처짐 (개발자)
 """
 from __future__ import annotations
@@ -27,7 +28,7 @@ router = APIRouter(tags=["develop"])
 class BranchBody(BaseModel):
     project: str
     name: str
-    from_: str = Field(repo.MAIN, alias="from")
+    from_: str = Field(repo.DEV, alias="from")
 
 
 class CommitBody(BaseModel):
@@ -81,7 +82,7 @@ def get_diff(project: str, branch: str):
 @router.post("/develop/repo/branch", summary="브랜치 만들기 (개발자)")
 def create_branch(body: BranchBody, member: users.Member = Depends(current_user)):
     ensure(member, "repo_write")
-    return repo.create_branch(_project(body.project), body.name, member, body.from_ or repo.MAIN)
+    return repo.create_branch(_project(body.project), body.name, member, body.from_ or repo.DEV)
 
 
 @router.delete("/develop/repo/branch", summary="브랜치 지우기 (만든 사람·개발자)")
@@ -97,7 +98,7 @@ def commit(body: CommitBody, member: users.Member = Depends(current_user)):
     return repo.commit(_project(body.project), body.branch, body.message, member, body.paths)
 
 
-@router.post("/develop/repo/update-branch", summary="메인 가져오기: main을 브랜치에 합침")
+@router.post("/develop/repo/update-branch", summary="dev 가져오기: dev를 브랜치에 합침")
 def update_branch(body: BranchOnly, member: users.Member = Depends(current_user)):
     ensure(member, "repo_write")
     return repo.update_branch(_project(body.project), body.branch, member)
@@ -120,6 +121,13 @@ def merge(body: DecideBody, member: users.Member = Depends(current_user)):
 def reject(body: DecideBody, member: users.Member = Depends(current_user)):
     ensure(member, "develop")
     return repo.reject(_project(body.project), body.request_id, body.reason, member)
+
+
+@router.post("/develop/repo/release", summary="릴리스: dev → main + 태그 (개발자)")
+def release(body: ProjectBody, member: users.Member = Depends(current_user)):
+    ensure(member, "develop")
+    _no_running_job(body.project)
+    return repo.release(_project(body.project), member)
 
 
 @router.post("/develop/repo/fetch", summary="원격 확인 (개발자)")

@@ -7,9 +7,9 @@
   GET  /preview/{프로젝트}/accounts         앱 시연 계정 (admin·user 비밀번호, PM·개발자)
   GET  /preview/{프로젝트}/status · POST /preview/{프로젝트}/start · POST /preview/{프로젝트}/stop (끄기는 PM·개발자)
   GET·POST /develop/git?project=          원격 설정 하나 {url, branch, token} (토큰은 다시 보내지 않음, 개발자)
-  POST /develop/git/push                  원격에 main·최종본 태그 올리기 → {job} (개발자)
-  GET  /develop/files?project=&branch=    코드 파일 목록 (main 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고침·커밋 안 한 변경 표시)
-  GET·PUT /develop/file?project=&path=&branch=  파일 내용 보기 · 브랜치에서 고쳐 저장 (main 거부, 개발자)
+  POST /develop/git/push                  원격에 고른 브랜치(dev·main)와 태그 올리기 {target} → {job} (개발자)
+  GET  /develop/files?project=&branch=    코드 파일 목록 (dev 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고침·커밋 안 한 변경 표시)
+  GET·PUT /develop/file?project=&path=&branch=  파일 내용 보기 · 브랜치에서 고쳐 저장 (dev·main 거부, 개발자)
   브랜치·저장하기(커밋)·합치기 요청·이력은 api/v1/repo.py
   GET  /preview/{프로젝트}/terminal         실행 미리보기 터미널: 빌드·실행 기록 + 앱 서버 로그
 """
@@ -52,6 +52,7 @@ class GitSettings(BaseModel):
 class PushBody(BaseModel):
     project: str
     version: str
+    target: str = "dev"      # 올릴 브랜치: dev(테스트 배포) · main(릴리스한 고객 납품본)
 
 
 class FileBody(BaseModel):
@@ -192,7 +193,7 @@ def push(body: PushBody, member: users.Member = Depends(current_user)):
     project, version = _project(body.project), guards.version(body.version)
     develop.approved_final(project, version)
     _no_running_job(body.project)
-    return {"job": gitpush.start_push(project=project, version=version, member=member).to_dict()}
+    return {"job": gitpush.start_push(project=project, version=version, member=member, target=body.target).to_dict()}
 
 
 @router.get("/develop/files", summary="최종 개발물 파일 목록 (main 또는 브랜치)")

@@ -79,6 +79,8 @@
 │   ├── 📄 output_import.py                        # 로컬 output 폴더 → 서비스 DB 가져오기 (import-output, 체크포인트 포함)
 │   ├── 📄 project_access.py                       # 프로젝트 담당자: 담당자만 그 프로젝트를 봄(목록·알림·API 404), PM도 고른 PM만 (PM 최소 한 명)
 │   ├── 📄 slack.py                                # Slack 알림: 프로젝트별 비공개 채널 자동 생성·담당자 초대·바꾸기, 나에게 온 알림·승인·반려를 채널에 @멘션
+│   ├── 📄 layout.py                               # 생성 앱 화면 구성(layout.json) 보기·저장(dev 커밋)
+│   ├── 📄 work.py                                 # 작업 묶음 4종·배정·제출·승인/반려·작업 설명, VS Code 확장용 코드 받기·올리기·검토 비교
 │   └── 📁 jobs/                                   # 화면 요청을 CLI 하위 프로세스 작업으로 실행·기록
 │       ├── 📄 __init__.py                         # 패키지 공개 이름 (jobs.start_run 등)
 │       ├── 📄 common.py                           # 공통: 작업 기록(Job)·실행기(_Runner)·종료 코드·LLM 오류 안내
@@ -259,6 +261,8 @@
     ├── 📄 test_dev_spec.py                        # 개발 스펙: 최종본에만 생성·형식 고정·기술 스택 가정·바뀐 기능만·경로 정리
     ├── 📄 test_behavior.py                        # 업무 동작: 최종본에 BEHAVIOR.md·BQ 질문, 같은 입력이면 다시 안 물음, 생성 코드의 값 출처
     ├── 📄 test_develop.py                         # 개발 단계: LLM 없이 같은 파일, 사람이 고친 파일 보존, 화면·예시 데이터, --logic 검사
+    ├── 📄 test_work.py                            # 작업 묶음·화면 구성·배정→토큰으로 받기·올리기→제출→승인·반려
+    ├── 📄 test_extension_e2e.py                   # 확장(옆 폴더 TEAM4_AGENT_EXTENSION) core.js를 실제 HTTP 서버로 (없으면 건너뜀)
     ├── 📄 test_fix_loops.py                       # 자동 수정 라운드: 의미 검토 지적 보완·누락 채우기·단계별 한도
     ├── 📄 test_rule_basis.py                      # 규칙 근거 대조·규칙 정리
     ├── 📄 test_versions.py                        # 버전 번호·프로젝트 이름

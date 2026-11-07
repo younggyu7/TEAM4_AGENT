@@ -1,10 +1,12 @@
-"""최종 개발물 원격 올리기: 서버의 코드 저장소(OUTPUT_DIR/<프로젝트>/app, services/repo.py)의 main과 최종본 태그를 원격 하나에 push한다.
+"""최종 개발물 원격 올리기: 서버의 코드 저장소(OUTPUT_DIR/<프로젝트>/app, services/repo.py)에서 고른 브랜치(dev·main)와 태그를 원격 하나에 push한다.
 
-- 원격 설정은 프로젝트마다 (프로젝트 파일 git.json): {url, branch(기본 main), token}. 화면·백엔드·DB는 한 저장소에 같이 올린다.
+- dev(통합)를 올리면 원격의 dev push로 테스트 배포가 돌고(생성 앱의 .github/workflows/deploy-dev.yml), main은 릴리스한 고객 납품본이다.
+  main은 첫 릴리스 전에는 없으므로 올릴 수 없다. gen(AI 생성 결과)은 올리지 않는다.
+- 원격 설정은 프로젝트마다 (프로젝트 파일 git.json): {url, branch(예전 설정, 쓰지 않음), token}. 화면·백엔드·DB는 한 저장소에 같이 올린다.
   토큰은 암호화해 저장하고(Fernet, 키는 .env GIT_SECRET_KEY, 없으면 OUTPUT_DIR/.git-secret를 만들어 씀) 화면에는 다시 보내지 않는다.
   예전 설정(화면·백엔드 저장소 두 개 {frontend, backend})은 읽을 때 백엔드(없으면 화면) 저장소 하나로 바꿔 읽는다 (토큰 유지).
 - 올리기(작업, 개발자): 원격 브랜치를 받아(fetch) 원격에 main에 없는 커밋이 있으면 거부하고(강제 push 없음),
-  `git push origin main:<branch> + final-v* 태그`. 빌드 결과·미리보기·생성기 기록은 .gitignore로 커밋되지 않는다.
+  `git push origin <브랜치>:<브랜치> + final-v*·release-* 태그`. 빌드 결과·미리보기·생성기 기록은 .gitignore로 커밋되지 않는다.
 - 원격 확인(check_remote)은 화면이 '원격 확인'을 누를 때와 올릴 때만 fetch한다. 앞섬·뒤처짐은 받아 둔 origin/<branch>로 센다.
 - 토큰은 명령줄·기록에 남지 않게 http.extraHeader로만 넘기고, 기록의 토큰 글자는 가린다. LLM은 쓰지 않는다.
 """
@@ -87,32 +89,42 @@ def _set_remote(app: Path, url: str) -> None:
         repo.git(app, "remote", "add", "origin", url)
 
 
+TARGETS = (repo.DEV, repo.MAIN)
+
+
 def remote_status(project: str) -> dict:
-    """원격 설정 + 받아 둔 origin/<branch> 기준 main의 앞섬·뒤처짐 (fetch하지 않는다)"""
+    """원격 설정 + 받아 둔 origin/<브랜치> 기준 dev·main의 앞섬·뒤처짐 (fetch하지 않는다). ahead·behind는 dev 기준"""
     conf = settings(project)
-    out = {**conf, "ahead": None, "behind": None, "exists": False, **repo._data(project)["remote"]}
+    out = {**conf, "ahead": None, "behind": None, "exists": False, "targets": {}, **repo._data(project)["remote"]}
     if conf["url"] and repo.ready(project):
-        app = app_dir(project)
-        ref = f"refs/remotes/origin/{conf['branch']}"
-        if repo.git(app, "rev-parse", "--verify", "-q", ref, check=False).startswith("0\n"):
-            out["behind"], out["ahead"] = repo._counts(app, ref, repo.MAIN)
-            out["exists"] = True
-        elif out.get("checked_at"):
-            out["ahead"], out["behind"] = int(repo.git(app, "rev-list", "--count", repo.MAIN).strip()), 0
+        app = repo.ensure_repo(project)
+        for branch in TARGETS:
+            ref = f"refs/remotes/origin/{branch}"
+            item = {"ahead": None, "behind": None, "exists": False, "missing": not repo._exists(app, branch)}   # main: 릴리스 전
+            if item["missing"]:
+                out["targets"][branch] = item
+                continue
+            if repo.git(app, "rev-parse", "--verify", "-q", ref, check=False).startswith("0\n"):
+                item["behind"], item["ahead"] = repo._counts(app, ref, branch)
+                item["exists"] = True
+            elif out.get("checked_at"):
+                item["ahead"], item["behind"] = int(repo.git(app, "rev-list", "--count", branch).strip()), 0
+            out["targets"][branch] = item
+        out.update(out["targets"][repo.DEV])
     return out
 
 
-def _fetch(project: str, app: Path, conf: dict, token: str) -> tuple[bool, str]:
+def _fetch(project: str, app: Path, conf: dict, token: str, branch: str = repo.DEV) -> tuple[bool, str]:
     """원격 브랜치를 origin/<branch>로 받는다. (원격에 브랜치가 있는지, 오류 메시지)"""
     _set_remote(app, conf["url"])
     header = _header(token)
-    listed = repo.git(app, "ls-remote", "--heads", "origin", conf["branch"], check=False, header=header)
+    listed = repo.git(app, "ls-remote", "--heads", "origin", branch, check=False, header=header)
     code, out = listed.split("\n", 1)
     if code != "0":
         return False, _redact(out.strip()[-300:], token, header) or "원격에 연결하지 못했습니다."
     if not out.strip():
         return False, ""
-    fetched = repo.git(app, "fetch", "-q", "origin", f"+refs/heads/{conf['branch']}:refs/remotes/origin/{conf['branch']}",
+    fetched = repo.git(app, "fetch", "-q", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}",
                        check=False, header=header)
     if not fetched.startswith("0\n"):
         return False, _redact(fetched.split("\n", 1)[1].strip()[-300:], token, header)
@@ -132,7 +144,8 @@ def check_remote(project: str) -> dict:
     if not conf["url"]:
         raise BadRequest("원격 저장소 주소가 없습니다. 원격 설정에서 주소를 적으세요.")
     app = repo.ensure_repo(project)
-    _, error = _fetch(project, app, conf, _token(project))
+    token = _token(project)
+    error = next((e for e in (_fetch(project, app, conf, token, b)[1] for b in TARGETS) if e), "")
     with repo._lock:
         data = repo._data(project)
         data["remote"] = {"checked_at": datetime.now().isoformat(timespec="seconds"), "error": error}
@@ -141,9 +154,9 @@ def check_remote(project: str) -> dict:
 
 
 class _GitRunner(_Runner):
-    def __init__(self, job: Job, project: str, version: str, member):
+    def __init__(self, job: Job, project: str, version: str, member, target: str):
         super().__init__(job, project, Path("."))
-        self.version, self.member = version, member
+        self.version, self.member, self.target = version, member, target
         self.secrets: list[str] = []
 
     def _push(self, line: str) -> None:
@@ -159,27 +172,30 @@ class _GitRunner(_Runner):
             app = repo.ensure_repo(self.project)
             token = _token(self.project)
             self.secrets += [s for s in (token, _header(token).split(" ")[-1] if token else "") if s]
-            branch = conf["branch"]
+            branch = self.target
+            if not repo._exists(app, branch):
+                raise RuntimeError("아직 릴리스하지 않아 main이 없습니다. 저장소 카드에서 '릴리스'를 먼저 하세요.")
             self.job.message = f"원격 {branch}를 확인하는 중"
             self._save()
             self._push(f"$ git fetch origin {branch}")
-            exists, error = _fetch(self.project, app, conf, token)
+            exists, error = _fetch(self.project, app, conf, token, branch)
             if error:
                 raise RuntimeError(f"원격을 받지 못했습니다 (주소·토큰 권한을 확인하세요): {error}")
-            if exists and not repo._ok(app, "merge-base", "--is-ancestor", f"refs/remotes/origin/{branch}", repo.MAIN):
+            if exists and not repo._ok(app, "merge-base", "--is-ancestor", f"refs/remotes/origin/{branch}", branch):
                 raise RuntimeError(f"원격 {branch}에 서버에 없는 커밋이 있어 올리지 않았습니다 (강제로 덮어쓰지 않음). "
                                    "원격의 변경을 서버 밖에서 정리한 뒤 다시 올리세요.")
             self.job.message = f"원격 {branch}에 올리는 중"
             self._save()
-            self._push(f"$ git push origin {repo.MAIN}:{branch} +refs/tags/final-v*")
-            pushed = repo.git(app, "push", "--porcelain", "origin", f"refs/heads/{repo.MAIN}:refs/heads/{branch}",
-                              "+refs/tags/final-v*:refs/tags/final-v*", check=False, header=_header(token))
+            self._push(f"$ git push origin {branch}:{branch} +refs/tags/final-v* refs/tags/release-*")
+            pushed = repo.git(app, "push", "--porcelain", "origin", f"refs/heads/{branch}:refs/heads/{branch}",
+                              "+refs/tags/final-v*:refs/tags/final-v*", "refs/tags/release-*:refs/tags/release-*",
+                              check=False, header=_header(token))
             for line in pushed.split("\n")[1:]:
                 if line.strip():
                     self._push(line)
             if not pushed.startswith("0\n"):
                 raise RuntimeError("원격에 올리지 못했습니다 (주소·브랜치·토큰 권한을 확인하세요).")
-            sha = repo.git(app, "rev-parse", repo.MAIN).strip()
+            sha = repo.git(app, "rev-parse", branch).strip()
             with repo._lock:
                 data = repo._data(self.project)
                 data["remote"] = {"checked_at": datetime.now().isoformat(timespec="seconds"), "error": ""}
@@ -195,9 +211,13 @@ class _GitRunner(_Runner):
             self._finish("failed", str(e))
 
 
-def start_push(*, project: str, version: str, member) -> Job:
+def start_push(*, project: str, version: str, member, target: str = repo.DEV) -> Job:
     if not (app_dir(project) / "README.md").is_file():
         raise BadRequest("먼저 '최종 개발하기'로 코드를 만드세요.")
-    job = _new_job(project=project, base=version, source="git", message="원격에 올리는 중")
-    _GitRunner(job, project, version, member).start([])
+    if target not in TARGETS:
+        raise BadRequest("올릴 브랜치는 dev 또는 main입니다.")
+    if repo.ready(project) and not repo._exists(app_dir(project), target):
+        raise BadRequest("아직 릴리스하지 않아 main이 없습니다. 저장소 카드에서 '릴리스'를 먼저 하세요.")
+    job = _new_job(project=project, base=version, source="git", message=f"원격에 {target}을 올리는 중")
+    _GitRunner(job, project, version, member, target).start([])
     return job

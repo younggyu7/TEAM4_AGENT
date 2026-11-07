@@ -659,3 +659,20 @@ def test_theme_changes_only_color_tokens_and_is_kept_for_next_develop(sample_doc
     assert cli.main(["develop", "sample", "--from", FINAL]) == 0 and "--side: #1b2a4a;" in (app / "frontend/src/theme.css").read_text(encoding="utf-8")
     assert cli.main(["develop", "sample", "--from", FINAL, "--theme", "nope"]) == 2
     assert len(themes.choices()) == 9 and all(set(t["preview"]) >= {"bg", "side", "accent"} for t in themes.choices())
+
+
+def test_layout_and_menu_files_are_always_generated(sample_doc):
+    """첫 결과물부터 화면 구성(layout.json)과 메뉴마다 화면 파일을 만든다 (AI 사용과 상관없이). 홈은 업무 카드를 나열하지 않는다"""
+    spec = _spec(sample_doc)
+    files, data = scaffold.render_app(spec)
+    layout = json.loads(files["frontend/src/generated/layout.json"])
+    assert [m["group"] for m in layout["menu"]] == [m["group"] for m in data["menu"]] and layout["home"]["areas"] is True
+    assert sorted(s for m in layout["menu"] for p in m["pages"] for s in p["screens"]) == sorted(s["screen_id"] for s in data["screens"])
+    index = files["frontend/src/menus/index.ts"]
+    for m in data["menu"]:
+        name = scaffold.menu_file(m["group"])
+        assert f"frontend/src/menus/{name}.tsx" in files and f"import {name} from './{name}'" in index
+        assert "DefaultMenuPage" in files[f"frontend/src/menus/{name}.tsx"]
+    app = files["frontend/src/App.tsx"]
+    assert "<Cards group={m.group}" not in app and "applyLayout(design.menu, layout)" in app, "홈에 모든 업무 카드를 나열하지 않는다"
+    assert scaffold.menu_file("공통") != scaffold.menu_file("기타") and scaffold.menu_file("SFR-001") == "SFR_001"

@@ -22,7 +22,7 @@ from app.core.database import sqlalchemy_url
 from app.core.exceptions import BadRequest, Conflict, Forbidden, NotFound, Unauthorized
 from app.models.assignee import ProjectMember
 from app.models.notification import SlackNotification, SlackProject
-from app.models.user import User, UserSession
+from app.models.user import AccessToken, User, UserSession
 
 SESSION_DAYS = 7          # '로그인 유지'를 고르면 쿠키·세션을 이만큼 둔다
 SESSION_HOURS = 12        # 고르지 않으면 브라우저를 닫을 때까지(쿠키) · 서버는 이 시간까지
@@ -60,7 +60,7 @@ def _member(u: User) -> Member:
 def _sessions(url: str) -> sessionmaker[Session]:
     engine = create_engine(sqlalchemy_url(url), pool_pre_ping=True)
     if url.startswith("sqlite"):   # 서비스 DB가 없을 때(로컬·테스트)는 회원 테이블만 바로 만든다. PostgreSQL은 Alembic
-        User.metadata.create_all(engine, tables=[User.__table__, UserSession.__table__,
+        User.metadata.create_all(engine, tables=[User.__table__, UserSession.__table__, AccessToken.__table__,
                                                  SlackProject.__table__, SlackNotification.__table__, ProjectMember.__table__])
     return sessionmaker(bind=engine, expire_on_commit=False)
 
@@ -167,6 +167,57 @@ def member_by_token(token: str) -> Member | None:
             return None
         user = db.get(User, sess.user_id)
         return _member(user) if user and user.status == "active" else None
+
+
+# ---------------------------------------------------------------- 개인 접속 토큰 (VS Code 확장)
+TOKEN_PREFIX = "t4_"
+MAX_TOKENS = 10
+
+
+def create_access_token(user_id: int, name: str) -> tuple[dict, str]:
+    """(토큰 정보, 원문). 원문은 이때 한 번만 돌려준다. 회원당 10개까지"""
+    import secrets
+
+    name = name.strip()[:100] or "VS Code"
+    raw = TOKEN_PREFIX + secrets.token_urlsafe(32)
+    with _db() as db:
+        if len(db.scalars(select(AccessToken.id).where(AccessToken.user_id == user_id)).all()) >= MAX_TOKENS:
+            raise BadRequest(f"접속 토큰은 {MAX_TOKENS}개까지 만듭니다. 쓰지 않는 토큰을 지우세요.")
+        row = AccessToken(user_id=user_id, name=name, token_hash=token_hash(raw), prefix=raw[:10])
+        db.add(row)
+        db.flush()
+        return _token_info(row), raw
+
+
+def _token_info(row: AccessToken) -> dict:
+    iso = lambda d: d.isoformat(timespec="seconds") if d else None   # noqa: E731
+    return {"id": row.id, "name": row.name, "prefix": row.prefix, "created_at": iso(row.created_at), "last_used_at": iso(row.last_used_at)}
+
+
+def list_access_tokens(user_id: int) -> list[dict]:
+    with _db() as db:
+        return [_token_info(r) for r in db.scalars(select(AccessToken).where(AccessToken.user_id == user_id).order_by(AccessToken.id))]
+
+
+def delete_access_token(user_id: int, token_id: int) -> None:
+    with _db() as db:
+        if not db.execute(delete(AccessToken).where(AccessToken.user_id == user_id, AccessToken.id == token_id)).rowcount:
+            raise NotFound("토큰이 없습니다.")
+
+
+def member_by_access_token(raw: str) -> Member | None:
+    """Bearer 토큰의 회원 (없거나 승인 안 된 계정이면 None). 마지막 사용 시각을 남긴다"""
+    if not raw.startswith(TOKEN_PREFIX):
+        return None
+    with _db() as db:
+        row = db.scalar(select(AccessToken).where(AccessToken.token_hash == token_hash(raw)))
+        if row is None:
+            return None
+        user = db.get(User, row.user_id)
+        if not user or user.status != "active":
+            return None
+        row.last_used_at = _now()
+        return _member(user)
 
 
 def logout(token: str) -> None:

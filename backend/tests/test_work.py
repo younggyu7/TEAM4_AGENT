@@ -1,0 +1,226 @@
+"""화면 구성·작업 묶음·배정·제출·검토와 VS Code 확장 API (services/layout.py · work.py, FR-049~053): 실제 생성 코드·git으로 확인한다."""
+import base64
+import json
+import subprocess
+
+from app import cli
+from app.services import develop, project_access, repo, users, work
+from conftest import signed_in_client
+from test_develop import FINAL, _start
+
+P = "sample"
+
+
+def _developed(sample_doc):
+    _start(sample_doc)
+    assert cli.main(["develop", P, "--from", FINAL]) == 0
+    runner = type("M", (), {"id": 999, "name": "한개발", "role": "developer", "email": "d@x"})()
+    repo.commit_develop(P, FINAL.removeprefix("v"), "최종본 개발", runner)
+    ids = {m.name: m.id for m in users.list_members()}
+    return ids
+
+
+def _team():
+    pm, dev, dev2 = signed_in_client("pm"), signed_in_client("developer", "dev"), signed_in_client("developer", "dev2")
+    ids = {m.name: m.id for m in users.list_members()}
+    project_access.set_members(P, [ids["dev"], ids["dev2"]])
+    return pm, dev, dev2, ids
+
+
+def _b64(text: str) -> str:
+    return base64.b64encode(text.encode("utf-8")).decode("ascii")
+
+
+def test_bundles_cover_every_file_once_in_four_kinds(sample_doc):
+    _developed(sample_doc)
+    pm, dev, _, _ = _team()
+    data = dev.get("/api/v1/develop/work", params={"project": P}).json()
+    kinds = {i["kind"] for i in data["items"]}
+    assert kinds == {"common_ui", "ui", "common_server", "function"}
+    files = [f for i in data["items"] for f in i["files"]]
+    assert len(files) == len(set(files)), "파일은 한 묶음에만"
+    assert sorted(files) == sorted(work._files(develop.app_dir(P))), "빠진 파일 없음"
+    first_fn = next(i for i in data["items"] if i["kind"] == "function")
+    assert all(f.startswith("backend/") for f in first_fn["files"]) and first_fn["functions"]
+    ui = next(i for i in data["items"] if i["kind"] == "ui")
+    assert any("/menus/" in f for f in ui["files"])
+    common_ui = next(i for i in data["items"] if i["kind"] == "common_ui")
+    assert "frontend/src/App.tsx" in common_ui["files"] and "frontend/src/generated/layout.json" in common_ui["files"]
+    assert data["counts"]["unassigned"] == len(data["items"]) and [d["name"] for d in data["developers"]] == ["dev", "dev2"]
+    assert pm.get("/api/v1/develop/work", params={"project": P}).status_code == 200, "PM도 진행 현황은 본다"
+    detail = dev.get("/api/v1/develop/work/item", params={"project": P, "key": first_fn["key"]}).json()
+    assert "## 어떻게 (개발 스펙)" in detail["brief"] and "ACCEPTANCE_CRITERIA" in detail["brief"]
+
+
+def test_layout_saved_to_dev_by_developer(sample_doc):
+    _developed(sample_doc)
+    pm, dev, _, _ = _team()
+    got = dev.get("/api/v1/develop/layout", params={"project": P}).json()
+    layout = got["layout"]
+    layout["menu"][0]["name"] = "고친 메뉴"
+    layout["menu"].reverse()
+    layout["home"]["areas"] = False
+    layout["menu"].append({"group": "없는메뉴", "pages": []})
+    assert pm.put("/api/v1/develop/layout", json={"project": P, "layout": layout}).status_code == 403
+    saved = dev.put("/api/v1/develop/layout", json={"project": P, "layout": layout}).json()
+    assert saved["commit"] and saved["layout"]["home"]["areas"] is False
+    assert "고친 메뉴" in [m["name"] for m in saved["layout"]["menu"]] and "없는메뉴" not in [m["group"] for m in saved["layout"]["menu"]]
+    log = subprocess.run(["git", "log", "-1", "--format=%an|%s", "dev"], cwd=develop.app_dir(P), capture_output=True, text=True).stdout
+    assert log.strip() == "dev|화면 구성 저장 (dev)"
+    assert dev.put("/api/v1/develop/layout", json={"project": P, "layout": saved["layout"]}).json()["commit"] is None, "같으면 커밋 안 함"
+
+
+def test_assign_extension_upload_submit_approve_flow(sample_doc):
+    """배정 → (토큰으로) 코드 받기 → 묶음 밖 파일 거부 → 올리기 → 제출 → 본인 승인 금지 → 다른 개발자 승인 → 완료"""
+    _developed(sample_doc)
+    pm, dev, dev2, ids = _team()
+    items = dev.get("/api/v1/develop/work", params={"project": P}).json()["items"]
+    fn = next(i for i in items if i["kind"] == "function" and any("logic/" in f or "feature/" in f or "api/" in f for f in i["files"]))
+    key = fn["key"]
+    assert pm.post("/api/v1/develop/work/assign", json={"project": P, "key": key, "user_id": ids["dev"]}).status_code == 403
+    assert dev.post("/api/v1/develop/work/assign", json={"project": P, "key": key, "user_id": ids["관리자"]}).status_code == 400, "개발자 담당자만"
+    got = dev2.post("/api/v1/develop/work/assign", json={"project": P, "key": key, "user_id": ids["dev"]}).json()
+    assert got["status"] == "assigned" and got["branch"] == work.branch_of(key) and got["assignee"]["name"] == "dev"
+    notes = [n for n in dev.get("/api/v1/notices").json()["notices"] if n["kind"] == "task_assigned"]
+    assert notes and fn["title"] in notes[0]["title"]
+
+    # 개인 접속 토큰 (확장)
+    made = dev.post("/api/v1/auth/tokens", json={"name": "내 노트북"}).json()
+    token = made["token"]
+    assert token.startswith("t4_") and made["info"]["prefix"] == token[:10]
+    assert token not in json.dumps(dev.get("/api/v1/auth/tokens").json()), "원문은 다시 보이지 않는다"
+    from fastapi.testclient import TestClient
+    from app.main import app
+    ext = TestClient(app)
+    ext.headers["Authorization"] = f"Bearer {token}"
+    assert ext.get("/api/v1/version").json() == {"api": 1}
+    mine = ext.get("/api/v1/develop/work/mine").json()
+    assert [i["key"] for p in mine["projects"] for i in p["items"]] == [key]
+    pack = ext.get("/api/v1/develop/work/archive", params={"project": P, "key": key}).json()
+    assert pack["branch"] == work.branch_of(key) and set(pack["task"]) == {"TASK.md", "files.txt", "RULES.md"}
+    paths = {f["path"] for f in pack["files"]}
+    assert "README.md" in paths and not any(p.startswith(("local/", ".req-agent/", ".preview/")) for p in paths)
+    target = next(p for p in fn["files"] if p.endswith((".java", ".py", ".ts")))
+    original = base64.b64decode(next(f["content"] for f in pack["files"] if f["path"] == target)).decode("utf-8")
+
+    bad = ext.post("/api/v1/develop/work/upload", json={"project": P, "key": key, "base": pack["head"],
+                                                         "files": [{"path": "frontend/src/App.tsx", "content": _b64("x")}]})
+    assert bad.status_code == 400 and "묶음 밖" in bad.json()["detail"]
+    up = ext.post("/api/v1/develop/work/upload", json={"project": P, "key": key, "base": pack["head"], "message": "로직 채움",
+                                                        "files": [{"path": target, "content": _b64(original + "\n// 채움\n")}]})
+    assert up.status_code == 200 and up.json()["files"] == [target], up.text
+    stale = ext.post("/api/v1/develop/work/upload", json={"project": P, "key": key, "base": pack["head"],
+                                                           "files": [{"path": target, "content": _b64("y")}]})
+    assert stale.status_code == 409, "받은 뒤 브랜치가 바뀌면 다시 받는다"
+    state = next(i for i in dev.get("/api/v1/develop/work", params={"project": P}).json()["items"] if i["key"] == key)
+    assert state["status"] == "in_progress" and state["ahead"] == 1
+
+    assert dev2.post("/api/v1/develop/work/submit", json={"project": P, "key": key}).status_code == 403, "담당자만 제출"
+    sub = ext.post("/api/v1/develop/work/submit", json={"project": P, "key": key, "note": "확인 부탁"}).json()
+    assert sub["status"] == "review" and sub["request_id"]
+    review = dev2.get("/api/v1/develop/work/review", params={"project": P, "key": key}).json()
+    assert [f["path"] for f in review["files"]] == [target] and review["outside"] == []
+    assert base64.b64decode(review["files"][0]["after"]).decode("utf-8").endswith("// 채움\n")
+    assert [i["key"] for p in ext.get("/api/v1/develop/work/mine").json()["projects"] for i in p["reviews"]] == [], "자기 작업은 검토 목록에 없음"
+    assert dev.post("/api/v1/develop/work/approve", json={"project": P, "key": key}).status_code == 403, "본인 승인 금지"
+    done = dev2.post("/api/v1/develop/work/approve", json={"project": P, "key": key}).json()
+    assert done["status"] == "done"
+    assert (develop.app_dir(P) / target).read_text(encoding="utf-8").endswith("// 채움\n"), "dev에 합쳐짐"
+    data = dev.get("/api/v1/develop/work", params={"project": P}).json()
+    assert data["counts"]["done"] == 1 and data["people"] == [{"id": ids["dev"], "name": "dev", "total": 1, "done": 1, "review": 0}]
+
+    assert dev.delete("/api/v1/auth/tokens", params={"id": made["info"]["id"]}).json() == {"ok": True}
+    assert ext.get("/api/v1/version").status_code == 401, "지운 토큰은 못 쓴다"
+
+
+def test_reject_then_resubmit_and_outside_file_blocks_submit(sample_doc):
+    _developed(sample_doc)
+    pm, dev, dev2, ids = _team()
+    ui = next(i for i in dev.get("/api/v1/develop/work", params={"project": P}).json()["items"] if i["kind"] == "ui")
+    dev2.post("/api/v1/develop/work/assign", json={"project": P, "key": ui["key"], "user_id": ids["dev"]})
+    menu_file = next(f for f in ui["files"] if "/menus/" in f)
+    wt = repo.worktree(P, work.branch_of(ui["key"]))
+    (wt / "README.md").write_text("# 밖\n", encoding="utf-8")
+    assert dev.post("/api/v1/develop/repo/commit", json={"project": P, "branch": work.branch_of(ui["key"]), "message": "밖"}).status_code == 200
+    blocked = dev.post("/api/v1/develop/work/submit", json={"project": P, "key": ui["key"]})
+    assert blocked.status_code == 400 and "README.md" in blocked.json()["detail"]
+
+    (wt / "README.md").write_text(subprocess.run(["git", "show", "dev:README.md"], cwd=develop.app_dir(P), capture_output=True, text=True).stdout,
+                                  encoding="utf-8")
+    new_file = menu_file.rsplit(".", 1)[0] + "/Board.tsx"   # 메뉴 폴더 아래 새 파일도 그 화면 묶음
+    (wt / new_file).parent.mkdir(parents=True, exist_ok=True)
+    (wt / new_file).write_text("export const Board = 1\n", encoding="utf-8")
+    assert dev.post("/api/v1/develop/repo/commit", json={"project": P, "branch": work.branch_of(ui["key"]), "message": "메뉴 화면"}).status_code == 200
+    assert dev.post("/api/v1/develop/work/submit", json={"project": P, "key": ui["key"]}).json()["status"] == "review"
+    assert dev2.post("/api/v1/develop/work/reject", json={"project": P, "key": ui["key"], "reason": ""}).status_code == 400
+    rej = dev2.post("/api/v1/develop/work/reject", json={"project": P, "key": ui["key"], "reason": "이름 고쳐 주세요"}).json()
+    assert rej["status"] == "rejected" and rej["reason"] == "이름 고쳐 주세요"
+    again = dev.post("/api/v1/develop/work/submit", json={"project": P, "key": ui["key"]})
+    assert again.status_code == 200 and again.json()["status"] == "review", again.text
+    assert dev2.post("/api/v1/develop/work/assign", json={"project": P, "key": ui["key"], "user_id": ids["dev2"]}).status_code == 409, \
+        "승인 대기 중에는 담당자를 바꾸지 않는다"
+
+
+def test_archive_brings_in_latest_dev_merged_by_others(sample_doc):
+    """받을 때 작업 브랜치에 최신 dev를 넣는다: 올린 것이 없으면 dev로 앞으로 감고, 있으면 합친다. 충돌이면 그대로 두고 알린다"""
+    _developed(sample_doc)
+    _, dev, dev2, ids = _team()
+    fns = [i for i in dev.get("/api/v1/develop/work", params={"project": P}).json()["items"]
+           if i["kind"] == "function" and any(f.endswith((".java", ".py", ".ts")) for f in i["files"])]
+    mine, other = fns[0], fns[1]
+    for item, who in ((mine, "dev"), (other, "dev2")):
+        assert dev.post("/api/v1/develop/work/assign", json={"project": P, "key": item["key"], "user_id": ids[who]}).status_code == 200
+    git = lambda *a: subprocess.run(["git", *a], cwd=develop.app_dir(P), capture_output=True, text=True).stdout.strip()   # noqa: E731
+
+    # 다른 사람(dev2)이 자기 작업을 올려 dev에 합친다
+    theirs = next(f for f in other["files"] if f.endswith((".java", ".py", ".ts")))
+    pack2 = dev2.get("/api/v1/develop/work/archive", params={"project": P, "key": other["key"]}).json()
+    body = base64.b64decode(next(f["content"] for f in pack2["files"] if f["path"] == theirs)).decode("utf-8")
+    assert dev2.post("/api/v1/develop/work/upload", json={"project": P, "key": other["key"], "base": pack2["head"], "submit": True,
+                                                           "files": [{"path": theirs, "content": _b64(body + "\n// dev2\n")}]}).status_code == 200
+    assert dev.post("/api/v1/develop/work/approve", json={"project": P, "key": other["key"]}).json()["status"] == "done"
+
+    pack = dev.get("/api/v1/develop/work/archive", params={"project": P, "key": mine["key"]}).json()
+    got = {f["path"]: base64.b64decode(f["content"]).decode("utf-8") for f in pack["files"]}
+    assert got[theirs].endswith("// dev2\n"), "배정 뒤 다른 사람이 dev에 합친 내용이 들어 있다"
+    assert pack["sync"]["merged"] and pack["head"] == git("rev-parse", "dev"), "올린 것이 없으면 dev로 앞으로 감는다 (합치기 커밋 없음)"
+
+    # 내가 올린 뒤 dev가 또 바뀌면 합쳐서 준다 (내 변경도 그대로)
+    target = next(f for f in mine["files"] if f.endswith((".java", ".py", ".ts")))
+    assert dev.post("/api/v1/develop/work/upload", json={"project": P, "key": mine["key"], "base": pack["head"],
+                                                          "files": [{"path": target, "content": _b64(got[target] + "\n// dev\n")}]}).status_code == 200
+    side = repo.create_branch(P, "feature/side", users.get_member(ids["dev2"]))["name"]
+    (repo.worktree(P, side) / "README.md").write_text("# 옆에서 고침\n", encoding="utf-8")
+    repo.commit(P, side, "옆", users.get_member(ids["dev2"]))
+    repo.merge(P, repo.request_merge(P, side, "", users.get_member(ids["dev2"]))["id"], users.get_member(ids["dev"]))
+    pack = dev.get("/api/v1/develop/work/archive", params={"project": P, "key": mine["key"]}).json()
+    got = {f["path"]: base64.b64decode(f["content"]).decode("utf-8") for f in pack["files"]}
+    assert pack["sync"]["merged"] and got["README.md"] == "# 옆에서 고침\n" and got[target].endswith("// dev\n")
+
+    # 충돌하면 합치지 않고 지금 브랜치 그대로 주며 충돌 파일을 알린다
+    wt = repo.worktree(P, work.branch_of(mine["key"]))
+    (wt / "README.md").write_text("# 내 쪽\n", encoding="utf-8")
+    repo.commit(P, work.branch_of(mine["key"]), "내 쪽", users.get_member(ids["dev"]))
+    side2 = repo.create_branch(P, "feature/side2", users.get_member(ids["dev2"]))["name"]
+    (repo.worktree(P, side2) / "README.md").write_text("# 저쪽\n", encoding="utf-8")
+    repo.commit(P, side2, "저쪽", users.get_member(ids["dev2"]))
+    repo.merge(P, repo.request_merge(P, side2, "", users.get_member(ids["dev2"]))["id"], users.get_member(ids["dev"]))
+    pack = dev.get("/api/v1/develop/work/archive", params={"project": P, "key": mine["key"]}).json()
+    got = {f["path"]: base64.b64decode(f["content"]).decode("utf-8") for f in pack["files"]}
+    assert not pack["sync"]["merged"] and pack["sync"]["conflicts"] == ["README.md"] and got["README.md"] == "# 내 쪽\n"
+
+
+def test_regenerate_with_real_generator_writes_gen_worktree_only(sample_doc):
+    """실제 생성기를 gen 작업 폴더(--out)로 다시 돌리면: 같은 스펙이면 바뀐 것 없음, 생성 파일을 지우면 gen에만 되살리고 dev는 그대로"""
+    _developed(sample_doc)
+    runner = type("M", (), {"id": 999, "name": "한개발", "role": "developer", "email": "d@x"})()
+    gen = repo.gen_tree(P)
+    assert (gen / ".req-agent" / "manifest.json").is_file()
+    assert cli.main(["develop", P, "--from", FINAL, "--out", str(gen)]) == 0
+    assert repo.commit_develop(P, FINAL.removeprefix("v"), "같은 스펙", runner)["commit"] is None, "같은 스펙이면 생성 결과가 같다"
+    (gen / "README.md").unlink()
+    repo.git(gen, "commit", "-qam", "지움", who=("t", "t@x"))
+    assert cli.main(["develop", P, "--from", FINAL, "--out", str(gen)]) == 0
+    res = repo.commit_develop(P, FINAL.removeprefix("v"), "다시 개발", runner)
+    assert res["commit"] and res["request"] and (gen / "README.md").is_file()
+    assert not (develop.app_dir(P) / ".git" / "MERGE_HEAD").exists() and repo.changes(develop.app_dir(P)) == {}, "dev 작업 폴더는 그대로"

@@ -958,6 +958,36 @@ volumes:
   db-data:
 """
 
+DEPLOY_DEV = """# dev 브랜치에 올리면(원격 올리기) 테스트 서버에 앱을 다시 띄운다. 코드가 만든 파일 (TEAM4_AGENT 최종 개발하기).
+# 저장소 Settings → Secrets and variables → Actions에 넣는다:
+#   TEST_HOST     테스트 서버 주소 (예: 3.38.0.10)          TEST_USER  SSH 사용자 (예: ubuntu)
+#   TEST_SSH_KEY  SSH 개인 키 (pem 내용 전체)               TEST_DIR   앱을 둘 폴더 (기본 ~/app)
+# 서버에는 Docker(compose 포함)가 있어야 한다. 앱은 http://<TEST_HOST>:8080 (보안 그룹에서 8080을 연다).
+# TEST_HOST가 없으면 배포를 건너뛴다. main(고객 납품)은 배포하지 않는다.
+name: deploy-dev
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 테스트 서버에 배포
+        env:
+          TEST_HOST: ${{ secrets.TEST_HOST }}
+          TEST_USER: ${{ secrets.TEST_USER }}
+          TEST_SSH_KEY: ${{ secrets.TEST_SSH_KEY }}
+          TEST_DIR: ${{ secrets.TEST_DIR }}
+        run: |
+          if [ -z "$TEST_HOST" ]; then echo "TEST_HOST 비밀값이 없어 배포를 건너뜁니다."; exit 0; fi
+          mkdir -p ~/.ssh && printf '%s\\n' "$TEST_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          DIR="${TEST_DIR:-app}"
+          tar czf - --exclude=.git --exclude=node_modules . | ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=accept-new \\
+            "${TEST_USER:-ubuntu}@$TEST_HOST" "mkdir -p $DIR && tar xzf - -C $DIR && cd $DIR && APP_HOST=0.0.0.0 docker compose up -d --build"
+"""
+
 # MySQL 8 (DB 스택 mysql). 서버는 연결마다 sql_mode ANSI를 켠다 (application.yml): 이름은 큰따옴표, ||는 문자열 잇기라
 # PostgreSQL과 같은 SQL 모양을 쓴다. schema.sql·seed.sql은 MySQL 문법(백틱)이라 이 모드와 무관하다.
 MYSQL_URL = "jdbc:mysql://{host}/app?characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true"
@@ -1121,6 +1151,11 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
                 files[rel] = _for_mysql(rel, files[rel])
     rows = sample_rows(spec.ddl, load_words(spec.words))
     files["frontend/src/generated/screens.json"] = json.dumps(data, ensure_ascii=False, indent=1) + "\n"
+    # 화면 구성(메뉴 이름·순서·숨김·홈 칸)과 메뉴마다 화면 파일: 화면 작업을 메뉴 단위로 사람에게 맡긴다 (AI 사용과 상관없이 늘 만든다)
+    files["frontend/src/generated/layout.json"] = json.dumps(default_layout(data), ensure_ascii=False, indent=1) + "\n"
+    for m in data["menu"]:
+        files[f"frontend/src/menus/{menu_file(m['group'])}.tsx"] = _menu_page(m)
+    files["frontend/src/menus/index.ts"] = _menus_index(data["menu"])
     from app.agents.tools import themes
     files["frontend/src/theme.css"] = themes.css(spec.options.get("theme"))
     files["frontend/src/generated/mock-data.json"] = json.dumps(mock_data(spec.model, spec.names, rows), ensure_ascii=False, indent=1) + "\n"
@@ -1164,6 +1199,8 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
     # .preview(미리보기·브랜치 작업 폴더)·.req-agent(생성기 기록)는 코드 저장소에 커밋하지 않는다 (services/repo.py)
     files[".gitignore"] = "node_modules/\ndist/\ntarget/\n.env\nlocal/\n.preview/\n.req-agent/\n" + ("__pycache__/\n.venv/\n" if python else "")
     files["README.md"] = _readme(spec, data, skipped)
+    if backend:   # dev를 원격에 올리면 테스트 서버에 다시 띄운다 (비밀값이 없으면 건너뜀)
+        files[".github/workflows/deploy-dev.yml"] = DEPLOY_DEV
     files["IMPLEMENTATION.md"] = _implementation(spec, data, owned, built, logic, records, skipped)
     files["spec/SCREENS.md"] = screens_md(spec, data)
     files["spec/SPEC_VERSION"] = json.dumps({"project": spec.project, "version": spec.version, "format": APP_FORMAT,
@@ -1205,6 +1242,47 @@ def _for_nextjs(files: dict[str, str]) -> dict[str, str]:
             out[doc] = out[doc].replace("frontend/src/", "frontend/ui/").replace("VITE_API=server", "NEXT_PUBLIC_API=server")
     out[".gitignore"] = out.get(".gitignore", "") + ".next/\nout/\n"
     return out
+
+
+def menu_file(group: str) -> str:
+    """메뉴 그룹 → 화면 파일 이름 (영문·숫자·밑줄, 다른 글자가 있으면 해시를 붙여 겹치지 않게)"""
+    base = re.sub(r"[^A-Za-z0-9]+", "_", group).strip("_")
+    if not base or base[0].isdigit() or base != group.replace("-", "_").replace(".", "_"):
+        base = f"{base or 'menu'}_{hashlib.sha1(group.encode('utf-8')).hexdigest()[:6]}"
+    return base
+
+
+def default_layout(data: dict) -> dict:
+    """화면 구성 기본값 (frontend/src/generated/layout.json). 웹 '화면 구성'에서 고치면 앱이 이 파일대로 메뉴·홈을 그린다"""
+    return {"format": 1, "home": {"todo": True, "notices": True, "areas": True},
+            "menu": [{"group": m["group"], "name": m["name"], "hidden": False,
+                      "pages": [{"name": p["name"], "screens": p["screens"], "hidden": False} for p in m["pages"]]}
+                     for m in data["menu"]]}
+
+
+def _menu_page(menu: dict) -> str:
+    """메뉴 화면 파일. 기본은 공통 메뉴 화면(같은 업무 대상 화면을 한 화면으로). 화면 작업 담당자가 이 파일을 고쳐 메뉴 화면을 바꾼다"""
+    names = ", ".join(p["name"] for p in menu["pages"])
+    return "\n".join([
+        "import { DefaultMenuPage } from '../menu'",
+        "import type { MenuProps } from '../menu'",
+        "",
+        f"// 메뉴 '{menu['name']}' ({menu['group']}) 화면. 업무: {names}",
+        "// 이 메뉴의 화면을 바꾸려면 이 파일을 고친다 (화면 작업 묶음). props.screens는 지금 업무의 화면들, props.screen은 주소가 가리키는 기능 화면.",
+        "export default function Menu(props: MenuProps) {",
+        "  return <DefaultMenuPage {...props} />",
+        "}",
+        ""])
+
+
+def _menus_index(menu: list[dict]) -> str:
+    """메뉴 그룹 → 메뉴 화면 파일. 코드가 만든 파일 (메뉴는 스펙이 정하므로 사람이 고치지 않는다)"""
+    lines = ["import type { ComponentType } from 'react'", "import type { MenuProps } from '../menu'"]
+    lines += [f"import {menu_file(m['group'])} from './{menu_file(m['group'])}'" for m in menu]
+    lines += ["", "// 메뉴 화면 목록 (메뉴 그룹 → 화면 파일). 여기 없는 메뉴는 기본 메뉴 화면(menu.tsx)으로 그린다. 코드가 만든 파일.",
+              "export const menus: Record<string, ComponentType<MenuProps>> = {",
+              *[f"  {json.dumps(m['group'], ensure_ascii=False)}: {menu_file(m['group'])}," for m in menu], "}", ""]
+    return "\n".join(lines)
 
 
 def _pages_index(function_ids: list[str]) -> str:

@@ -4,6 +4,7 @@
   POST /auth/login      로그인 → httpOnly 쿠키 세션
   POST /auth/logout     로그아웃
   GET  /auth/me         로그인한 회원·권한
+  GET·POST·DELETE /auth/tokens  내 개인 접속 토큰 (VS Code 확장, 만들 때만 원문)
   GET  /members         승인된 회원 (업로드 화면에서 Slack 채널에 초대할 담당자 고르기, 로그인한 회원)
   GET  /users           회원 목록 (관리자)
   POST /users/update    역할·승인·중지·관리자 지정·Slack 멤버 ID (관리자)
@@ -116,4 +117,25 @@ def create_user(body: MemberCreate, _: users.Member = Depends(admin_user)):
 @router.post("/users/password", summary="비밀번호 초기화 (관리자)")
 def reset_password(body: PasswordReset, _: users.Member = Depends(admin_user)):
     users.set_password(body.id, body.password)
+    return {"ok": True}
+
+
+class TokenBody(BaseModel):
+    name: str = "VS Code"
+
+
+@router.get("/auth/tokens", summary="내 개인 접속 토큰 목록")
+def list_tokens(member: users.Member = Depends(current_user)):
+    return {"tokens": users.list_access_tokens(member.id)}
+
+
+@router.post("/auth/tokens", summary="개인 접속 토큰 만들기 (원문은 이때만)")
+def create_token(body: TokenBody, member: users.Member = Depends(current_user)):
+    info, raw = users.create_access_token(member.id, body.name)
+    return {"token": raw, "info": info}
+
+
+@router.delete("/auth/tokens", summary="개인 접속 토큰 지우기")
+def delete_token(id: int, member: users.Member = Depends(current_user)):
+    users.delete_access_token(member.id, id)
     return {"ok": True}

@@ -20,6 +20,12 @@ _viewer: ContextVar[users.Member | None] = ContextVar("viewer", default=None)
 
 
 def _signed_in(request: Request) -> users.Member:
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):   # 개인 접속 토큰 (VS Code 확장, 쿠키 없이)
+        member = users.member_by_access_token(auth[7:].strip())
+        if member is None:
+            raise Unauthorized("접속 토큰이 맞지 않거나 지워졌습니다. 웹에서 새 토큰을 만드세요.")
+        return member
     member = users.member_by_token(request.cookies.get(SESSION_COOKIE, ""))
     if member is None:
         raise Unauthorized("로그인이 필요합니다.")
@@ -27,7 +33,7 @@ def _signed_in(request: Request) -> users.Member:
 
 
 async def current_user(request: Request) -> users.Member:
-    """로그인한 회원 (쿠키 세션). 없거나 끝났으면 401 — 화면은 로그인 화면으로 보낸다.
+    """로그인한 회원 (쿠키 세션 또는 Authorization: Bearer 개인 접속 토큰). 없거나 끝났으면 401 — 화면은 로그인 화면으로 보낸다.
     이 요청의 회원으로 남겨 두어 프로젝트를 받는 API가 담당자인지 본다 (async: 남긴 값이 엔드포인트까지 이어지게)."""
     member = await run_in_threadpool(_signed_in, request)
     _viewer.set(member)

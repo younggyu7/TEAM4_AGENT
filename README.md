@@ -129,15 +129,20 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `POST /projects/approval` | 최종본 승인 / 수정 지시 (`{project, version, decision: approve·changes, targets?: [spec, erd], items?: [{stage, target_id, label, note}], comment}`, PM만) |
 | `GET /projects/directives?project=` · `POST /projects/directives/resolve` | 끝나지 않은 수정 지시와 진행(처리할 버전, 기능 명세 대기, 옛 ERD 잠금) · 지시 항목 처리 반영함·그대로 둠(이유) |
 | `GET /notices` · `POST /notices/dismiss` | 나에게 온 알림 (담당자인 프로젝트만. 상태: 수정 지시·대기·승인 요청·승인 대기·개발 대기, 회원별 반려 `kind: rejected` — 내가 요청했거나 고친 초안 / 일: 업로드 분석 완료(모든 회원)·ERD 초안(개발자)·개발 초안(개발자)) · 확인(나에게서만 지움, Slack 전송과 무관) |
-| `GET /develop/plan` · `POST /develop` | 승인 최종본의 최종 개발하기: 예상(화면·파일, 틀 없는 층 경고, AI 업무 기능 구현 예상 토큰) · 코드(+`build`·`model`·`effort`면 AI 구현) + 예시 데이터 화면 + Docker 자동 확인 → `202 {job}` (개발자만) |
+| `GET /develop/plan` · `POST /develop` | 승인 최종본의 최종 개발하기: 예상(화면·파일, 틀 없는 층 경고, AI 업무 기능 구현 예상 토큰) · 코드(+`build`·`model`·`effort`면 AI 구현, gen에 커밋 — 처음이면 dev도 같은 커밋, 다시 개발이면 gen → dev 합치기 요청) + 예시 데이터 화면 + Docker 자동 확인(처음만) → `202 {job}` (개발자만) |
 | `GET /preview/<프로젝트>/` (`mock/` · `status` · `start` · `stop` · `accounts`) | 최종 개발물 실행: 안내 페이지 → 앱 자체 docker-compose로 독립 실행 → 앱 주소 `http://<서버>:<포트>`(`PREVIEW_BIND`, 기본 0.0.0.0). 10분 동안 요청이 없으면 끔, 동시 3개. `accounts`는 admin·user 비밀번호(PM·개발자) |
 | `GET /projects/stack` | 버전의 기술 스택 상태: 원문·확정(기능 명세 TQ-001)·미정, 개발 틀이 없는 층 경고 |
 | `GET /develop/files` · `GET·PUT /develop/file` | 최종 개발물 코드 파일 구성(`branch`: main 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고친 파일·커밋 안 한 변경 표시) · 내용 보기 · 브랜치에서 고쳐 저장(main 거부, 개발자 `repo_write`) |
 | `GET /preview/<프로젝트>/terminal` | 실행 미리보기 터미널: 서버가 실행한 명령·출력 + 앱 서버 로그 |
-| `GET·POST /develop/git` · `POST /develop/git/push` | 원격 하나 `{url, branch, token}`(토큰 암호화, 화면엔 `has_token`·받아 둔 원격 기준 앞섬·뒤처짐) · 코드 저장소의 main과 `final-v*` 태그를 push(원격에 main에 없는 커밋이 있으면 거부) → `202 {job}` (개발자) |
-| `GET /develop/repo` (`/log` · `/commit` · `/diff`) | 코드 저장소: 브랜치(앞섬·뒤처짐·커밋 안 한 변경·열린 요청)·합치기 요청 · 모든 브랜치 커밋(이력 그래프, `ai`=req-agent) · 커밋 하나의 diff · main...브랜치 차이 |
-| `POST·DELETE /develop/repo/branch` · `POST /develop/repo/commit` · `/update-branch` · `/request` | 브랜치(+작업 폴더) 만들기·지우기 · 저장하기(작성자=로그인 회원) · 메인 가져오기(충돌이면 409 `conflicts`) · 합치기 요청(→ 개발자 알림) (개발자) |
-| `POST /develop/repo/merge` · `/reject` · `/fetch` | 합치기(`--no-ff`, 충돌이면 되돌리고 409 `conflicts`) · 반려(사유 필수) — 요청한 회원에게만 알림 · 원격 확인(fetch) (개발자) |
+| `GET·POST /develop/git` · `POST /develop/git/push` | 원격 하나 `{url, token}`(토큰 암호화, 화면엔 `has_token`·받아 둔 원격 기준 dev·main 앞섬·뒤처짐 `targets`) · 고른 브랜치 `{target: dev·main}`를 같은 이름으로 push + `final-v*`·`release-*` 태그(원격에 서버에 없는 커밋이 있으면 거부, 첫 릴리스 전 main은 400) → `202 {job}` (개발자). dev를 올리면 생성 앱의 `.github/workflows/deploy-dev.yml`이 테스트 서버에 배포 |
+| `GET /develop/repo` (`/log` · `/commit` · `/diff`) | 코드 저장소(`gen` = AI 생성 결과, 작업 브랜치 `dev` = 통합·테스트, `main` = 고객 납품·첫 릴리스 때 생김, `released`·`pending_release`): 브랜치(dev 기준 앞섬·뒤처짐·커밋 안 한 변경·열린 요청)·합치기 요청 · 모든 브랜치 커밋(이력 그래프, `ai`=req-agent) · 커밋 하나의 diff · dev...브랜치 차이(`branch=main`이면 릴리스할 차이, `branch=gen`이면 AI 재생성 차이) |
+| `POST·DELETE /develop/repo/branch` · `POST /develop/repo/commit` · `/update-branch` · `/request` | 브랜치(+작업 폴더, dev에서) 만들기·지우기 · 저장하기(작성자=로그인 회원, gen·dev·main 거부) · dev 가져오기(충돌이면 409 `conflicts`) · 합치기 요청(→ 개발자 알림) (개발자) |
+| `POST /develop/repo/merge` · `/reject` · `/release` · `/fetch` | dev에 합치기(`--no-ff`, 충돌이면 되돌리고 409 `conflicts`) · 반려(사유 필수) — 요청한 회원에게만 알림, **자기 요청은 403(개발자 담당자가 한 명이면 허용·'본인 승인' 기록)** · 릴리스(dev → main 앞으로 감기, 첫 릴리스면 main 생성 + 태그 `release-<날짜>-<n>`) · 원격 확인(fetch) (개발자) |
+| `GET·PUT /develop/layout` | 생성 앱 화면 구성 `frontend/src/generated/layout.json`(메뉴 이름·순서·숨김, 업무 이름·숨김, 홈 칸) 보기 · 저장(dev 커밋, 개발자) |
+| `GET /develop/work` · `/work/item` | 작업 묶음 4종(공통 화면 틀·화면/메뉴·공통 서버·DB·서버/기능)·상태·담당자·빈 로직·AI 수와 진행 현황 · 작업 하나 + 작업 설명(TASK.md: 기능별 개발 스펙 절) |
+| `POST /develop/work/assign` · `/submit` · `/approve` · `/reject` | 배정(작업 브랜치 `task/<묶음>` 생성·알림, 개발자) · 제출(담당자, 묶음 밖 파일이면 400) · 승인(dev에 합침)·반려 (다른 개발자, 개발자 1명이면 본인) |
+| `GET /develop/work/mine` · `/archive` · `POST /develop/work/upload` · `GET /develop/work/review` | VS Code 확장: 내 작업·검토할 작업(모든 프로젝트) · 작업 코드 받기(먼저 최신 dev를 작업 브랜치에 넣고(충돌이면 `sync.conflicts`) 브랜치 파일 base64 + `.task/TASK.md`·`files.txt`·`RULES.md`) · 바뀐 파일 올리기(받은 커밋이 다르면 409, `submit`이면 제출까지) · 검토 비교(dev 쪽·작업 쪽 내용) |
+| `GET /version` · `GET·POST·DELETE /auth/tokens` | API 버전 `{api: 1}`(확장 호환 확인) · 내 개인 접속 토큰(만들 때만 원문, 서버엔 해시) — `Authorization: Bearer t4_…`로 쿠키 없이 API 사용 |
 | `GET·POST /projects/members` | 프로젝트 담당자 `{members: [{id, name, role, role_label, has_slack, in_channel, always}], slack: {team, channel_name, members} 또는 null, slack_enabled}` · 담당자 바꾸기 (`{project, members: [회원 ID]}`, PM만, 결과 `result: {added, removed, failed}`. Slack 채널이 있으면 채널도 맞춤, Slack이 없어도 됨) |
 
 역할은 **PM**과 **개발자** 둘이다 (기획·데이터·개발 파트로 나누지 않는다). 역할별 권한(서버가 검사, `app/core/auth.py`): 업로드·기능 명세 수정·ERD 수정·저장·ERD 최종 확정·실행 끄기·앱 시연 계정 = PM·개발자 · 최종 승인·수정 지시·기술 스택 = PM·개발자 · 기능 명세 확정(내보내기)·승인 요청 반려·담당자 바꾸기·프로젝트 이름·삭제 = PM · 최종 개발하기·브랜치·코드 고치기·저장하기·합치기 요청·합치기·반려·원격 올리기 = 개발자. 개발자는 기능 명세를 고친 뒤 PM에게 '수정 완료 승인 요청'을 보내고, ERD는 승인 요청 없이 바로 확정한다. 예전 역할(팀장 → PM, 기획·데이터·개발 파트장·파트원 → 개발자)은 마이그레이션 `f3b5d7e9a1c2`가 바꾸고, 기록에 남은 예전 역할 값도 같은 규칙으로 읽는다. 회원 테이블은 `alembic upgrade head`로 만든다 (서비스 DB가 없으면 `OUTPUT_DIR/service.sqlite`).
@@ -186,7 +191,7 @@ backend/
 │   ├── main.py            # FastAPI 앱: CORS·오류 처리, /health, 기능별 라우터를 /api/v1 아래에 연결
 │   ├── cli.py             # python -m app run·resume·rerun·review·versions·confirm·diff·parse
 │   ├── api/v1/            # 기능별 라우터: projects(목록·제목) · artifacts(design·파일) · versions(새 버전) · review(최종 확정)
-│   │                      #   · runs(문서 업로드) · jobs(작업 상황) · deps(공통 입력 검사)
+│   │                      #   · runs(문서 업로드) · jobs(작업 상황) · develop·repo(최종 개발물·저장소) · work(화면 구성·작업 묶음·확장 API) · deps(공통 입력 검사)
 │   ├── models/            # 서비스 DB 테이블 (기능별): project · version · artifact · job
 │   ├── repositories/      # 서비스 DB 트랜잭션 (기능별): project · version(번호 잠금) · artifact · job
 │   ├── services/          # output_store.py: 화면용 산출물 읽기 · jobs/: CLI 하위 프로세스 작업
