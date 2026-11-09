@@ -204,12 +204,18 @@ def dismiss(project: str, notice_id: str, member) -> None:
 
 
 def job_event(job) -> None:
-    """작업이 끝나면 일 알림: 업로드 분석 완료 → 모든 담당자, ERD 초안·개발 초안 → 개발자"""
+    """작업이 끝나면 일 알림: 업로드 분석 완료·기능 명세 다시 만들기(AI로 답 반영·다시 만들기) → 모든 담당자,
+    ERD 초안·개발 초안 → 개발자"""
     if job.status != "done" or not job.new_version:
         return
     if job.source == "run":
         add_event(job.project, "uploaded", f"새 문서 분석 완료 — 기능 명세 초안 v{job.new_version}",
                   "개발자가 기능 명세를 검토하고 PM이 확정합니다", "spec", job.new_version, EVERYONE)
+    elif job.source == "answers":
+        by = ((Tree(job.project).records.get(str(job.new_version)) or {}).get("created_by") or {}).get("name")
+        add_event(job.project, "spec_redone",
+                  f"{by}님이 기능 명세를 다시 만들었습니다 — v{job.new_version}" if by else f"기능 명세 다시 만들기 완료 — v{job.new_version}",
+                  f"기능 명세 v{job.base}에서 다시 만든 새 버전입니다. 바뀐 기능을 검토하세요", "spec", job.new_version, EVERYONE)
     elif job.source == "spec":
         add_event(job.project, "erd_draft", f"기능 명세 v{job.base} 확정 — ERD 초안 v{job.new_version}",
                   "개발자가 ERD를 검토·확정합니다", "erd", job.new_version, {DEVELOPER})
