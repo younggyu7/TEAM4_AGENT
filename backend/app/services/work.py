@@ -510,6 +510,15 @@ def upload(project: str, key: str, base: str, message: str, changes: list[dict],
     return out
 
 
+def _merged_files(project: str, item: dict) -> list[str]:
+    """완료 작업이 dev에 합쳐질 때 실제로 바뀐 파일 (합치기 커밋 기준, 기록이 없으면 빈 목록)"""
+    req = next((r for r in repo.requests(project) if r["id"] == item.get("request_id")), None)
+    if not req or not req.get("commit"):
+        return []
+    code, _, out = repo.git(repo.ensure_repo(project), "diff", "--name-only", "-z", f"{req['commit']}^1", req["commit"], check=False).partition("\n")
+    return [p for p in out.split("\0") if p] if code == "0" else []
+
+
 def mine(member) -> dict:
     """확장 사이드바: 내가 맡은 작업과 내가 검토할 작업 (볼 수 있는 프로젝트 전체)"""
     from app.services import project_access
@@ -522,7 +531,8 @@ def mine(member) -> dict:
             data = overview(project)
         except Exception:  # noqa: BLE001 - 코드가 없거나 깨진 프로젝트는 건너뛴다
             continue
-        mine_items = [i for i in data["items"] if (i.get("assignee") or {}).get("id") == member.id]
+        mine_items = [{**i, "changed_files": _merged_files(project, i)} if i["status"] == "done" else i
+                      for i in data["items"] if (i.get("assignee") or {}).get("id") == member.id]
         alone = len(data["developers"]) <= 1
         reviews = [i for i in data["items"] if i["status"] == "review" and allowed(member.role, "develop")
                    and ((i.get("assignee") or {}).get("id") != member.id or alone)]

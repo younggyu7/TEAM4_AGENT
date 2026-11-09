@@ -57,3 +57,6 @@ def test_extension_downloads_edits_and_submits_over_http(sample_doc):
     assert (wt / out["target"]).read_text(encoding="utf-8").endswith("// 확장에서 고침\n"), "작업 브랜치에 커밋됨"
     review = signed_in_client("developer", "dev2").get("/api/v1/develop/work/review", params={"project": P, "key": key}).json()
     assert [f["path"] for f in review["files"]] == [out["target"]]
+    done = signed_in_client("developer", "dev2").post("/api/v1/develop/work/approve", json={"project": P, "key": key})
+    assert done.status_code == 200, done.text
+    assert work._merged_files(P, work._item(P, key)) == [out["target"]], "완료 작업은 합칠 때 바뀐 파일만"
