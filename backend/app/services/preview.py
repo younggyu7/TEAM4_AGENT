@@ -16,6 +16,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -105,6 +106,34 @@ def _container_up(project: str) -> bool:
         return bool(out.strip())
     except (OSError, subprocess.SubprocessError):
         return False
+
+
+def _app_exited(project: str) -> bool:
+    """앱 서버 컨테이너(compose 서비스 app)가 시작하다 꺼졌나 (DB는 떠 있어도). docker를 못 부르면 모른다(False)"""
+    try:
+        out = subprocess.run(["docker", "ps", "-a", "--format", "{{.State}}", "--filter", f"label=com.docker.compose.project={_name(project)}",
+                              "--filter", "label=com.docker.compose.service=app"], capture_output=True, text=True, timeout=15).stdout
+        return "exited" in out.split() or "dead" in out.split()
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+START_ERROR = re.compile(r"Caused by:|APPLICATION FAILED TO START|Error starting|Traceback|Error:|Exception:|ERROR")
+
+
+def _exit_reason(project: str, out: "_Log") -> str:
+    """꺼진 앱 서버의 마지막 로그에서 원인 줄을 골라 기록에 남기고, 화면에 보일 한 줄을 돌려준다"""
+    try:
+        proc = subprocess.run([*_compose_cmd(project), "logs", "--no-color", "--tail", "200", "app"], cwd=app_dir(project),
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+        lines = [line.split("|", 1)[-1].strip() for line in (proc.stdout + proc.stderr).splitlines()]
+    except (OSError, subprocess.SubprocessError):
+        lines = []
+    picked = [line for line in lines if START_ERROR.search(line) and not line.lstrip().startswith("at ")][-8:]
+    for line in picked:
+        out._push(f"앱 서버: {line}")
+    cause = next((line for line in reversed(picked) if line.startswith("Caused by:")), picked[-1] if picked else "")
+    return cause[:300]
 
 
 def runnable(project: str) -> bool:
@@ -253,12 +282,16 @@ def _bring_up(project: str) -> None:
         if out._sh([*cmd, "up", "-d"], app, env) != 0:
             raise RuntimeError("컨테이너를 시작하지 못했습니다 (위 기록).")
         import httpx
-        for _ in range(180):   # 서버가 답할 때까지 (최대 3분). 로그인 전이라 401이 정상
+        deadline = time.time() + 180
+        while time.time() < deadline:   # 서버가 답할 때까지 (최대 3분). 로그인 전이라 401이 정상
             try:
                 if httpx.get(f"http://127.0.0.1:{s['port']}/api/auth/me", timeout=2).status_code < 500:
                     break
             except httpx.HTTPError:
                 pass   # 아직 뜨는 중
+            if _app_exited(project):   # 시작하다 꺼지면 3분을 기다리지 않고 원인을 알린다
+                reason = _exit_reason(project, out)
+                raise RuntimeError("앱 서버가 시작하다 꺼졌습니다" + (f": {reason}" if reason else " (터미널의 앱 서버 로그를 보세요)."))
             time.sleep(1)
         else:
             raise RuntimeError("서버가 3분 안에 답하지 않았습니다 (터미널의 앱 서버 로그를 보세요).")

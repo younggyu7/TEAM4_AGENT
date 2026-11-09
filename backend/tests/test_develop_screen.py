@@ -275,3 +275,26 @@ def test_old_final_without_behavior_is_filled_once(sample_doc, monkeypatch):
     assert after["api_design"]["behavior"]["fingerprint"] and "BEHAVIOR.md" in after["meta"]["dev_spec"]["files"]
     again = signed_in_client("pm").post("/api/v1/projects/dev-spec/fill", json=body)
     assert again.status_code == 400 and fake.calls["BehaviorOut"] == 1, "이미 채운 최종본은 다시 묻지 않는다"
+
+
+def test_preview_reports_why_the_app_server_stopped(monkeypatch):
+    """실행 미리보기: 앱 서버 컨테이너가 시작하다 꺼지면 3분을 기다리지 않고, 앱 로그의 원인 줄(Caused by …)을 기록과 메시지에 남긴다"""
+    from app.services import preview
+
+    log = ("app-1  | 2026 ERROR 1 --- [main] o.s.boot.SpringApplication : Application run failed\n"
+           "app-1  | org.springframework.beans.factory.BeanDefinitionStoreException: Failed to parse configuration class [app.Application]\n"
+           "app-1  |     at org.springframework.Foo.bar(Foo.java:1)\n"
+           "app-1  | Caused by: ConflictingBeanDefinitionException: bean name 'fnA' for [app.api.FnA] conflicts with [app.feature.FnA]\n")
+
+    def run(cmd, **kw):
+        out = "exited\n" if cmd[:3] == ["docker", "ps", "-a"] else log if "logs" in cmd else ""
+        return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+    monkeypatch.setattr(preview.subprocess, "run", run)
+    pushed = []
+    log_obj = type("L", (), {"_push": lambda self, line: pushed.append(line)})()
+    assert preview._app_exited("sample")
+    reason = preview._exit_reason("sample", log_obj)
+    assert reason.startswith("Caused by: ConflictingBeanDefinitionException") and "app.feature.FnA" in reason
+    assert any("Application run failed" in p for p in pushed) and not any(p.strip().endswith("(Foo.java:1)") for p in pushed), \
+        "원인 줄만 (스택 줄 at … 은 뺀다)"
