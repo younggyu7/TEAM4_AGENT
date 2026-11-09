@@ -167,8 +167,9 @@ def _notice_data(project: str) -> dict:
 
 
 def add_event(project: str, kind: str, title: str, detail: str, page: str, version: str, roles: set[str] | None,
-              member_ids: set[int] | None = None) -> None:
-    """일 알림을 남긴다. roles=None이면 모든 회원. member_ids가 있으면 그 회원에게만 (예: 합치기 결과 → 요청한 사람)"""
+              member_ids: set[int] | None = None, by: int | None = None) -> None:
+    """일 알림을 남긴다. roles=None이면 모든 회원. member_ids가 있으면 그 회원에게만 (예: 합치기 결과 → 요청한 사람).
+    by = 이 일을 한 회원 ID: 자기가 한 일의 알림은 자기에게 보이지 않는다 (화면 '나에게 온 알림'·Slack 멘션)"""
     with _notice_lock:
         data = _notice_data(project)
         at = datetime.now().isoformat(timespec="seconds")
@@ -176,6 +177,8 @@ def add_event(project: str, kind: str, title: str, detail: str, page: str, versi
                  "version": version, "roles": sorted(roles) if roles is not None else None}
         if member_ids is not None:
             event["member_ids"] = sorted(member_ids)
+        if by is not None:
+            event["by"] = by
         data["events"] = [*data["events"][-199:], event]
         get_store().write_project_file(project, NOTICE_FILE, json.dumps(data, ensure_ascii=False))
 
@@ -184,6 +187,8 @@ def _event_notice(project: str, e: dict) -> dict:
     n = {"project": project, **{k: e[k] for k in ("kind", "at", "title", "detail", "page", "version", "id")}}
     if e.get("member_ids") is not None:
         n["members"] = e["member_ids"]
+    if e.get("by") is not None:
+        n["by"] = e["by"]   # 이 일을 한 회원 (그 회원에게는 보이지 않는다)
     return n
 
 
@@ -208,23 +213,29 @@ def job_event(job) -> None:
     ERD 초안·개발 초안 → 개발자"""
     if job.status != "done" or not job.new_version:
         return
+    records = Tree(job.project).records
+    # 작업을 시작한 사람: 화면 요청으로 만든 새 버전의 created_by, 최종 개발하기는 그 최종본의 개발 기록
+    maker = (((records.get(str(job.base)) or {}).get("develop") or {}).get("by") if job.source == "develop"
+             else (records.get(str(job.new_version)) or {}).get("created_by")) or {}
+    by_id = maker.get("id") if isinstance(maker.get("id"), int) else None
     if job.source == "run":
         add_event(job.project, "uploaded", f"새 문서 분석 완료 — 기능 명세 초안 v{job.new_version}",
-                  "개발자가 기능 명세를 검토하고 PM이 확정합니다", "spec", job.new_version, EVERYONE)
+                  "개발자가 기능 명세를 검토하고 PM이 확정합니다", "spec", job.new_version, EVERYONE, by=by_id)
     elif job.source == "answers":
-        by = ((Tree(job.project).records.get(str(job.new_version)) or {}).get("created_by") or {}).get("name")
+        by = maker.get("name")
         add_event(job.project, "spec_redone",
                   f"{by}님이 기능 명세를 다시 만들었습니다 — v{job.new_version}" if by else f"기능 명세 다시 만들기 완료 — v{job.new_version}",
-                  f"기능 명세 v{job.base}에서 다시 만든 새 버전입니다. 바뀐 기능을 검토하세요", "spec", job.new_version, EVERYONE)
+                  f"기능 명세 v{job.base}에서 다시 만든 새 버전입니다. 바뀐 기능을 검토하세요", "spec", job.new_version, EVERYONE,
+                  by=by_id)
     elif job.source == "spec":
         add_event(job.project, "erd_draft", f"기능 명세 v{job.base} 확정 — ERD 초안 v{job.new_version}",
-                  "개발자가 ERD를 검토·확정합니다", "erd", job.new_version, {DEVELOPER})
+                  "개발자가 ERD를 검토·확정합니다", "erd", job.new_version, {DEVELOPER}, by=by_id)
     elif job.source == "develop":
         add_event(job.project, "developed", f"최종본 v{job.base} 개발 초안 완료",
-                  "최종 개발물 1단계에서 결과와 코드를 확인하세요", "develop", job.new_version, {DEVELOPER})
+                  "최종 개발물 1단계에서 결과와 코드를 확인하세요", "develop", job.new_version, {DEVELOPER}, by=by_id)
 
 
-def notices(member, include_dismissed: bool = False) -> list[dict]:
+def notices(member, include_dismissed: bool = False, include_own: bool = False) -> list[dict]:
     """홈·사이드바의 '나에게 온 알림' (내가 담당자인 프로젝트만): 상태 알림(내 역할에 해당하는 수정 지시·승인 요청·승인 대기·개발 대기, 내가 요청했거나 고친 초안의 반려)
     + 일 알림(업로드 분석 완료·ERD 초안·개발 초안). 확인한 것은 뺀다 (include_dismissed=True면 빼지 않는다: Slack 전송용)"""
     out = []
@@ -283,8 +294,10 @@ def notices(member, include_dismissed: bool = False) -> list[dict]:
                 out.append({"project": project, "kind": "decide", "at": r.get("created_at") or "", "page": "final", "version": label,
                             "title": f"최종본 v{label} 승인 대기", "detail": "최종 승인 또는 수정 지시"})
         data = _notice_data(project)
+        # 일 알림: 내 역할·나를 정한 알림 중 내가 한 일이 아닌 것 (include_own: Slack이 역할별로 한 번 계산할 때는 빼지 않고 회원마다 뺀다)
         out += [_event_notice(project, e) for e in data["events"]
-                if (e.get("roles") is None or role in {role_of(x) for x in e["roles"]}) and (e.get("member_ids") is None or member.id in e["member_ids"])]
+                if (e.get("roles") is None or role in {role_of(x) for x in e["roles"]}) and (e.get("member_ids") is None or member.id in e["member_ids"])
+                and (include_own or e.get("by") != member.id)]
         gone = set(data["dismissed"].get(str(member.id)) or [])
         if not include_dismissed:
             out = [n for n in out if n["project"] != project or _nid(n) not in gone]

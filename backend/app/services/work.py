@@ -271,7 +271,7 @@ def assign(project: str, key: str, user_id: int, member, notify: bool = True) ->
     if notify:
         directives.add_event(project, "task_assigned", f"{member.name}님이 작업을 맡겼습니다: {meta['title']}",
                              f"브랜치 {branch} · 파일 {meta['file_count']}개", "develop", repo.final_version(project), None,
-                             member_ids={target.id})
+                             member_ids={target.id}, by=member.id)
     return meta
 
 
@@ -294,7 +294,7 @@ def assign_many(project: str, keys: list[str], user_id: int, member) -> dict:
         target = done[0]["assignee"]
         titles = ", ".join(i["title"] for i in done[:5]) + (f" 외 {len(done) - 5}개" if len(done) > 5 else "")
         directives.add_event(project, "task_assigned", f"{member.name}님이 작업 {len(done)}개를 맡겼습니다", titles,
-                             "develop", repo.final_version(project), None, member_ids={target["id"]})
+                             "develop", repo.final_version(project), None, member_ids={target["id"]}, by=member.id)
     return {"results": results, "assigned": len(done), "failed": len(results) - len(done)}
 
 

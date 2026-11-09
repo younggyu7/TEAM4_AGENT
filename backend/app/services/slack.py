@@ -395,16 +395,18 @@ def _pending(projects: set[str]) -> dict[str, tuple[dict, list[users.Member]]]:
             continue   # 이 프로젝트들의 담당자가 아니다
         if mine not in by_role:
             # 화면에서 '확인'(나에게서 지움)을 눌러도 Slack은 보낸다: 같은 역할·담당이면 한 회원의 목록으로 정하므로 확인 여부를 빼고 계산한다
-            by_role[mine] = directives.notices(m, include_dismissed=True)
+            by_role[mine] = directives.notices(m, include_dismissed=True, include_own=True)
         for n in by_role[mine]:
             # 반려 알림은 회원마다 다르고(역할로 정해지지 않음) 반려할 때 [반려] 메시지로 이미 올렸다
-            # 회원을 정한 알림(합치기 결과)은 아래에서 그 회원만 부른다
-            if n["project"] in projects and n["kind"] != "rejected" and not n.get("members"):
+            # 회원을 정한 알림(합치기 결과)은 아래에서 그 회원만 부른다. 자기가 한 일의 알림은 그 회원을 부르지 않는다
+            if n["project"] in projects and n["kind"] != "rejected" and not n.get("members") and n.get("by") != m.id:
                 out.setdefault(notice_key(n), (n, []))[1].append(m)
     for project in projects:
         people = {m.id: m for m in project_access.assignees(project)}
         for n in directives.member_events(project):
-            out.setdefault(notice_key(n), (n, []))[1].extend(people[i] for i in n["members"] if i in people)
+            who = [people[i] for i in n["members"] if i in people and i != n.get("by")]
+            if who:   # 부를 사람이 없으면(담당자가 아니거나 자기에게 맡긴 작업) 채널에 올리지 않는다
+                out.setdefault(notice_key(n), (n, []))[1].extend(who)
     return out
 
 

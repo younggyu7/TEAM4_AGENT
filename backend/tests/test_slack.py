@@ -512,7 +512,8 @@ def test_result_message_says_when_the_requester_is_not_in_the_channel(fake):
 
 
 def test_redone_spec_notice_mentions_every_assignee(fake):
-    """요구사항 분석에서 AI로 다시 돌린 결과(새 기능 명세 버전)가 나오면 담당자 모두를 멘션해 알린다 (누가 다시 만들었는지 제목에)"""
+    """요구사항 분석에서 AI로 다시 돌린 결과(새 기능 명세 버전)가 나오면 담당자 모두를 멘션해 알린다 (누가 다시 만들었는지 제목에,
+    다시 만든 본인은 부르지 않는다)"""
     from app.services import directives
 
     _team("dev1", "dev2")
@@ -526,6 +527,35 @@ def test_redone_spec_notice_mentions_every_assignee(fake):
     slack.flush()
     redone = [t for t in fake.texts() if "*[기능 명세 다시 만듦]*" in t]
     assert len(redone) == 1, "실패한 작업은 알리지 않는다"
-    everyone = " ".join(f"<@{m.slack_id}>" for m in (pm, d1, d2))
+    everyone = " ".join(f"<@{m.slack_id}>" for m in (pm, d2))   # 다시 만든 dev1 빼고
     assert redone[0].startswith(f"{everyone} *[기능 명세 다시 만듦]* dev1님이 기능 명세를 다시 만들었습니다 — v2"), redone[0]
     assert "#/p/team%2Fdemo/2/spec|" in redone[0]
+
+
+def test_own_notices_are_hidden_from_the_actor_only(fake):
+    """자기가 한 일로 생긴 일 알림(릴리스·다시 만든 기능 명세·자기에게 맡긴 작업 등)은 그 사람의 '나에게 온 알림'과 Slack 멘션에서 빠지고,
+    다른 팀원에게는 그대로 간다. dev1이 같은 역할에서 먼저 계산되는 회원이어도 dev2 알림은 빠지지 않는다 (Slack은 역할별로 한 번 계산)."""
+    from app.services import directives
+
+    c = _team("dev1", "dev2", "pm")
+    pm, d1, d2 = (_member(f"{r}@test.local") for r in ("admin", "dev1", "dev2"))
+    _rec("1", "function_designer")
+    _rec("2", "function_designer", parent="1", by=d1)
+    _assign(d1, d2)
+    fake.posts.clear()
+    directives.add_event(PROJECT, "released", "dev1님이 릴리스했습니다 (release-1)", "", "develop", "1", {"developer"}, by=d1.id)
+    directives.job_event(jobs.Job(id="j", project=PROJECT, base="1", source="answers", status="done", message="", new_version="2"))
+    directives.add_event(PROJECT, "task_assigned", "dev1님이 작업을 맡겼습니다: 화면", "", "develop", "1", None, member_ids={d1.id}, by=d1.id)
+
+    def kinds(name):
+        return sorted(n["kind"] for n in c[name].get("/api/v1/notices").json()["notices"]
+                      if n["kind"] in ("released", "spec_redone", "task_assigned"))
+
+    assert kinds("dev1") == [], "내가 한 일의 알림은 나에게 없다"
+    assert kinds("dev2") == ["released", "spec_redone"] and kinds("pm") == ["spec_redone"], "다른 팀원에게는 그대로"
+    slack.flush()
+    released = next(t for t in fake.texts() if "dev1님이 릴리스했습니다" in t)
+    assert f"<@{d2.slack_id}>" in released and f"<@{d1.slack_id}>" not in released
+    redone = next(t for t in fake.texts() if "기능 명세를 다시 만들었습니다" in t)
+    assert f"<@{pm.slack_id}>" in redone and f"<@{d2.slack_id}>" in redone and f"<@{d1.slack_id}>" not in redone
+    assert not [t for t in fake.texts() if "작업을 맡겼습니다" in t], "자기에게 맡긴 작업은 아무도 부르지 않는다"

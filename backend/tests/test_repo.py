@@ -216,7 +216,7 @@ def test_merge_request_merge_and_notices(sample_doc):
     kinds = lambda c, k: [n for n in c.get("/api/v1/notices").json()["notices"] if n["kind"] == k]   # noqa: E731
     asked = kinds(head, "merge_request")
     assert len(asked) == 1 and asked[0]["title"] == f"dev님의 합치기 요청 ({branch})" and asked[0]["version"] == "1.1.1"
-    assert kinds(dev, "merge_request") and not kinds(pm, "merge_request"), "요청 알림은 개발자에게 (PM은 아님)"
+    assert not kinds(dev, "merge_request") and not kinds(pm, "merge_request"), "요청 알림은 다른 개발자에게 (요청한 본인·PM은 아님)"
 
     diff = head.get("/api/v1/develop/repo/diff", params={"project": P, "branch": branch}).json()
     assert diff["ahead"] == 1 and [(f["path"], f["status"]) for f in diff["files"]] == [("README.md", "M")] and "+# app 고침" in diff["files"][0]["diff"]

@@ -401,7 +401,8 @@ def request_merge(project: str, branch: str, note: str, member, generated: bool 
             req["generated"] = True
         _write(project, data)
     title = f"AI 재생성 결과를 dev에 합치기 요청 ({member.name}님 개발)" if generated else f"{member.name}님의 합치기 요청 ({branch})"
-    directives.add_event(project, "merge_request", title, req["note"] or f"커밋 {ahead}개", "develop", final_version(project), {DEVELOPER})
+    directives.add_event(project, "merge_request", title, req["note"] or f"커밋 {ahead}개", "develop", final_version(project), {DEVELOPER},
+                         by=member.id)
     return req
 
 
@@ -434,7 +435,7 @@ def merge(project: str, request_id: int, member) -> dict:
                    self_approved=alone)
         _write(project, data)
     directives.add_event(project, "merged", f"{member.name}님이 합치기 요청을 반영했습니다 ({branch})", req["note"],
-                         "develop", final_version(project), None, member_ids={req["by"]["id"]})
+                         "develop", final_version(project), None, member_ids={req["by"]["id"]}, by=member.id)
     preview.mark_stale(project)
     return req
 
@@ -451,7 +452,7 @@ def reject(project: str, request_id: int, reason: str, member) -> dict:
         req.update(status="rejected", reason=reason.strip()[:1000], done_by=_who(member), done_at=_now())
         _write(project, data)
     directives.add_event(project, "merge_rejected", f"{member.name}님이 합치기 요청을 반려했습니다 ({req['branch']})",
-                         f"사유: {req['reason']}", "develop", final_version(project), None, member_ids={req["by"]["id"]})
+                         f"사유: {req['reason']}", "develop", final_version(project), None, member_ids={req["by"]["id"]}, by=member.id)
     return req
 
 
@@ -503,7 +504,7 @@ def release(project: str, member) -> dict:
         tag = f"release-{day}-{n}"
         git(app, "tag", tag, dev)
     directives.add_event(project, "released", f"{member.name}님이 릴리스했습니다 ({tag})", f"dev의 커밋 {count}개를 main에 반영",
-                         "develop", final_version(project), {DEVELOPER})
+                         "develop", final_version(project), {DEVELOPER}, by=member.id)
     return {"tag": tag, "commit": dev, "commits": count}
 
 
