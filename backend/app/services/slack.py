@@ -53,7 +53,7 @@ log = logging.getLogger(__name__)
 API = "https://slack.com/api"
 STAGE = {"spec": "기능 명세", "erd": "ERD", "final": "최종본"}
 KIND = {"request": "승인 요청", "decide": "최종 승인 대기", "directive": "수정 지시", "waiting": "수정 대기", "develop": "개발 대기",
-        "uploaded": "분석 완료", "erd_draft": "ERD 초안", "developed": "개발 초안",
+        "uploaded": "분석 완료", "spec_redone": "기능 명세 다시 만듦", "erd_draft": "ERD 초안", "developed": "개발 초안",
         "merge_request": "합치기 요청", "merged": "합치기 완료", "merge_rejected": "합치기 반려"}
 SENT_DAYS = 60       # 올린 알림 기록을 이만큼 둔다 (키에 시각이 들어 있어 그 뒤 같은 알림이 다시 생기지 않는다)
 RETRY_SECONDS = 600  # 채널을 만들지 못한 프로젝트는 이만큼 뒤에 다시 만들어 본다

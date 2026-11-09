@@ -432,7 +432,8 @@ def test_message_text_escapes_slack_markup():
 
 
 def test_slack_sends_the_agreed_notices_to_the_agreed_roles(sample_doc):
-    """합친 뒤 알림 규칙: 업로드 분석 완료 → 모든 담당자, ERD 초안·개발 초안 → 개발자 모두, 기능 명세 승인 요청 → PM.
+    """합친 뒤 알림 규칙: 업로드 분석 완료·기능 명세 다시 만듦(AI로 답 반영·다시 만들기) → 모든 담당자,
+    ERD 초안·개발 초안 → 개발자 모두, 기능 명세 승인 요청 → PM.
     화면에서 '확인'해도 Slack 대상은 그대로다."""
     from app import cli
     from app.agents.llm import client as llm_module
@@ -445,7 +446,7 @@ def test_slack_sends_the_agreed_notices_to_the_agreed_roles(sample_doc):
     people = {name: users.create_member(f"{name}@t.local", name, "pw-123456", role, False, None)
               for name, role in (("pm", "pm"), ("dev1", "developer"), ("dev2", "developer"))}
     project_access.set_members("sample", [m.id for m in people.values()])
-    for source, base, new in (("run", "", "1"), ("spec", "1", "1.1"), ("develop", "1.1.1", "1.1.1")):
+    for source, base, new in (("run", "", "1"), ("answers", "1", "2"), ("spec", "1", "1.1"), ("develop", "1.1.1", "1.1.1")):
         directives.job_event(jobs.Job(id="j", project="sample", base=base, source=source, status="done", message="", new_version=new))
     drafts.request("sample", "1", people["dev1"], "확인 부탁")
     directives.dismiss("sample", next(n["id"] for n in directives.notices(people["dev1"]) if n["kind"] == "erd_draft"), people["dev1"])
@@ -453,6 +454,7 @@ def test_slack_sends_the_agreed_notices_to_the_agreed_roles(sample_doc):
     for n, members in slack._pending({"sample"}).values():
         who.setdefault(n["kind"], set()).update(m.name for m in members)
     assert who["uploaded"] >= set(people), "업로드 분석 완료 → 모든 담당자"
+    assert who["spec_redone"] >= set(people), "AI로 다시 만든 기능 명세 → 모든 담당자 (Slack에서 모두 멘션)"
     assert who["erd_draft"] == {"dev1", "dev2"}, "ERD 초안 → 개발자 모두 (확인해도 Slack은 보낸다)"
     assert who["developed"] == {"dev1", "dev2"}, "개발 초안 → 개발자 모두"
     assert who["request"] == {"pm"}, "기능 명세 승인 요청 → PM"
@@ -507,3 +509,23 @@ def test_result_message_says_when_the_requester_is_not_in_the_channel(fake):
     slack.request_decided(PROJECT, "1", "spec", req, pm, approved=False, reason="다시")
     slack.flush()
     assert fake.texts()[0].startswith("dev1 *[반려]*") and "⚠️" not in fake.texts()[0]
+
+
+def test_redone_spec_notice_mentions_every_assignee(fake):
+    """요구사항 분석에서 AI로 다시 돌린 결과(새 기능 명세 버전)가 나오면 담당자 모두를 멘션해 알린다 (누가 다시 만들었는지 제목에)"""
+    from app.services import directives
+
+    _team("dev1", "dev2")
+    pm, d1, d2 = (_member(f"{r}@test.local") for r in ("admin", "dev1", "dev2"))
+    _rec("1", "function_designer")
+    _rec("2", "function_designer", parent="1", by=d1)
+    _assign(d1, d2)
+    fake.posts.clear()
+    directives.job_event(jobs.Job(id="j", project=PROJECT, base="1", source="answers", status="done", message="", new_version="2"))
+    directives.job_event(jobs.Job(id="k", project=PROJECT, base="1", source="answers", status="failed", message="", new_version=None))
+    slack.flush()
+    redone = [t for t in fake.texts() if "*[기능 명세 다시 만듦]*" in t]
+    assert len(redone) == 1, "실패한 작업은 알리지 않는다"
+    everyone = " ".join(f"<@{m.slack_id}>" for m in (pm, d1, d2))
+    assert redone[0].startswith(f"{everyone} *[기능 명세 다시 만듦]* dev1님이 기능 명세를 다시 만들었습니다 — v2"), redone[0]
+    assert "#/p/team%2Fdemo/2/spec|" in redone[0]
