@@ -134,7 +134,7 @@ def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
 
     functions·common과, 화면에서 새로 답한 확인 질문을 쓴다. 답은 LLM 없이 코드로 반영한다 (apply_answers_by_code):
     기능 규칙 표시·문장, 공통 결정, 요구사항 결정·확정. 이슈 등 나머지는 기준 버전 것을 그대로 둔다.
-    confirm_rules(화면 '추천안 맞음'으로 확인한 '(확인 필요)' 규칙 [{"function_id", "rule"}])도 LLM 없이 '(결정)'으로 바꾼다
+    confirm_rules(화면 '추천안 맞음'·'가정 맞음'으로 확인한 '(확인 필요)'·'(가정)' 규칙 [{"function_id", "rule"}])도 LLM 없이 '(결정)'으로 바꾼다
     (규칙 앞 표시만 바뀌어 데이터 설계에서 그 기능의 엔티티를 다시 설계하지 않는다).
     {"functions", "common"(없으면 None), "requirements", "questions", "note": 안내 줄}. 형식·ID가 틀리면 RerunError.
     """
@@ -260,8 +260,8 @@ def disposition_note(counts: Counter) -> str:
 
 
 def confirm_note(count: int, missing: list[str]) -> str:
-    """추천안 확인 반영 안내 줄."""
-    return (f"추천안대로 확인한 규칙 {count - len(missing)}건을 '(결정)'으로 반영 (LLM 없음)"
+    """확인한 규칙 반영 안내 줄 (화면 '추천안 맞음'·'가정 맞음')."""
+    return (f"확인한 규칙(추천안 맞음·가정 맞음) {count - len(missing)}건을 '(결정)'으로 반영 (LLM 없음)"
             + (f" · 기준 버전에 없는 규칙 {len(missing)}건은 건너뜀: {'; '.join(missing[:3])}" if missing else ""))
 
 

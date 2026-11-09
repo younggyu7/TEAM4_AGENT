@@ -326,6 +326,12 @@ def run(state: AgentState) -> dict:
             log.info("[기능명세] 규칙 정리: %s %s (%s)", fid, rule[:60], reason)
         gone = {(fid, rule) for fid, rule, _ in trimmed}
         unmarked = [x for x in unmarked if (x[0], f"(가정) {x[1]}") not in gone]
+    # 사람이 확인한 규칙('(결정)')은 다시 설계해도 다시 '(가정)'·'(확인 필요)'로 묻지 않는다 (화면 '가정 맞음'·'추천안 맞음')
+    result, carried = carry_decisions(functions, result)
+    if carried:
+        log.info("[기능명세] 확인한 규칙 %d건은 '(결정)' 그대로 둠", carried)
+        kept = {(f.function_id, r) for f in result for r in f.business_rules}
+        unmarked = [x for x in unmarked if (x[0], f"(가정) {x[1]}") in kept]
 
     # 확인 질문 고르기: 다시 설계한 기능의 확인 대상 후보 중 소수만 묻고 나머지는 추천안으로 정한다
     number = max((_number(q.question_id) for q in questions if q.stage == "function_designer"), default=0)
@@ -914,7 +920,7 @@ def _mark_decided(rule: str, qids: set[str]) -> str:
 
 
 def confirm_rules(functions: list[FunctionSpec], common: dict, items: list[dict]) -> tuple[list[FunctionSpec], dict, list[str]]:
-    """사람이 '추천안 맞음'으로 확인한 '(확인 필요)' 규칙을 확정한다 (LLM 없음, 문장은 그대로 표시만 바꾼다).
+    """사람이 '추천안 맞음'·'가정 맞음'으로 확인한 '(확인 필요)'·'(가정)' 규칙을 확정한다 (LLM 없음, 문장은 그대로 표시만 바꾼다).
 
     items: [{"function_id", "rule"}] (화면에서 확인한 규칙 문장 그대로). 공통 규칙('(공통 P2, 확인 필요) …')이면 공통 결정의
     근거를 '결정'으로 바꿔 그 규칙을 쓰는 모든 기능에 반영하고, 기능 규칙이면 '(결정) 문장'으로 바꾼다.
@@ -942,6 +948,41 @@ def confirm_rules(functions: list[FunctionSpec], common: dict, items: list[dict]
         new = [_expand(x, texts) for x in rules[f.function_id]]
         out.append(f.model_copy(update={"business_rules": new}) if new != f.business_rules else f)
     return out, common, missing
+
+
+_PLAIN_HEAD = re.compile(r"^\((?:결정|가정|확인 필요)\)\s*")
+
+
+def _same_text(rule: str) -> str:
+    """규칙 비교용 문장: 앞 표시('(결정)'·'(가정)'·'(확인 필요)')·문장 속 표시·띄어쓰기·끝 마침표를 뺀다."""
+    return re.sub(r"\s+", "", _plain(_PLAIN_HEAD.sub("", rule))).rstrip(".")
+
+
+def carry_decisions(old: list[FunctionSpec], new: list[FunctionSpec]) -> tuple[list[FunctionSpec], int]:
+    """사람이 확인해 '(결정)'이 된 규칙은 다시 설계해도 다시 묻지 않는다 (LLM 없음).
+
+    이전 버전의 같은 기능에 '(결정) 문장'이 있으면, 새 버전에서 같은 문장으로 나온 '(가정)'·'(확인 필요)' 규칙
+    (LLM이 다시 쓰거나 근거 대조가 다시 붙인 것)을 '(결정) 문장'으로 되돌린다. 문장이 달라지면 새 가정으로 본다.
+    질문 ID가 붙은 규칙('(확인 필요 FQ-001)')·공통 규칙('(공통 P2, …)')은 질문·공통 결정이 맡으므로 건드리지 않는다.
+    (기능 목록, 되돌린 규칙 수)"""
+    decided = {f.function_id: {_same_text(r) for r in f.business_rules if r.startswith("(결정)")} for f in old}
+    out, count = [], 0
+    for f in new:
+        keep = decided.get(f.function_id)
+        if not keep:
+            out.append(f)
+            continue
+        rules = []
+        for r in f.business_rules:
+            head = re.match(r"^\(([^)]*)\)", r)
+            marked = (head and head.group(1) in ("가정", "확인 필요")) or (not head and MARK.search(r))
+            if marked and _same_text(r) in keep:
+                rules.append(f"(결정) {_plain(_PLAIN_HEAD.sub('', r))}")
+                count += 1
+            else:
+                rules.append(r)
+        out.append(f.model_copy(update={"business_rules": rules}) if rules != f.business_rules else f)
+    return out, count
 
 
 def mark_decided(functions: list[FunctionSpec], qids: set[str]) -> list[FunctionSpec]:

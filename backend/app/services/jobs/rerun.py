@@ -1,6 +1,6 @@
 """새 버전 만들기 작업 (기준 버전에서 한 단계만 다시):
 - 기능 명세 화면에서 확인 질문 답을 AI로 반영: `rerun function_designer --answers` (추천과 다른 답이 바꾼 것만 다시 설계)
-  '추천안 맞음'으로 확인한 규칙은 `--confirm-rules`(AI로 답 반영) 또는 확정한 design.json의 confirm_rules(내보내기)로 넘겨 LLM 없이 '(결정)'
+  '추천안 맞음'·'가정 맞음'으로 확인한 규칙은 `--confirm-rules`(AI로 답 반영) 또는 확정한 design.json의 confirm_rules(내보내기)로 넘겨 LLM 없이 '(결정)'
 - 기능 명세 내보내기 / ERD 저장: `rerun data_modeler` (확정한 기능 명세는 --design, 고친 데이터 모델은 --data-model, 의견은 --feedback)
 - 확인 질문에서 멈추면(종료 코드 3) `resume --defer`로 보류(가정) 처리하고 이어 간다 (공통 실행기).
 """
