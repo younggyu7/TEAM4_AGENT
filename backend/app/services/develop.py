@@ -9,7 +9,7 @@
   3) 코드 저장소(services/repo.py)의 gen에 req-agent 커밋 + 태그 final-v<최종본> (바뀐 것이 없으면 커밋 없음).
      처음이면 dev도 같은 커밋, 다시 개발하면 gen → dev 합치기 요청 (개발자가 승인해야 dev에 들어간다)
   4) 최종본 버전 기록의 develop에 누가·언제·AI 사용 여부·결과·커밋을 남긴다. 실행 중인 앱(services/preview.py)은 다음에 열 때 다시 빌드한다
-     자동 확인(Docker)은 dev를 띄우므로 처음 개발할 때만 한다 (다시 개발한 결과는 합친 뒤 2단계에서 실행해 본다)
+     자동 확인(Docker)은 dev를 띄우므로 처음 개발할 때만 자동으로 하고, 그 뒤에는 '다시 확인'(start_check)으로 지금 dev를 검사해 기록을 바꾼다
 gen 작업 폴더는 사람이 고치지 않으므로 생성 결과가 그대로 커밋되고, 사람이 dev에서 고친 코드와는 git 합치기로 만난다.
 """
 from __future__ import annotations
@@ -211,33 +211,72 @@ class _DevelopRunner(_Runner):
         return out
 
     def check(self) -> dict | None:
-        """자동 확인: 앱을 Docker로 켜고 admin으로 로그인해 모든 조회 API를 부른다. 서버 코드가 없거나 Docker가 없으면 건너뛴다"""
-        from app.services import preview
-
-        if not preview.runnable(self.project):
-            return None
-        if not preview.status(self.project)["docker"]:
-            return {"ok": False, "message": "서버 PC에 Docker가 없어 자동 확인을 하지 못했습니다."}
-        self.job.message = "자동 확인: 앱을 Docker로 켜는 중 (처음엔 빌드로 몇 분)"
-        self._save()
-        preview.mark_stale(self.project)   # 새 코드로 다시 빌드
-        preview.start(self.project)
-        st = preview.wait(self.project)
-        if st["status"] != "running":
-            return {"ok": False, "message": f"앱을 켜지 못했습니다: {st['message']}"}
-        self.job.message = "자동 확인: 로그인하고 조회 API를 부르는 중"
-        self._save()
-        result = preview.smoke(self.project)
-        counts = result.get("counts") or {}
-        self._push(f"자동 확인: 조회 API {result.get('apis', 0)}개 · 정상 {counts.get('ok', 0)} · 구현 대기(501) {counts.get('not_implemented', 0)}"
-                   f" · 서버 오류 {counts.get('errors', 0)}" + (f" — {result.get('message')}" if result.get("message") else ""))
-        return result
+        return auto_check(self)
 
     def build_mock(self) -> bool:
         """생성 결과의 화면을 예시 데이터 모드로 빌드한다 (서버 없이 모든 화면이 돈다). 상대 경로(./)라 어느 주소 아래서도 열린다"""
         self.job.message = "미리보기 화면을 빌드하는 중"
         self._save()
         return build_frontend(self, self.project, "mock", {}, self.out)
+
+
+def auto_check(runner: _Runner) -> dict | None:
+    """자동 확인: 앱(dev)을 Docker로 켜고 admin으로 로그인해 모든 조회 API를 부른다. 서버 코드가 없으면 None.
+    결과에 확인한 시각(at)을 남기고, 앱을 켜지 못하면 실행 기록(log)도 남긴다 (다음 실행 때 지워지므로)"""
+    from app.services import preview
+
+    project = runner.project
+    if not preview.runnable(project):
+        return None
+    at = datetime.now().isoformat(timespec="seconds")
+    if not preview.status(project)["docker"]:
+        return {"ok": False, "at": at, "message": "서버 PC에 Docker가 없어 자동 확인을 하지 못했습니다."}
+    runner.job.message = "자동 확인: 앱을 Docker로 켜는 중 (처음엔 빌드로 몇 분)"
+    runner._save()
+    preview.mark_stale(project)   # 새 코드로 다시 빌드
+    preview.start(project)
+    st = preview.wait(project)
+    if st["status"] != "running":
+        return {"ok": False, "at": at, "message": f"앱을 켜지 못했습니다: {st['message']}", "log": (st.get("log") or [])[-40:]}
+    runner.job.message = "자동 확인: 로그인하고 조회 API를 부르는 중"
+    runner._save()
+    result = preview.smoke(project)
+    counts = result.get("counts") or {}
+    runner._push(f"자동 확인: 조회 API {result.get('apis', 0)}개 · 정상 {counts.get('ok', 0)} · 구현 대기(501) {counts.get('not_implemented', 0)}"
+                 f" · 서버 오류 {counts.get('errors', 0)}" + (f" — {result.get('message')}" if result.get("message") else ""))
+    return {**result, "at": at}
+
+
+class _CheckRunner(_Runner):
+    """다시 확인: 지금 dev를 자동 확인해 최종본 기록의 결과만 바꾼다 (LLM 없음)"""
+
+    def __init__(self, job: Job, project: str, version: str):
+        super().__init__(job, project, Path("."))
+        self.version = version
+
+    def _run(self, args: list[str]) -> None:
+        try:
+            result = auto_check(self)
+            record = find_version(self.project, self.version) or {}
+            update_version(self.project, self.version, develop={**record.get("develop", {}), "check": result})
+            self.job.new_version = self.version
+            if result is None:
+                return self._finish("done", "서버 코드가 없어 자동 확인을 하지 않았습니다.")
+            if not result.get("ok"):
+                problem = result.get("message") or f"서버 오류 {len(result.get('errors') or [])}건"
+                return self._finish("done", f"자동 확인에서 문제가 있습니다: {problem}")
+            self._finish("done", "자동 확인을 통과했습니다.")
+        except Exception as e:  # noqa: BLE001 - 작업 스레드의 오류는 화면에 보여 준다
+            self._push(repr(e))
+            self._finish("failed", f"자동 확인 중 오류가 났습니다: {e}")
+
+
+def start_check(*, project: str, version: str) -> Job:
+    if not (find_version(project, version) or {}).get("develop"):
+        raise BadRequest("먼저 '최종 개발하기'로 코드를 만드세요.")
+    job = _new_job(project=project, base=version, source="check", message="자동 확인을 시작하는 중")
+    _CheckRunner(job, project, version).start([])
+    return job
 
 
 def build_frontend(runner: _DevelopRunner | object, project: str, mode: str, env: dict, src: Path | None = None) -> bool:

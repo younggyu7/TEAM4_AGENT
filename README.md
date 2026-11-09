@@ -130,6 +130,7 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET /projects/directives?project=` · `POST /projects/directives/resolve` | 끝나지 않은 수정 지시와 진행(처리할 버전, 기능 명세 대기, 옛 ERD 잠금) · 지시 항목 처리 반영함·그대로 둠(이유) |
 | `GET /notices` · `POST /notices/dismiss` | 나에게 온 알림 (담당자인 프로젝트만. 상태: 수정 지시·대기·승인 요청·승인 대기·개발 대기, 회원별 반려 `kind: rejected` — 내가 요청했거나 고친 초안 / 일: 업로드 분석 완료·기능 명세 다시 만듦(모든 회원, `spec_redone` = AI로 답 반영·다시 만들기 결과)·ERD 초안(개발자)·개발 초안(개발자)) · 확인(나에게서만 지움, Slack 전송과 무관). 내가 한 일로 생긴 일 알림(릴리스·합치기·작업 배정·작업 완료 등)은 나에게 보이지 않고 Slack에서도 나를 부르지 않음 (팀원에게는 그대로) |
 | `GET /develop/plan` · `POST /develop` | 승인 최종본의 최종 개발하기: 예상(화면·파일, 틀 없는 층 경고, AI 업무 기능 구현 예상 토큰) · 코드(+`build`·`model`·`effort`면 AI 구현, gen에 커밋 — 처음이면 dev도 같은 커밋, 다시 개발이면 gen → dev 합치기 요청) + 예시 데이터 화면 + Docker 자동 확인(처음만) → `202 {job}` (개발자만) |
+| `POST /develop/check` | 자동 확인 다시 하기: 지금 dev를 Docker로 켜고 admin 로그인·조회 API 검사, 최종본 기록의 결과 갱신(작업, 개발자, LLM 없음) |
 | `GET /preview/<프로젝트>/` (`mock/` · `status` · `start` · `stop` · `accounts`) | 최종 개발물 실행: 안내 페이지 → 앱 자체 docker-compose로 독립 실행 → 앱 주소 `http://<서버>:<포트>`(`PREVIEW_BIND`, 기본 0.0.0.0). 10분 동안 요청이 없으면 끔, 동시 3개. `accounts`는 admin·user 비밀번호(PM·개발자) |
 | `GET /projects/stack` | 버전의 기술 스택 상태: 원문·확정(기능 명세 TQ-001)·미정, 개발 틀이 없는 층 경고 |
 | `GET /develop/files` · `GET·PUT /develop/file` | 최종 개발물 코드 파일 구성(`branch`: main 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고친 파일·커밋 안 한 변경 표시) · 내용 보기 · 브랜치에서 고쳐 저장(main 거부, 개발자 `repo_write`) |

@@ -40,6 +40,37 @@ def test_develop_needs_approved_final_and_dev_role(sample_doc, monkeypatch):
     assert not [n for n in dev.get("/api/v1/notices").json()["notices"] if n["kind"] == "develop"], "개발하면 알림이 사라진다"
 
 
+def test_recheck_replaces_old_result_and_keeps_failure_log(sample_doc, monkeypatch):
+    from app.services import preview
+
+    final = _approved_final(sample_doc)
+    update_version("sample", final, approval={"decision": "approve", "at": "2999-01-01T00:00:00", "by": {"name": "PM"}})
+    dev, pm = signed_in_client("developer"), signed_in_client("pm")
+    body = {"project": "sample", "version": final}
+    assert pm.post("/api/v1/develop/check", json=body).status_code == 403
+    assert dev.post("/api/v1/develop/check", json=body).status_code == 400, "개발 전에는 확인할 코드가 없다"
+    update_version("sample", final, develop={"at": "2999-01-01T00:00:01", "version": final, "commit": "abc", "check": {"ok": False, "message": "옛날 실패"}})
+    calls = []
+    monkeypatch.setattr(preview, "runnable", lambda p: True)
+    monkeypatch.setattr(preview, "status", lambda p: {"docker": True})
+    monkeypatch.setattr(preview, "mark_stale", lambda p: calls.append("stale"))
+    monkeypatch.setattr(preview, "start", lambda p: calls.append("start"))
+    monkeypatch.setattr(preview, "wait", lambda p: {"status": "failed", "message": "컨테이너 실패", "log": ["port is already allocated"]})
+
+    def run() -> tuple[dict, str]:
+        job = jobs.Job(id="c", project="sample", base=final, source="check", status="running", message="")
+        develop._CheckRunner(job, "sample", final)._run([])
+        return find_version("sample", final)["develop"], job.message
+
+    record, message = run()
+    assert record["check"]["log"] == ["port is already allocated"] and record["check"]["at"] and "컨테이너 실패" in message, "실패 기록을 남긴다"
+    assert record["commit"] == "abc" and calls == ["stale", "start"], "결과만 바꾼다"
+    monkeypatch.setattr(preview, "wait", lambda p: {"status": "running", "message": ""})
+    monkeypatch.setattr(preview, "smoke", lambda p: {"ok": True, "login": True, "apis": 2, "counts": {"ok": 2, "not_implemented": 0, "errors": 0, "other": 0}})
+    record, message = run()
+    assert record["check"]["ok"] and record["check"]["apis"] == 2 and "log" not in record["check"] and "통과" in message
+
+
 def test_preview_files_stay_inside_and_need_login(sample_doc):
     from fastapi.testclient import TestClient
 

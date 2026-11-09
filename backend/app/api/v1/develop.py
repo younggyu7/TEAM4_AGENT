@@ -2,6 +2,7 @@
 
   GET  /develop/plan?project=&version=   화면·파일 수, 서버를 만드는지, 틀 없는 층 경고, AI 업무 기능 구현 예상 토큰 (LLM 없음)
   POST /develop                           최종 개발하기 → 코드(+AI 구현) + 예시 데이터 화면 + 자동 확인(Docker) → {job}  (개발자)
+  POST /develop/check                     자동 확인 다시 하기 {project, version} → 지금 dev를 Docker로 켜고 조회 API 검사, 기록 갱신 → {job}  (개발자, LLM 없음)
   GET  /preview/{프로젝트}/                 미리보기 안내 페이지: 앱을 Docker로 켜고 준비되면 앱 주소(http://<서버>:<포트>)로 (로그인한 회원)
   GET  /preview/{프로젝트}/mock/…           예시 데이터 화면 (서버 없이)
   GET  /preview/{프로젝트}/accounts         앱 시연 계정 (admin·user 비밀번호, PM·개발자)
@@ -40,6 +41,11 @@ class DevelopBody(BaseModel):
     theme: str = ""          # 화면 스타일 id (tools/themes.py, 비우면 지난번·기본)
     model: str = ""          # build일 때 모델 (비우면 .env 기본)
     effort: str = ""         # build일 때 생각 수준 low·medium·high (비우면 설정 dev_effort)
+
+
+class CheckBody(BaseModel):
+    project: str
+    version: str
 
 
 class GitSettings(BaseModel):
@@ -95,6 +101,15 @@ def start(body: DevelopBody, member: users.Member = Depends(current_user)):
     _no_running_job(body.project)
     return {"job": develop.start_develop(project=project, version=version, build=body.build, logic=body.logic, theme=body.theme,
                                               model=body.model, effort=body.effort, member=member).to_dict()}
+
+
+@router.post("/develop/check", status_code=202, summary="자동 확인 다시 하기 (작업)")
+def recheck(body: CheckBody, member: users.Member = Depends(current_user)):
+    ensure(member, "develop")
+    project, version = _project(body.project), guards.version(body.version)
+    develop.approved_final(project, version)
+    _no_running_job(body.project)
+    return {"job": develop.start_check(project=project, version=version).to_dict()}
 
 
 def _inside(root: Path, rest: str) -> Path:
