@@ -242,6 +242,43 @@ def test_group_menus_merges_similar_menus_without_fixed_count():
     assert sorted(g for s in fixed for g in s["menus"]) == list("ABCDEF"), "빠진 메뉴는 규칙으로 묶어 끝에"
 
 
+def test_brief_edit_is_shared_with_download_and_guards_overwrite(sample_doc):
+    """웹에서 고친 작업 설명이 코드 받기(TASK.md)에 나오고, 그 사이 다른 사람이 고쳤으면 409, 비우면 자동 설명"""
+    _developed(sample_doc)
+    pm, dev, dev2, ids = _team()
+    key = next(i["key"] for i in work.overview(P)["items"] if i["kind"] == "server")
+    auto = work.brief(P, key)
+    assert pm.post("/api/v1/develop/work/brief", json={"project": P, "key": key, "text": "x"}).status_code == 403
+    saved = dev.post("/api/v1/develop/work/brief", json={"project": P, "key": key, "text": "# 사람이 고침", "base": auto})
+    assert saved.status_code == 200 and saved.json()["edit"]
+    assert dev.post("/api/v1/develop/work/assign", json={"project": P, "key": key, "user_id": ids["dev"]}).status_code == 200
+    pack = dev.get("/api/v1/develop/work/archive", params={"project": P, "key": key}).json()
+    assert pack["task"]["TASK.md"] == "# 사람이 고침"
+    stale = dev2.post("/api/v1/develop/work/brief", json={"project": P, "key": key, "text": "늦게 고침", "base": auto})
+    assert stale.status_code == 409 and work.brief(P, key) == "# 사람이 고침"
+    assert dev2.post("/api/v1/develop/work/brief", json={"project": P, "key": key, "text": "이어서 고침", "base": "# 사람이 고침"}).status_code == 200
+    assert dev.post("/api/v1/develop/work/brief", json={"project": P, "key": key, "text": ""}).json()["edit"] is None
+    assert "# 사람이 고침" not in work.brief(P, key)
+
+
+def test_todos_of_ai_show_on_area_bundle_and_task_brief(sample_doc):
+    """개발 AI가 구현하지 못한 항목은 기능이 속한 영역의 서버 묶음에, 영역 없는 기능은 공통 서버에 붙는다"""
+    from app.agents.roles import builder
+
+    _developed(sample_doc)
+    items = work.overview(P)["items"]
+    server = next(i for i in items if i["kind"] == "server" and i["functions"])
+    out = develop.gen_dir(P)
+    builder._save(out, server["functions"][0], {"status": "채움", "todos": [{"rule": "AC-1", "reason": "값의 출처가 없음"}]})
+    builder._save(out, "FN-NO-MENU", {"status": "채움", "todos": [{"rule": "AC-2", "reason": "메뉴 없는 기능"}]})
+    builder._save(out, "FN-FAILED", {"status": "실패", "todos": [{"rule": "AC-3", "reason": "실패한 기능은 코드 틀"}]})
+    items = {i["key"]: i for i in work.overview(P)["items"]}
+    assert items[server["key"]]["todo_count"] == 1 and items[server["key"]]["todos"][0]["function"] == server["functions"][0]
+    assert [t["reason"] for t in items["common-server"]["todos"]] == ["메뉴 없는 기능"]
+    assert not any(i["todo_count"] for k, i in items.items() if k not in (server["key"], "common-server"))
+    assert "값의 출처가 없음" in work.brief(P, server["key"])
+
+
 def test_layout_areas_bulk_assign_lock_and_suggest(sample_doc):
     """예전 화면 구성(영역 없음)도 영역으로 읽고, 영역 단위 묶음을 한꺼번에 배정, 진행 중인 영역은 메뉴 이동 400, 영역 제안(규칙·AI·AI 실패)"""
     from app.agents.llm import client as llm

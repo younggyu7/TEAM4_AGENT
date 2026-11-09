@@ -154,7 +154,7 @@ def bundles(project: str) -> list[dict]:
 def _data(project: str) -> dict:
     text = get_store().read_project_file(project, WORK_FILE)
     data = json.loads(text) if text else {}
-    return {"items": data.get("items") or {}}
+    return {"items": data.get("items") or {}, "briefs": data.get("briefs") or {}}   # briefs: 사람이 고친 작업 설명 (묶음 키 → {text, by, at})
 
 
 def _write(project: str, data: dict) -> None:
@@ -186,6 +186,31 @@ def _sync(item: dict, branches: dict[str, dict], requests: dict[int, dict]) -> d
     return view
 
 
+_todo_cache: dict[str, tuple] = {}
+
+
+def _todos(project: str) -> dict[str, list[dict]]:
+    """기능 ID → 개발 AI가 끝까지 구현하지 못했다고 남긴 항목 (생성기 기록, 파일이 바뀌었을 때만 다시 읽는다)"""
+    from app.agents.roles import builder
+    from app.agents.tools import scaffold
+    from app.services.develop import gen_dir
+
+    out_dir = gen_dir(project)
+    stamp = tuple((p.name, p.stat().st_mtime_ns) for d in (builder.BUILD_DIR, scaffold.LOGIC_DIR) for p in sorted((out_dir / d).glob("*.json")))
+    cached = _todo_cache.get(project)
+    if cached and cached[0] == stamp:
+        return cached[1]
+    found: dict[str, list[dict]] = {}
+    for fid, r in builder.load_built(out_dir).items():
+        if r.get("status") == "채움":
+            found.setdefault(fid, []).extend(r.get("todos") or [])
+    for fid, r in scaffold.load_logic(out_dir).items():
+        found.setdefault(fid, []).extend(r.get("todos") or [])
+    found = {fid: rows for fid, rows in found.items() if rows}
+    _todo_cache[project] = (stamp, found)
+    return found
+
+
 def overview(project: str) -> dict:
     """작업 묶음 + 상태 + 묶음별 빈 로직·AI 수 + 진행 현황 (상태별·담당자별)"""
     from app.services import appfiles, project_access
@@ -200,12 +225,16 @@ def overview(project: str) -> dict:
         views = {k: _sync(v, branches, requests) for k, v in data["items"].items()}
         if json.dumps(data, sort_keys=True) != before:
             _write(project, data)
+    todos = _todos(project)
+    served = {fid for b in items if b["kind"] == "server" for fid in b["functions"]}
     out = []
     for b in items:
         stats = [tree[p] for p in b["files"] if p in tree]
         state = views.get(b["key"]) or {"status": "unassigned"}
+        fids = b["functions"] if b["kind"] == "server" else [fid for fid in todos if fid not in served] if b["kind"] == "common_server" else []
+        rows = [{"function": fid, **t} for fid in fids for t in todos.get(fid, [])]
         out.append({**b, **{k: v for k, v in state.items() if k != "history"}, "history": state.get("history", [])[-10:],
-                    "status_label": STATUS_LABELS[state["status"]], "file_count": len(b["files"]),
+                    "status_label": STATUS_LABELS[state["status"]], "file_count": len(b["files"]), "todos": rows, "todo_count": len(rows),
                     "empty_holes": sum(f["empty_holes"] for f in stats), "ai_holes": sum(f["ai_holes"] for f in stats),
                     "ai_files": sum(f["ai_file"] for f in stats), "edited": sum(f["edited"] for f in stats)})
     counts = {s: sum(1 for b in out if b["status"] == s) for s in STATUS_LABELS}
@@ -376,14 +405,41 @@ RULES = """# 작업 규칙 (모든 작업 공통)
 """
 
 
+def brief_edit(project: str, key: str) -> dict | None:
+    """사람이 작업 설명을 고쳤으면 {by, at}"""
+    saved = _data(project)["briefs"].get(key)
+    return {"by": saved["by"], "at": saved["at"]} if saved else None
+
+
+def save_brief(project: str, key: str, text: str, base: str | None, member) -> dict:
+    """작업 설명을 고친다 (웹·확장이 같은 내용을 본다). 비우면 자동 설명으로 되돌린다.
+    base: 고치기 시작한 내용. 그 사이 다른 사람이 고쳤으면 409 (자동 설명은 상태에 따라 글자가 바뀌므로 사람이 고친 것만 비교한다)"""
+    _item(project, key)
+    with _lock:
+        data = _data(project)
+        saved = data["briefs"].get(key)
+        if saved and base is not None and saved["text"].strip() != base.strip():
+            raise Conflict(f"{saved['by']['name']}님이 먼저 고쳤습니다. 다시 읽거나 다시 받은 뒤 고치세요.")
+        if text.strip():
+            data["briefs"][key] = {"text": text, "by": {"id": member.id, "name": member.name}, "at": _now()}
+        else:
+            data["briefs"].pop(key, None)
+        _write(project, data)
+    return {"brief": brief(project, key), "edit": brief_edit(project, key)}
+
+
 def brief(project: str, key: str) -> str:
-    """TASK.md: 무엇을 어떻게 (서버 기능은 개발 스펙에서 그 기능 절을 잘라 모은 것 — 기능 구현 AI 요청과 같은 내용)"""
+    """TASK.md: 무엇을 어떻게 (사람이 고쳤으면 그 내용. 아니면 서버 기능은 개발 스펙에서 그 기능 절을 잘라 모은 것 — 기능 구현 AI 요청과 같은 내용)"""
     item = _item(project, key)
+    if saved := _data(project)["briefs"].get(key):
+        return saved["text"]
     lines = [f"# 작업: {item['title']}", "", f"- 묶음 키: `{key}` · 브랜치: `{item.get('branch') or branch_of(key)}`",
              f"- 담당: {(item.get('assignee') or {}).get('name', '미배정')} · 상태: {item['status_label']}",
              f"- 고칠 파일: {item['file_count']}개 (`files.txt`) · 빈 업무 로직 {item['empty_holes']}곳", "", "## 무엇을", "", item["summary"], ""]
     if item.get("reason"):
         lines += ["## 반려 사유 (고쳐서 다시 제출)", "", item["reason"], ""]
+    if item["todos"]:
+        lines += ["## 채울 것 (개발 AI가 끝까지 구현하지 못한 항목)", "", *[f"- {t['function']} {t['rule']}: {t['reason']}" for t in item["todos"]], ""]
     version = repo.final_version(project)
     try:
         from app.agents.roles import builder

@@ -40,6 +40,37 @@ def test_develop_needs_approved_final_and_dev_role(sample_doc, monkeypatch):
     assert not [n for n in dev.get("/api/v1/notices").json()["notices"] if n["kind"] == "develop"], "개발하면 알림이 사라진다"
 
 
+def test_open_items_are_answered_at_final_approval(sample_doc):
+    from app.agents.storage import get_store
+    from app.agents.tools import open_items
+
+    final = _approved_final(sample_doc)
+    store = get_store()
+    design = json.loads(store.read("sample", final, "design.json"))
+    assert (design.get("api_design") or {}).get("functions")
+    fn = design["functions"][0]
+    fn["business_rules"] = [*fn["business_rules"], "(확인 필요 FQ-901) 추천 규칙", "(확인 필요 FQ-902) 바뀔 규칙", "(확인 필요) 질문 없는 규칙"]
+    design["questions"] = [*design.get("questions", []),
+                           {"question_id": "FQ-901", "kind": "MISSING", "question": "추천?", "context": "", "recommended": "예", "options": ["예", "아니오"]},
+                           {"question_id": "FQ-902", "kind": "MISSING", "question": "답 필요?", "context": "", "recommended": "", "options": []}]
+    store.write("sample", final, "design.json", json.dumps(design, ensure_ascii=False))
+    pm = signed_in_client("pm")
+    found = pm.get(f"/api/v1/projects/open-items?project=sample&version={final}").json()["items"]
+    ids = {i["id"]: i for i in found}
+    assert {"FQ-901", "FQ-902"} <= set(ids) and any(i["title"] == "질문 없는 규칙" for i in found)
+    body = {"project": "sample", "version": final, "decision": "approve"}
+    refused = pm.post("/api/v1/projects/approval", json=body)
+    assert refused.status_code == 400 and "FQ-902" in refused.text, "답도 추천도 없으면 승인하지 않는다"
+    assert not (find_version("sample", final).get("approval") or {}), "거절되면 아무것도 바뀌지 않는다"
+    assert pm.post("/api/v1/projects/approval", json={**body, "answers": {i["id"]: "직접 적은 답" for i in found if not i["recommended"]}}).status_code == 200
+    after = json.loads(store.read("sample", final, "design.json"))
+    rules = next(f for f in after["functions"] if f["function_id"] == fn["function_id"])["business_rules"]
+    assert "(결정 FQ-901) 추천 규칙" in rules and "(결정 FQ-902) 직접 적은 답" in rules and "(결정) 질문 없는 규칙" in rules
+    assert open_items.items(after) == [], "승인 뒤에는 남은 항목이 없다"
+    assert "FQ-901" in str(find_version("sample", final)["approval"]["resolved"])
+    assert "보류 FQ-90" not in store.read("sample", final, "ACCEPTANCE_CRITERIA.md"), "개발 스펙에 반영"
+
+
 def test_recheck_replaces_old_result_and_keeps_failure_log(sample_doc, monkeypatch):
     from app.services import preview
 

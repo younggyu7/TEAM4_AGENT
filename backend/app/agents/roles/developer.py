@@ -6,7 +6,7 @@
 - 같은 입력이면 다시 묻지 않는다: 입력 지문이 같으면 저장한 결과(.req-agent/logic/)를 그대로 쓴다.
   스펙이 바뀌면 지문이 달라진 기능만 다시 묻는다.
 - 받은 코드는 코드로 검사한다 (자리 이름·금지 표현·없는 테이블). 틀리면 오류를 붙여 한 번 다시 묻고, 그래도 틀리면 기본 동작을 두고 '실패'로 보고한다.
-- 고객 답을 기다리는 규칙과 공통 규칙은 구현하지 않는다 (AGENTS.md 규칙).
+- 공통 규칙은 구현하지 않는다. '(확인 필요)'가 남은 규칙은 최종 승인을 거쳤으므로 가정으로 구현한다.
 - 서버 틀마다 자리의 언어가 다르다: Spring은 Java, FastAPI는 Python, NestJS는 TypeScript. 프롬프트·검사·자리 이름은 틀을 따르고,
   기록 형식({hooks: {자리 이름: 본문}})은 같다. Spring이 아닌 기록에는 stack을 적어 다른 틀의 본문이 섞이지 않게 한다.
 - FastAPI·NestJS는 쓴 뒤에 모듈 불러오기·tsc로 한 번 더 본다 (verify). 틀린 기능은 자리를 기본 동작으로 되돌린다 (drop_hooks).
@@ -282,26 +282,22 @@ def check_hook_ts(method: str, body: str, allowed: set[str], tables: set[str], r
 CHECKS = {"spring": check_hook, "fastapi": check_hook_py, "nestjs": check_hook_ts}
 
 
-def _rules(spec: Spec, f: FunctionSpec) -> tuple[list[str], list[str]]:
-    """구현할 규칙(확정·가정)과 구현하지 않을 규칙(고객 답 대기)."""
+def _rules(spec: Spec, f: FunctionSpec) -> list[str]:
+    """구현할 규칙: 확정·가정·표시가 남은 '확인 필요'(최종 승인을 거침, 가정으로 구현)."""
     rows = spec.acceptance[f.function_id]
-    todo, hold = [], []
+    todo = []
     for rule in f.business_rules:
         kind, text, qids = rule_tag(rule)
         ac = next((r["id"] for r in rows if r["then"] == text and r["kind"].startswith("규칙")), "")
-        if kind in ("확정", "가정"):
-            todo.append(f"- {ac} {'(가정) ' if kind == '가정' else ''}{text}")
-        elif kind == "보류":
-            hold.append(f"- {text} (답 대기: {', '.join(qids) or '확인 필요'})")
-    return todo, hold
+        if kind in ("확정", "가정", "보류"):
+            todo.append(f"- {ac} {'' if kind == '확정' else '(가정) '}{text}")
+    return todo
 
 
 def logic_request(spec: Spec, f: FunctionSpec, ops: list[dict]) -> str:
     """기능 하나의 요청. 같은 스펙이면 글자까지 같다. 자리 이름은 그 서버 틀의 이름이다."""
-    todo, hold = _rules(spec, f)
+    todo = _rules(spec, f)
     parts = [f"## 기능 {f.function_id} {f.name}", f.description, f"행위자: {', '.join(f.actors)}", "", "## 구현할 규칙", *(todo or ["- 없음"])]
-    if hold:
-        parts += ["", "## 구현하지 않을 규칙 (TODO 주석도 쓰지 않는다. 코드가 넣는다)", *hold]
     if f.exception_flows:
         parts += ["", "## 예외 흐름", *[f"- {x.condition} → {x.handling}" for x in f.exception_flows]]
     automations = spec.automations_of(f.function_id)
@@ -344,7 +340,7 @@ def targets(spec: Spec, only: set[str] | None = None) -> list[tuple[FunctionSpec
     for f in spec.functions:
         if only and f.function_id not in only:
             continue
-        if _rules(spec, f)[0] or f.exception_flows or spec.automations_of(f.function_id):
+        if _rules(spec, f) or f.exception_flows or spec.automations_of(f.function_id):
             out.append((f, owned[f.function_id], logic_request(spec, f, owned[f.function_id])))
     return out
 

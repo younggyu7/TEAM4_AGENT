@@ -107,6 +107,11 @@ class _DevelopRunner(_Runner):
         self.version, self.build, self.ai, self.member, self.out = version, build, ai, member, out
         self.first = out == app_dir(project)   # 처음 개발 (저장소 없음): dev도 같은 커밋이 된다
 
+    def _finish(self, status: str, message: str) -> None:
+        super()._finish(status, message)
+        from app.services import slack
+        slack.develop_finished(self.project, self.version, self.member, status == "done", message)
+
     def _sh(self, cmd: list[str], cwd: Path, env: dict | None = None) -> int:
         self._push(f"$ {' '.join(cmd)}")
         try:
@@ -332,4 +337,6 @@ def start_develop(*, project: str, version: str, build: bool, model: str, effort
             args += ["--effort", effort]
         ai = {"mode": "build" if build else "logic", "model": model, "effort": effort}
     _DevelopRunner(job, project, version, build, ai, member, out).start(args)
+    from app.services import slack
+    slack.develop_started(project, version, member)
     return job

@@ -315,6 +315,22 @@ def test_rejection_reaches_editors_in_slack_and_stays_in_home_notices(fake):
     assert rejected(c["dev1"]) == [], "그 뒤 새 버전이 생기면 처리된 것으로 본다"
 
 
+def test_develop_start_and_end_mention_all_developers_of_the_project(fake):
+    _team("dev1", "dev2", "dev3", "pm")
+    p, d, dh = (_member(f"{r}@test.local") for r in ("dev1", "dev2", "dev3"))
+    _rec("1.1.1", "final", at="2000-01-01T00:00:02", by=dh)
+    _assign(p, d, dh)
+    slack.flush()
+    fake.posts.clear()
+    slack.develop_started(PROJECT, "1.1.1", d)
+    slack.develop_finished(PROJECT, "1.1.1", d, False, "빌드 실패")
+    slack.flush()
+    started, ended = [t for t in fake.texts() if "[개발 " in t]
+    for m in (p, d, dh):
+        assert f"<@{m.slack_id}>" in started and f"<@{m.slack_id}>" in ended
+    assert "*[개발 시작]*" in started and "*[개발 실패]*" in ended and "빌드 실패" in ended
+
+
 def test_pm_decision_is_one_message_for_related_members_and_the_developers_who_must_fix(fake):
     """최종 승인 대기는 PM·개발자 담당자 모두에게. 수정 지시(반려): 관여한 회원 + 지시를 처리할 개발자 담당자를 멘션한 메시지
     하나 (같은 지시의 '수정 지시' 알림은 따로 안 올림). 결정한 사람 자신은 멘션하지 않는다. 최종 승인(개발자도 함)은 관여한 회원에게."""

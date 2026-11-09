@@ -43,7 +43,7 @@ from pathlib import PurePosixPath
 from sqlalchemy import delete, select
 
 from app.agents.tools.versions import display_name
-from app.core.auth import PM, role_label, role_of
+from app.core.auth import PM, allowed, role_label, role_of
 from app.core.config import get_settings
 from app.models.notification import SlackNotification, SlackProject
 from app.services import directives, drafts, output_store, project_access, users
@@ -523,6 +523,26 @@ def final_decided(project: str, final: str, approval: dict, decider: users.Membe
         _mark_sent(directive)
 
     _enqueue(project, post)
+
+
+def _develop_notice(project: str, version: str, head: str, detail: str = "") -> None:
+    """최종 개발 시작·끝: 이 프로젝트의 개발자 담당자 모두를 멘션한다"""
+
+    def post(config: dict) -> None:
+        who = [m for m in project_access.assignees(project) if allowed(m.role, "repo_write")]
+        hint = "" if _mentions(config, who) else _missing_hint(_missing(config, who))
+        _post(config, f"{_mentions(config, who)} {head}".lstrip() + (f"\n{_esc(detail)}" if detail else "") + (f"\n{hint}" if hint else "")
+              + f"\n<{link(project, version, 'develop')}|화면에서 열기>")
+
+    _enqueue(project, post)
+
+
+def develop_started(project: str, version: str, member: users.Member) -> None:
+    _develop_notice(project, version, f"*[개발 시작]* {_esc(member.name)}님이 최종본 v{version} 최종 개발을 시작했습니다")
+
+
+def develop_finished(project: str, version: str, member: users.Member, ok: bool, message: str) -> None:
+    _develop_notice(project, version, f"*[개발 {'끝' if ok else '실패'}]* {_esc(member.name)}님이 시작한 최종본 v{version} 최종 개발이 {'끝났습니다' if ok else '실패했습니다'}", message)
 
 
 # ---------------------------------------------------------------- 백그라운드 보내기

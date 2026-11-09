@@ -43,7 +43,7 @@ SERVER_RULES = """당신은 TypeScript · NestJS 10 · React 18 개발자다. �
 9. 숫자·날짜는 SQL에서 CAST(:값 AS numeric)·CAST(:값 AS date)·CAST(:값 AS timestamptz)로 바꾼다. TypeScript에서 날짜를 파싱하지 않는다 (new Date(글자)·Date.parse).
    숫자여야 하는 값은 저장 전에 검사해 API 표의 오류(없으면 400 VALIDATION_FAILED)로 거절한다.
 10. 업무 규칙 표시대로 한다: 표시 없음·(결정)은 구현. (가정) 값은 파일 맨 앞 상수로 두고 주석에 '가정'.
-    (확인 필요 …)·(보류 …) 규칙과 근거가 '확인 필요'인 업무 동작은 구현하지 않고 그 자리에 // TODO(질문 ID) 주석만 두고 todos에 적는다.
+    (확인 필요 …)·(보류 …) 표시가 남은 규칙과 업무 동작도 최종 승인을 거친 것이다: 문장대로 구현하고 주석에 '가정'이라 적는다. 고객 확인으로 미루지 않는다.
     (공통 P…) 규칙은 구현하지 않는다 (공통 모듈이 맡는다).
 11. import는 '@nestjs/common'(Controller, Get, Post, Put, Patch, Delete, HttpCode, Req), 'express'(import type Request), '../common/checks'(import * as checks),
     '../common/db'(transaction), '../common/errors'(ApiError), '../common/user'(currentUser)만 쓴다.
@@ -62,7 +62,7 @@ STRING = re.compile(r"'(?:\\.|[^'\\\n])*'|\"(?:\\.|[^\"\\\n])*\"|`(?:\\.|[^`\\])
 class BuildOutTs(BaseModel):
     controller: str = Field(description="서버: TypeScript 파일 하나 전체 (@Controller('api/v1') export class)")
     page: str = Field(description="화면: TSX 파일 하나 전체 (export default function, 'react'와 '../kit'만 import)")
-    todos: list[TodoOut] = Field(default_factory=list, description="구현하지 않은 규칙 (고객 답 대기, 입력만으로 구현할 수 없음)")
+    todos: list[TodoOut] = Field(default_factory=list, description="입력에 테이블·컬럼·값의 출처·허용 값이 없어 끝까지 구현하지 못한 것만 (사람이 이어서 채운다). 공통 규칙·다른 기능이 맡는 일은 적지 않는다")
 
 
 def system_prompt(spring_prompt: str) -> str:

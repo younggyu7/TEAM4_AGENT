@@ -6,6 +6,7 @@
   POST /develop/layout/suggest                    업무 영역 다시 묶기 제안 {project, mode: rules|ai, layout?} → {layout, usage} (저장 안 함, 개발자)
   GET  /develop/work?project=                     작업 묶음·상태·진행 현황 {items, counts, people, developers}
   GET  /develop/work/item?project=&key=           작업 하나 + 작업 설명(TASK.md)
+  POST /develop/work/brief                        작업 설명 고치기 {project, key, text, base} (개발자, 웹·확장 공유, 비우면 자동 설명)
   POST /develop/work/assign                       배정 {project, key, user_id} → 작업 브랜치·알림 (개발자)
   POST /develop/work/assign-many                  일괄 배정 {project, keys[], user_id} → 묶음별 결과 {results, assigned, failed} (개발자)
   POST /develop/work/submit                       제출 {project, key, note} → 합치기 요청 (담당자)
@@ -42,6 +43,11 @@ class SuggestBody(BaseModel):
 class KeyBody(BaseModel):
     project: str
     key: str
+
+
+class BriefBody(KeyBody):
+    text: str = Field("", max_length=100_000)
+    base: str | None = None   # 고치기 시작한 내용 (그 사이 다른 사람이 고쳤으면 409)
 
 
 class AssignBody(KeyBody):
@@ -110,7 +116,13 @@ def get_item(project: str, key: str):
     if item is None:
         from app.core.exceptions import NotFound
         raise NotFound(f"작업 묶음이 없습니다: {key}")
-    return {"item": item, "brief": work.brief(project, key), "rules": work.RULES}
+    return {"item": item, "brief": work.brief(project, key), "brief_edit": work.brief_edit(project, key), "rules": work.RULES}
+
+
+@router.post("/develop/work/brief", summary="작업 설명 고치기 (개발자, 비우면 자동 설명)")
+def save_brief(body: BriefBody, member: users.Member = Depends(current_user)):
+    ensure(member, "repo_write")
+    return work.save_brief(_project(body.project), body.key, body.text, body.base, member)
 
 
 @router.post("/develop/work/assign", summary="담당자 배정 (개발자)")

@@ -130,6 +130,7 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET /projects/directives?project=` · `POST /projects/directives/resolve` | 끝나지 않은 수정 지시와 진행(처리할 버전, 기능 명세 대기, 옛 ERD 잠금) · 지시 항목 처리 반영함·그대로 둠(이유) |
 | `GET /notices` · `POST /notices/dismiss` | 나에게 온 알림 (담당자인 프로젝트만. 상태: 수정 지시·대기·승인 요청·승인 대기·개발 대기, 회원별 반려 `kind: rejected` — 내가 요청했거나 고친 초안 / 일: 업로드 분석 완료·기능 명세 다시 만듦(모든 회원, `spec_redone` = AI로 답 반영·다시 만들기 결과)·ERD 초안(개발자)·개발 초안(개발자)) · 확인(나에게서만 지움, Slack 전송과 무관). 내가 한 일로 생긴 일 알림(릴리스·합치기·작업 배정·작업 완료 등)은 나에게 보이지 않고 Slack에서도 나를 부르지 않음 (팀원에게는 그대로) |
 | `GET /develop/plan` · `POST /develop` | 승인 최종본의 최종 개발하기: 예상(화면·파일, 틀 없는 층 경고, AI 업무 기능 구현 예상 토큰) · 코드(+`build`·`model`·`effort`면 AI 구현, gen에 커밋 — 처음이면 dev도 같은 커밋, 다시 개발이면 gen → dev 합치기 요청) + 예시 데이터 화면 + Docker 자동 확인(처음만) → `202 {job}` (개발자만) |
+| `GET /projects/open-items` · `POST /projects/approval`의 `answers` | 최종 승인 전 남은 확인 항목과 답 반영(개발 스펙 다시 쓰기, LLM 없음) |
 | `POST /develop/check` | 자동 확인 다시 하기: 지금 dev를 Docker로 켜고 admin 로그인·조회 API 검사, 최종본 기록의 결과 갱신(작업, 개발자, LLM 없음) |
 | `GET /preview/<프로젝트>/` (`mock/` · `status` · `start` · `stop` · `accounts`) | 최종 개발물 실행: 안내 페이지 → 앱 자체 docker-compose로 독립 실행 → 앱 주소 `http://<서버>:<포트>`(`PREVIEW_BIND`, 기본 0.0.0.0). 10분 동안 요청이 없으면 끔, 동시 3개. `accounts`는 admin·user 비밀번호(PM·개발자) |
 | `GET /projects/stack` | 버전의 기술 스택 상태: 원문·확정(기능 명세 TQ-001)·미정, 개발 틀이 없는 층 경고 |
@@ -142,6 +143,7 @@ python -m app resume <실행 ID> --defer                                  # 확�
 | `GET·PUT /develop/layout` · `POST /develop/layout/suggest` | 생성 앱 화면 구성 `frontend/src/generated/layout.json`(업무 영역, 메뉴 이름·숨김, 업무 이름·숨김, 홈 칸) 보기 · 저장(dev 커밋, 진행 중인 영역의 메뉴 이동 400, 개발자) · 영역 다시 묶기 제안(`mode` rules=규칙 / ai=LLM 한 번, 저장 안 함, AI 실패 502) |
 | `GET /develop/work` · `/work/item` | 작업 묶음(공통 화면 틀·공통 서버·DB + 업무 영역마다 화면·서버)·영역 목록 `areas`·상태·담당자·빈 로직·AI 수와 진행 현황 · 작업 하나 + 작업 설명(TASK.md: 서버는 기능별 개발 스펙 절, 화면은 화면 설계 지시) |
 | `POST /develop/work/assign` · `/assign-many` · `/submit` · `/approve` · `/reject` | 배정(작업 브랜치 `task/<묶음>` 생성·알림, 개발자) · 일괄 배정(`keys[]`, 묶음별 결과, 알림 한 번) · 제출(담당자, 묶음 밖 파일이면 400) · 승인(dev에 합침)·반려 (다른 개발자, 개발자 1명이면 본인) |
+| `POST /develop/work/brief` | 작업 설명(TASK.md) 고치기, 웹·확장 공유(개발자, 비우면 자동 설명, 먼저 고친 사람이 있으면 409) |
 | `GET /develop/work/mine` · `/archive` · `POST /develop/work/upload` · `GET /develop/work/review` | VS Code 확장: 내 작업·검토할 작업(모든 프로젝트) · 작업 코드 받기(먼저 최신 dev를 작업 브랜치에 넣고(충돌이면 `sync.conflicts`) 브랜치 파일 base64 + `.task/TASK.md`·`files.txt`·`RULES.md`) · 바뀐 파일 올리기(받은 커밋이 다르면 409, `submit`이면 제출까지) · 검토 비교(dev 쪽·작업 쪽 내용) |
 | `GET /version` · `GET·POST·DELETE /auth/tokens` | API 버전 `{api: 1}`(확장 호환 확인) · 내 개인 접속 토큰(만들 때만 원문, 서버엔 해시) — `Authorization: Bearer t4_…`로 쿠키 없이 API 사용 |
 | `GET·POST /projects/members` | 프로젝트 담당자 `{members: [{id, name, role, role_label, has_slack, in_channel, always}], slack: {team, channel_name, members} 또는 null, slack_enabled}` · 담당자 바꾸기 (`{project, members: [회원 ID]}`, PM만, 결과 `result: {added, removed, failed}`. Slack 채널이 있으면 채널도 맞춤, Slack이 없어도 됨) |

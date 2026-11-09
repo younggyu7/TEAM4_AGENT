@@ -23,8 +23,10 @@ from typing import Literal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app.agents.tools import open_items
+from app.agents.tools.exporter import resolve_open_items
 from app.agents.tools.versions import find_version, update_version
-from app.api.v1.deps import _project, current_user, ensure
+from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
 from app.core.auth import allowed, denied_message
 from app.core.exceptions import BadRequest, Conflict, Forbidden, NotFound
@@ -78,6 +80,7 @@ class Approval(BaseModel):
     targets: list[Literal["spec", "erd"]] = []     # 수정 지시: 돌려보낼 단계 (둘 다 가능)
     items: list[ChangeItem] = Field(default_factory=list, max_length=200)   # 고칠 기능·테이블과 항목별 메모
     comment: str = Field("", max_length=2000)
+    answers: dict[str, str] = Field(default_factory=dict)   # 승인: 남은 확인 항목의 답 (없으면 추천안)
 
 
 def _record(project: str, version: str) -> dict:
@@ -153,6 +156,13 @@ def reject_request(body: RejectRequest, member: users.Member = Depends(current_u
     return {"request": None, "rejection": doc["rejection"], "log": doc["log"]}
 
 
+@router.get("/projects/open-items", summary="최종 승인 전 남은 확인 항목 (LLM 없음)")
+def get_open_items(project: str, version: str, _: users.Member = Depends(current_user)):
+    project, version = _project(project), guards.version(version)
+    _record(project, version)
+    return {"items": open_items.items(output_store.read_design(project, version) or {})}
+
+
 @router.post("/projects/approval", summary="최종본 승인 / 수정 지시 (PM)")
 def decide(body: Approval, member: users.Member = Depends(current_user)):
     if not allowed(member.role, "final_decide"):
@@ -164,13 +174,20 @@ def decide(body: Approval, member: users.Member = Depends(current_user)):
     if body.decision == "approve" and (record.get("approval") or {}).get("decision") == "approve":
         raise BadRequest("이미 최종 승인한 최종본입니다.")
     changes = body.decision == "changes"
+    resolved: list[dict] = []
+    if not changes:
+        _no_running_job(body.project)
+        try:   # 남은 확인 항목을 고른 답(없으면 추천안)으로 정하고 개발 스펙을 다시 쓴다. 답이 없는 항목이 있으면 승인하지 않는다
+            resolved = resolve_open_items(project, version, body.answers)
+        except ValueError as e:
+            raise BadRequest(str(e)) from e
     items = [i for i in body.items if i.target_id.strip()] if changes else []
     # 돌려보낼 단계: 고른 단계 + 고른 항목의 단계 (화면이 단계를 따로 안 골라도 항목으로 정해진다)
     targets = list(dict.fromkeys([*body.targets, *([body.target] if body.target else []), *(i.stage for i in items)])) if changes else []
     if changes and (not targets or not (body.comment.strip() or any(i.note.strip() for i in items))):
         raise BadRequest("수정 지시는 돌려보낼 단계(기능 명세·ERD)와 지시 내용(전체 의견 또는 항목별 메모)을 적어야 합니다.")
     decision = {"decision": body.decision, "targets": targets, "target": targets[0] if len(targets) == 1 else None,
-                "items": [i.model_dump() for i in items], "comment": body.comment.strip(),
+                "items": [i.model_dump() for i in items], "comment": body.comment.strip(), "resolved": resolved,
                 "at": datetime.now().isoformat(timespec="seconds"),
                 "by": {"id": member.id, "name": member.name, "role": member.role}}
     update_version(project, version, approval=decision, approvals=[*(record.get("approvals") or []), decision])

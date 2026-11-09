@@ -18,6 +18,7 @@ from app.agents.roles.api_designer import answer_stack, tech_stack
 from app.agents.roles.function_designer import assumption_share
 from app.agents.tools.ddl import render_script
 from app.agents.tools.dev_spec import FILES as DEV_SPEC_FILES, SPEC_FORMAT, write_dev_spec
+from app.agents.tools import open_items
 from app.agents.tools.erd import render_mermaid
 from app.agents.tools.model_edits import ReworkSummary
 from app.agents.flow.rerun import STAGES
@@ -678,6 +679,23 @@ def confirm_tech_stack(project: str, version: str, stack: str, parts: dict | Non
     update_version(project, version, tech_stack={"stack": result["backend"], "basis": result["basis"],
                                                  **({"parts": parts} if parts else {})})
     return {**dev_spec, "written": len(files)}
+
+
+def resolve_open_items(project: str, version: str, answers: dict[str, str]) -> list[dict]:
+    """최종 승인 전 남은 확인 항목에 답을 반영하고 같은 최종본의 개발 스펙 10개를 다시 쓴다 (LLM 없음). → 반영 기록 (남은 항목이 없으면 빈 목록)
+    답도 추천도 없는 항목이 있으면 ValueError (아무것도 쓰지 않는다)"""
+    store = get_store()
+    text = store.read(project, version, "design.json")
+    design = json.loads(text) if text else {}
+    applied = open_items.apply(design, answers)
+    if not applied:
+        return []
+    model = DataModel.model_validate_json(store.read(project, version, "data_model.json") or "{}")
+    questions = [Question.model_validate(q) for q in design.get("questions") or []]
+    meta = (design.get("meta") or {}).get("dev_spec") or {}
+    result = tech_stack(design.get("api_design") or {}, questions, chosen=meta.get("stack_basis") == "확정" and not meta.get("stack_from_answer"))
+    _rewrite_dev_spec(project, version, design, model, questions, result)
+    return applied
 
 
 def fill_dev_spec(project: str, version: str) -> dict:
