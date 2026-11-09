@@ -73,8 +73,8 @@ def _info(app: Path, path: Path, manifest: dict[str, str], ai: tuple[set[str], s
             text = text if text is not None else path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             return info
-        if rel in manifest:
-            info["edited"] = hashlib.sha256(text.encode("utf-8")).hexdigest() != manifest[rel]
+        if rel in manifest:   # 줄바꿈(CRLF: Windows git이 작업 폴더를 꺼낼 때 바꿈)만 다른 것은 고친 것으로 보지 않는다
+            info["edited"] = hashlib.sha256(text.replace("\r\n", "\n").encode("utf-8")).hexdigest() != manifest[rel]
         found = holes(text, ai_bodies)
         info["holes"], info["empty_holes"], info["ai_holes"] = len(found), sum(h["empty"] for h in found), sum(h["ai"] for h in found)
     return info

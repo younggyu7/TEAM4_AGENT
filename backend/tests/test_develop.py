@@ -121,6 +121,21 @@ def test_file_of_removed_function_is_deleted_unless_edited(tmp_path):
     assert not (tmp_path / "b.txt").exists() and (tmp_path / "c.txt").exists()
 
 
+def test_crlf_checkout_is_not_a_human_edit(tmp_path):
+    """Windows git(core.autocrlf=true)이 gen 작업 폴더를 CRLF로 꺼내도, 생성기가 쓴 그대로인 파일은 다시 개발하면 새 내용으로 바뀐다
+    (예전에는 모두 '사람이 고친 파일'로 남아 고른 화면 스타일 theme.css 등이 반영되지 않았다). 내용을 고친 파일은 그대로 둔다."""
+    scaffold.write_app({"theme.css": ":root{--accent:green}\n.a{}\n", "page.tsx": "a\nb\n", "gone.txt": "x\n"}, tmp_path)
+    for name in ("theme.css", "page.tsx", "gone.txt"):   # git checkout이 줄바꿈만 바꾼 상태
+        p = tmp_path / name
+        p.write_bytes(p.read_bytes().replace(b"\n", b"\r\n"))
+    (tmp_path / "page.tsx").write_bytes(b"a\r\nb\r\n// \xec\x82\xac\xeb\x9e\x8c\r\n")   # 사람이 한 줄 더함
+    report = scaffold.write_app({"theme.css": ":root{--accent:violet}\n.a{}\n", "page.tsx": "a\nb\nc\n"}, tmp_path)
+    assert report["written"] == ["theme.css"] and report["kept"] == ["page.tsx"] and report["removed"] == ["gone.txt"]
+    assert "violet" in (tmp_path / "theme.css").read_text(encoding="utf-8")
+    again = scaffold.write_app({"theme.css": ":root{--accent:violet}\n.a{}\n", "page.tsx": "a\nb\nc\n"}, tmp_path)
+    assert again["same"] == 1 and again["kept"] == ["page.tsx"]
+
+
 def test_operation_kind_comes_from_api_shape():
     assert op_kind({"method": "GET", "path": "/vouchers", "list_response": True}) == "list"
     assert op_kind({"method": "GET", "path": "/vouchers/{voucherId}"}) == "get"

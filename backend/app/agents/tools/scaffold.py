@@ -1302,8 +1302,15 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _sha_file(path: Path) -> str:
+    """디스크 파일의 해시 (줄바꿈은 LF로 맞춘다). Windows git(core.autocrlf=true)은 작업 폴더(gen 등)를 꺼낼 때 LF를 CRLF로
+    바꾸므로, 그대로 비교하면 생성기가 쓴 그대로인 파일도 '사람이 고친 파일'로 보여 다시 개발한 내용이 반영되지 않는다."""
+    return _sha(path.read_bytes().decode("utf-8", "replace").replace("\r\n", "\n"))
+
+
 def write_app(files: dict[str, str], out_dir: Path, *, force: bool = False) -> dict:
-    """파일을 쓴다. 지난번에 쓴 내용과 다른 파일(사람이 고친 파일)은 그대로 두고, 스펙에서 사라진 파일은 지운다."""
+    """파일을 쓴다. 지난번에 쓴 내용과 다른 파일(사람이 고친 파일)은 그대로 두고, 스펙에서 사라진 파일은 지운다.
+    줄바꿈(LF·CRLF)만 다른 것은 고친 것으로 보지 않는다 (_sha_file)."""
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = out_dir / MANIFEST
     old = json.loads(manifest_path.read_text(encoding="utf-8")).get("files", {}) if manifest_path.exists() else {}
@@ -1313,7 +1320,7 @@ def write_app(files: dict[str, str], out_dir: Path, *, force: bool = False) -> d
         path = out_dir / rel
         hashes[rel] = _sha(text)
         if path.exists():
-            current = _sha(path.read_bytes().decode("utf-8", "replace"))
+            current = _sha_file(path)
             if current == hashes[rel]:
                 report["same"] += 1
                 continue
@@ -1327,7 +1334,7 @@ def write_app(files: dict[str, str], out_dir: Path, *, force: bool = False) -> d
     for rel, value in sorted(old.items()):
         path = out_dir / rel
         if rel not in files and path.exists():
-            if force or _sha(path.read_bytes().decode("utf-8", "replace")) == value:
+            if force or _sha_file(path) == value:
                 path.unlink()
                 report["removed"].append(rel)
             else:
