@@ -11,10 +11,12 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
+import uuid
 
 from app.core.security import mask_url
 from app.schemas.data_model import DataModel, DbValidationResult
 from app.agents.tools.ddl import render_statements
+from app.agents.tools.sample_data import insert_sql, table_order
 
 log = logging.getLogger(__name__)
 START_HINT = "TEAM4_AGENT 폴더에서 docker compose up -d db 로 PostgreSQL을 띄우면 PostgreSQL로 검증한다"
@@ -54,6 +56,37 @@ def _connect(db_url: str):
         return psycopg.connect(db_url, autocommit=True, connect_timeout=5)
     except psycopg.OperationalError as e:
         raise DbUnavailable(str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__) from e
+
+
+def rehearse_seed(model: DataModel, rows: dict[str, list[dict]], schema_sql: str, db_url: str) -> tuple[dict[str, list[dict]], list[str]]:
+    """임시 스키마에 schema.sql을 만들고 예시 행을 부모부터 한 행씩 넣어 본다. (넣을 수 있는 행, 뺀 행과 사유).
+    한 행이라도 실패하면 앱 DB가 뜨지 못하므로(seed.sql은 처음 뜰 때 실행) 거부된 행은 뺀다. 그 행을 가리키는 자식 행도 같은 방식으로 빠진다.
+    schema.sql 자체가 실패하면 예시 행 문제가 아니므로 그대로 돌려준다 (DB 검증 단계의 몫)."""
+    import psycopg
+
+    schema = f"reqagent_seed_{uuid.uuid4().hex[:12]}"
+    kept: dict[str, list[dict]] = {}
+    skipped: list[str] = []
+    with _connect(db_url) as conn:
+        conn.execute(f'CREATE SCHEMA "{schema}"')
+        try:
+            conn.execute(f'SET search_path TO "{schema}"')
+            try:
+                conn.execute(schema_sql)
+            except psycopg.Error as e:
+                log.warning("[예시 데이터] schema.sql 실행 실패로 행 확인을 건너뜀: %s", str(e).strip().splitlines()[0])
+                return rows, []
+            for entity in table_order(model):
+                kept[entity.entity_id] = []
+                for n, row in enumerate(rows[entity.entity_id], 1):
+                    try:
+                        conn.execute(insert_sql(entity, row))
+                        kept[entity.entity_id].append(row)
+                    except psycopg.Error as e:
+                        skipped.append(f"{entity.entity_id} {n}번째 행: {str(e).strip().splitlines()[0]}")
+        finally:
+            conn.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+    return kept, skipped
 
 
 def _validate_postgres(model, design_version, run_id, db_url, keep_schema) -> DbValidationResult:

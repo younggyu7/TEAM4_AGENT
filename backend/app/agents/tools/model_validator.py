@@ -25,6 +25,9 @@ INTEGER_TYPES = {"bigint", "integer"}
 # 설계 표준 (데이터 모델 Agent 프롬프트의 규칙과 같은 내용을 결정적으로 확인한다)
 AUDIT_COLUMNS = (("created_at", "생성 일시"), ("updated_at", "수정 일시"))
 TEXT_TYPES = {"varchar", "text"}
+# 시간 순서 검사: 이름 조각으로 먼저 일어나는 일과 나중에 일어나는 일을 가린다
+EARLY_TOKENS = {"created", "requested", "submitted", "applied", "registered", "start", "started", "begin"}
+LATE_TOKENS = {"approved", "rejected", "completed", "finished", "closed", "end", "ended", "expired", "expires", "until", "confirmed", "cancelled", "canceled"}
 # 인증 정보 컬럼: 이름 조각(_로 나눈 단어)이나 한글명 끝말로 찾는다. 해시·암호화 표시가 있으면 평문이 아니다.
 SECRET_TOKENS = {"password", "passwd", "pwd", "pw", "secret", "token", "otp", "pin", "apikey"}
 SECRET_PHRASES = ("api_key", "auth_code", "verification_code", "verify_code", "reset_code", "otp_code",
@@ -256,6 +259,20 @@ def is_plaintext_secret(a: Attribute) -> bool:
     return by_name or a.label.strip().endswith(SECRET_LABEL_ENDINGS)
 
 
+def _time_stage(name: str) -> str:
+    tokens = set(name.split("_"))
+    return "late" if tokens & LATE_TOKENS else "early" if tokens & EARLY_TOKENS else ""
+
+
+def _time_order_reversed(rule: CheckRule, entity: Entity) -> bool:
+    """'승인 시각 < 제출 시각'처럼 나중 일이 먼저 일어나야 한다는 조건인가 (날짜·시각 컬럼끼리)"""
+    types = {a.name: a.data_type for a in entity.attributes}
+    if types.get(rule.column) not in ("date", "timestamp") or types.get(rule.value) not in ("date", "timestamp"):
+        return False
+    stages = (_time_stage(rule.column), _time_stage(rule.value))
+    return stages == ("late", "early") and rule.op in ("<", "<=") or stages == ("early", "late") and rule.op in (">", ">=")
+
+
 def validate_model(model: DataModel | None) -> list[Issue]:
     """모델 정적 검증.
 
@@ -272,7 +289,7 @@ def validate_model(model: DataModel | None) -> list[Issue]:
     severity = {"MODEL_NO_ATTRIBUTES": "ERROR", "MODEL_NO_PK": "ERROR", "MODEL_FK_TARGET_MISSING": "ERROR",
                 "MODEL_FK_COMPOSITE_TARGET": "ERROR", "MODEL_PLAINTEXT_SECRET": "ERROR",
                 "MODEL_RESERVED_WORD": "WARNING", "MODEL_PK_STANDARD": "WARNING", "MODEL_FK_NAMING": "WARNING",
-                "MODEL_PARENT_NOT_REFERENCED": "WARNING"}
+                "MODEL_PARENT_NOT_REFERENCED": "WARNING", "MODEL_CHECK_TIME_ORDER": "WARNING"}
     names = {e.entity_id for e in model.entities}
     for e in model.entities:
         if not e.attributes:
@@ -304,6 +321,10 @@ def validate_model(model: DataModel | None) -> list[Issue]:
                 problems[("MODEL_FK_COMPOSITE_TARGET", e.entity_id)].append(
                     f"{a.name} → {a.references}의 기본키가 여러 컬럼임 (baseline은 단일 PK 참조만 지원)")
             # 기본키가 없는 대상(속성이 빈 엔티티)은 대상 쪽 오류(MODEL_NO_PK·NO_ATTRIBUTES)로 고친다
+        for c in e.checks:
+            if _time_order_reversed(c, e):
+                problems[("MODEL_CHECK_TIME_ORDER", e.entity_id)].append(
+                    f"값 조건 {c.column} {c.op} {c.value}의 시간 순서가 거꾸로로 보임 (이대로면 정상 순서의 데이터를 DB가 거부함). 원문 근거를 확인할 것")
         referenced = {a.references for a in e.attributes if a.references}
         missing = [p for p in e.parents if p in names and p not in referenced]
         if missing:

@@ -429,6 +429,81 @@ def test_sample_rows_keep_constraints():
         assert r["end_date"] >= r["start_date"] and r["approver_id"] != r["requester_id"] and r["amount"] > 0 and len(r["title"]) <= 5
 
 
+def test_sample_rows_keep_strict_order_between_dates():
+    from app.schemas.data_model import CheckRule
+
+    pk = {"primary_key": True, "nullable": False, "data_type": "bigint"}
+    at = {"data_type": "timestamp", "nullable": False}
+    doc = _entity("doc", {"name": "doc_id", **pk}, {"name": "a_at", **at}, {"name": "b_at", **at}, {"name": "c_at", **at},
+                  {"name": "d_day", "data_type": "date", "nullable": False}, {"name": "e_day", "data_type": "date", "nullable": False},
+                  checks=[CheckRule(column="a_at", op="<", value="b_at"), CheckRule(column="b_at", op="<", value="c_at"), CheckRule(column="e_day", op=">", value="d_day")])
+    rows = sample_rows(_model(doc))["doc"]
+    assert len(rows) == 6, "값이 같은 날짜도 하루 밀어 모든 행을 넣는다"
+    for r in rows:
+        assert r["a_at"] < r["b_at"] < r["c_at"] and r["e_day"] > r["d_day"]
+
+
+def test_sample_rows_leave_out_rows_that_cannot_meet_contradicting_checks():
+    from app.schemas.data_model import CheckRule
+
+    pk = {"primary_key": True, "nullable": False, "data_type": "bigint"}
+    at = {"data_type": "date", "nullable": False}
+    contradiction = [CheckRule(column="a", op="<", value="b"), CheckRule(column="a", op=">", value="b")]
+    hard = _entity("hard", {"name": "hard_id", **pk}, {"name": "a", **at}, {"name": "b", **at}, checks=contradiction)
+    child = _entity("child", {"name": "child_id", **pk}, {"name": "hard_id", "data_type": "bigint", "references": "hard", "nullable": False})
+    soft = _entity("soft", {"name": "soft_id", **pk}, {"name": "a", "data_type": "date"}, {"name": "b", **at}, checks=contradiction)
+    rows = sample_rows(_model(hard, child, soft))
+    assert rows["hard"] == [] and rows["child"] == [], "규칙이 모순이면 행도, 그 행을 가리키는 자식도 넣지 않는다"
+    assert len(rows["soft"]) == 6 and all(r["a"] is None for r in rows["soft"]), "NULL이 되면 CHECK를 통과한다"
+
+
+def test_rehearse_seed_removes_rows_the_real_database_rejects():
+    import pytest
+
+    from app.agents.tools.db_validator import DbUnavailable, rehearse_seed
+    from app.agents.tools.ddl import render_script
+    from app.agents.tools.sample_data import seed_sql
+    from app.core.config import DEFAULT_VALIDATION_DB_URL
+
+    pk = {"primary_key": True, "nullable": False, "data_type": "bigint"}
+    parent = _entity("parent", {"name": "parent_id", **pk}, {"name": "code", "length": 20, "nullable": False})
+    child = _entity("child", {"name": "child_id", **pk}, {"name": "parent_id", "data_type": "bigint", "references": "parent", "nullable": False})
+    model = _model(parent, child)
+    rows = sample_rows(model)
+    rows["parent"][0]["code"] = "x" * 30   # 코드가 못 잡는 경우: 첫 부모가 칸 길이를 넘으면 그 부모를 가리키는 자식도 들어가지 못한다
+    try:
+        kept, skipped = rehearse_seed(model, rows, render_script(model, "1"), DEFAULT_VALIDATION_DB_URL)
+    except DbUnavailable:
+        pytest.skip("검증용 PostgreSQL이 없음")
+    assert len(kept["parent"]) == 5 and all(r["parent_id"] != 1 for r in kept["child"]) and len(kept["child"]) < 6
+    assert any(s.startswith("parent 1번째 행") for s in skipped) and any(s.startswith("child ") for s in skipped)
+    assert "-- 뺀 행: parent 1번째 행" in seed_sql(model, kept, skipped=skipped)
+
+
+def test_this_project_failure_now_loads_and_warns_about_reversed_time_order():
+    """approved_at < submitted_at (값이 같아 seed.sql이 실패했던 규칙): 예시 행은 실제 DB에 들어가고, 거꾸로인 규칙은 ERD 경고로 뜬다"""
+    import pytest
+    from app.agents.tools.db_validator import DbUnavailable, rehearse_seed
+    from app.agents.tools.ddl import render_script
+    from app.agents.tools.model_validator import validate_model
+    from app.core.config import DEFAULT_VALIDATION_DB_URL
+    from app.schemas.data_model import CheckRule
+
+    pk = {"primary_key": True, "nullable": False, "data_type": "bigint"}
+    at = {"data_type": "timestamp", "nullable": False}
+    doc = _entity("approval_document", {"name": "approval_document_id", **pk}, {"name": "submitted_at", **at}, {"name": "approved_at", **at},
+                  {"name": "start_date", "data_type": "date", "nullable": False}, {"name": "end_date", "data_type": "date", "nullable": False},
+                  checks=[CheckRule(column="approved_at", op="<", value="submitted_at"), CheckRule(column="end_date", op=">=", value="start_date")])
+    model = _model(doc)
+    warned = [i for i in validate_model(model) if i.kind == "MODEL_CHECK_TIME_ORDER"]
+    assert len(warned) == 1 and warned[0].severity == "WARNING" and "approved_at < submitted_at" in warned[0].message, "end_date >= start_date는 정상이라 경고하지 않는다"
+    try:
+        kept, skipped = rehearse_seed(model, sample_rows(model), render_script(model, "1"), DEFAULT_VALIDATION_DB_URL)
+    except DbUnavailable:
+        pytest.skip("검증용 PostgreSQL이 없음")
+    assert skipped == [] and len(kept["approval_document"]) == 6
+
+
 def test_sample_rows_skip_rows_that_break_unique_constraints():
     """허용값이 행 수보다 적은 unique 컬럼·부모가 적은 1:1 외래키·unique_together는 겹치는 행을 넣지 않는다
     (seed.sql이 duplicate key로 실패하면 앱 DB 컨테이너가 종료 코드 3으로 꺼져 실행 미리보기가 뜨지 않았다)."""

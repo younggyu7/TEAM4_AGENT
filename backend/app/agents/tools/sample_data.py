@@ -1,7 +1,7 @@
 """시연용 예시 데이터: 데이터 모델에서 테이블마다 예시 행을 코드로 만든다 (LLM 없음, 난수·현재 시각 없음).
 
 - 같은 데이터 모델이면 항상 같은 값이 나온다. 부모 테이블부터 채워 외래키가 항상 있는 행을 가리킨다.
-- 허용값·길이·NOT NULL·UNIQUE·'둘 중 하나만'·값 조건(checks)을 지킨다 (schema.sql에 그대로 넣을 수 있어야 한다).
+- 허용값·길이·NOT NULL·UNIQUE·'둘 중 하나만'·값 조건(checks)을 지킨다 (schema.sql에 그대로 넣을 수 있어야 한다). 개발할 때 실제 DB에 넣어 보고 거부된 행은 뺀다 (db_validator.rehearse_seed).
 - 값은 schema.sql의 실제 모델(설계 표준을 쓰면 표준 이름·타입)로 만든다. 화면 목업은 mock-data.json으로, 실제 DB는 seed.sql로 같은 행을 쓴다.
 """
 from __future__ import annotations
@@ -112,34 +112,70 @@ def _key_of(entity: Entity | None) -> str:
     return entity.pk()[0].name if entity and entity.pk() else ""
 
 
-def _satisfy(row: dict, entity: Entity, parents: dict[str, list]) -> None:
-    """값 조건을 맞춘다: 비교 대상이 숫자면 값을 맞추고, 다른 컬럼이면 두 값이 어긋나지 않게 옮긴다."""
+def _later(value):
+    """하루(숫자면 1) 뒤 값. 날짜·시각 문자열이 아니면 None"""
+    if isinstance(value, int | float):
+        return value + 1
+    try:
+        return (date.fromisoformat(str(value)[:10]) + timedelta(days=1)).isoformat() + str(value)[10:]
+    except ValueError:
+        return None
+
+
+def _holds(rule, row: dict, columns: dict) -> bool:
+    """값 조건을 지키는가. 어느 쪽이 NULL이면 DB도 통과시킨다. 비교할 수 없는 값은 DB에 맡긴다 (db_validator.rehearse_seed)"""
+    left = row.get(rule.column)
+    right = row.get(rule.value) if rule.value in columns else rule.value
+    if left is None or right is None:
+        return True
+    try:
+        if rule.value not in columns:
+            right = float(right)
+        return {">": left > right, ">=": left >= right, "<": left < right, "<=": left <= right, "<>": left != right}[rule.op]
+    except (TypeError, ValueError):
+        return True
+
+
+def _satisfy(row: dict, entity: Entity, parents: dict[str, list]) -> bool:
+    """값 조건을 맞춘다: 비교 대상이 숫자면 값을 맞추고, 다른 컬럼이면 두 값이 어긋나지 않게 옮긴다.
+    조건이 서로 이어질 수 있어 (a < b, b < c) 다 맞을 때까지 되풀이한다. 끝내 못 맞추면 NULL을 넣을 수 있는 칸을 비우고, 그것도 안 되면 False (이 행은 넣지 않는다)."""
     columns = {a.name: a for a in entity.attributes}
-    for rule in entity.checks:
-        left = row.get(rule.column)
-        if left is None:
-            continue
-        if rule.value in columns:
-            right = row.get(rule.value)
-            if right is None:
+    for _ in range(len(entity.checks) + 1):
+        wrong = [r for r in entity.checks if not _holds(r, row, columns)]
+        if not wrong:
+            return True
+        for rule in wrong:
+            if _holds(rule, row, columns):   # 앞 규칙을 맞추다 함께 풀렸다
                 continue
-            if rule.op == "<>" and left == right:
+            left = row[rule.column]
+            if rule.value not in columns:
+                limit = float(rule.value)
+                row[rule.column] = limit + 1 if rule.op in (">", ">=", "<>") else limit - 1
+                continue
+            right = row[rule.value]
+            if rule.op == "<>":
                 a = columns[rule.column]
                 others = [v for v in parents.get(a.references, []) if v != right]
                 if a.references and others:   # 본인 승인 금지처럼 같은 사람을 가리키면 안 되는 외래키
                     row[rule.column] = others[0]
-            elif (rule.op in (">", ">=") and left < right) or (rule.op in ("<", "<=") and left > right) or (rule.op in (">", "<") and left == right):
+                elif not a.references and _later(left) is not None:
+                    row[rule.column] = _later(left)
+            elif left != right:
                 row[rule.column], row[rule.value] = right, left
-                if rule.op in (">", "<") and left == right:
-                    row[rule.column] = left + 1 if isinstance(left, int | float) else left
+            else:   # 값이 같은데 앞뒤가 있어야 한다: 뒤에 와야 하는 쪽을 민다
+                late = rule.column if rule.op == ">" else rule.value
+                if _later(row[late]) is not None:
+                    row[late] = _later(row[late])
+    for rule in entity.checks:
+        if _holds(rule, row, columns):
+            continue
+        if columns[rule.column].nullable:
+            row[rule.column] = None
+        elif rule.value in columns and columns[rule.value].nullable:
+            row[rule.value] = None
         else:
-            try:
-                limit = float(rule.value)
-            except ValueError:
-                continue
-            bad = {">": left <= limit, ">=": left < limit, "<": left >= limit, "<=": left > limit, "<>": left == limit}[rule.op]
-            if bad:
-                row[rule.column] = limit + 1 if rule.op in (">", ">=", "<>") else limit - 1
+            return False
+    return True
 
 
 def _reference(a: Attribute, i: int, entity: Entity, row: dict, rows: list[dict], out: dict[str, list[dict]], by_id: dict[str, Entity]):
@@ -181,7 +217,10 @@ def sample_rows(model: DataModel, words: tuple = ()) -> dict[str, list[dict]]:
                     if name != keep:
                         row[name] = None
             parents = {a.references: [r.get(_key_of(by_id.get(a.references))) for r in out.get(a.references, [])] for a in entity.attributes if a.references}
-            _satisfy(row, entity, parents)
+            if not _satisfy(row, entity, parents):
+                continue
+            if any(a.references in out and not out[a.references] and row[a.name] is not None for a in entity.attributes):
+                continue   # 부모 행이 하나도 없으면 가리킬 곳이 없다
             keys = {(n, tuple(row.get(c) for c in names)) for n, names in enumerate(uniques)}
             keys = {k for k in keys if None not in k[1]}   # NULL은 겹쳐도 된다
             if keys & seen:
@@ -210,18 +249,21 @@ def _sql_value(value, dialect: str = "postgresql") -> str:
 TIME_WITH_ZONE = re.compile(r"^(\d{4}-\d\d-\d\d)T(\d\d:\d\d:\d\d)[+-]\d\d:\d\d$")
 
 
-def seed_sql(model: DataModel, rows: dict[str, list[dict]], dialect: str = "postgresql") -> str:
+def insert_sql(entity: Entity, row: dict, dialect: str = "postgresql") -> str:
+    columns = ", ".join(q(a.name, dialect) for a in entity.attributes)
+    return f"INSERT INTO {q(entity.entity_id, dialect)} ({columns}) VALUES ({', '.join(_sql_value(row[a.name], dialect) for a in entity.attributes)});"
+
+
+def seed_sql(model: DataModel, rows: dict[str, list[dict]], dialect: str = "postgresql", skipped: list[str] | None = None) -> str:
     """seed.sql: 시연용 예시 행 (schema.sql 다음에 적용한다). model은 schema.sql의 실제 모델이고, 부모부터 넣는다.
-    MySQL은 AUTO_INCREMENT가 넣은 키 다음부터 이어 가므로 번호를 다시 맞추지 않는다."""
+    MySQL은 AUTO_INCREMENT가 넣은 키 다음부터 이어 가므로 번호를 다시 맞추지 않는다. skipped: DB가 거부해 뺀 행 (맨 위에 사유를 남긴다)."""
     mysql = dialect == "mysql"
-    out = ["-- 코드가 만든 시연용 예시 데이터 (운영 DB에 넣지 않는다)", *(["SET NAMES utf8mb4;"] if mysql else []),
+    out = ["-- 코드가 만든 시연용 예시 데이터 (운영 DB에 넣지 않는다)", *[f"-- 뺀 행: {x}" for x in skipped or []], *(["SET NAMES utf8mb4;"] if mysql else []),
            "START TRANSACTION;" if mysql else "BEGIN;", ""]
     for entity in table_order(model):
         table = q(entity.entity_id, dialect)
-        columns = [a.name for a in entity.attributes]
-        physical = ", ".join(q(c, dialect) for c in columns)
         for row in rows[entity.entity_id]:
-            out.append(f"INSERT INTO {table} ({physical}) VALUES ({', '.join(_sql_value(row[c], dialect) for c in columns)});")
+            out.append(insert_sql(entity, row, dialect))
         identity = [a for a in entity.pk() if a.data_type in ("bigint", "integer") and not a.references]
         if identity and not mysql:
             out.append(f"ALTER TABLE {table} ALTER COLUMN {q(identity[0].name)} RESTART WITH {ROWS + 1};")

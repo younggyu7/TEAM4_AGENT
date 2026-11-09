@@ -22,6 +22,7 @@ from app.schemas.function import FunctionSpec
 from app.schemas.requirement import Question
 from app.agents.tools.api_shape import AUDIT_COLUMNS, NUMBER_COLUMN, USER_TABLE, main_table, table_of
 from app.agents.tools.convention import apply_profile, ddl_model, profile_of
+from app.agents.tools.db_validator import DbUnavailable, rehearse_seed
 from app.agents.tools.ddl import mysql_reserved, q, render_script
 from app.agents.tools.dev_spec import FILES as SPEC_FILES, Names, Spec, rule_tag
 from app.agents.tools.sample_data import ROWS, load_words, mock_data, sample_rows, seed_sql
@@ -1153,7 +1154,7 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
             files[rel] = path.read_text(encoding="utf-8")
             if mysql:
                 files[rel] = _for_mysql(rel, files[rel])
-    rows = sample_rows(spec.ddl, load_words(spec.words))
+    rows, skipped_rows = _insertable_rows(spec, sample_rows(spec.ddl, load_words(spec.words)), mysql)
     files["frontend/src/generated/screens.json"] = json.dumps(data, ensure_ascii=False, indent=1) + "\n"
     # 화면 구성(메뉴 이름·순서·숨김·홈 칸)과 메뉴마다 화면 파일: 화면 작업을 메뉴 단위로 사람에게 맡긴다 (AI 사용과 상관없이 늘 만든다)
     files["frontend/src/generated/layout.json"] = json.dumps(default_layout(data), ensure_ascii=False, indent=1) + "\n"
@@ -1184,7 +1185,7 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
         files["frontend/src/pages/index.ts"] = _pages_index(sorted(built))
     # 설계 산출물 schema.sql은 PostgreSQL이다. MySQL이면 같은 모델(spec.ddl)에서 MySQL 문법으로 다시 만든다 (spec/schema.sql은 그대로)
     files["db/schema.sql"] = render_script(spec.ddl, spec.version, "mysql") if mysql else spec.read("schema.sql") or ""
-    files["db/seed.sql"] = seed_sql(spec.ddl, rows, db_dialect(spec))
+    files["db/seed.sql"] = seed_sql(spec.ddl, rows, db_dialect(spec), skipped_rows)
     if python:
         files.update(fa.render_backend(spec, data, owned, logic, built))
         files["docker-compose.yml"] = fa.COMPOSE_MYSQL if mysql else fa.COMPOSE
@@ -1310,6 +1311,21 @@ def _sha_file(path: Path) -> str:
     """디스크 파일의 해시 (줄바꿈은 LF로 맞춘다). Windows git(core.autocrlf=true)은 작업 폴더(gen 등)를 꺼낼 때 LF를 CRLF로
     바꾸므로, 그대로 비교하면 생성기가 쓴 그대로인 파일도 '사람이 고친 파일'로 보여 다시 개발한 내용이 반영되지 않는다."""
     return _sha(path.read_bytes().decode("utf-8", "replace").replace("\r\n", "\n"))
+
+
+def _insertable_rows(spec: Spec, rows: dict[str, list[dict]], mysql: bool) -> tuple[dict[str, list[dict]], list[str]]:
+    """예시 행을 실제 PostgreSQL에 넣어 보고 거부된 행은 뺀다. 검증 DB가 없거나 MySQL이면 그대로 둔다 (코드의 조건 맞추기만 거친다)"""
+    url, schema = get_settings().validation_db_url, spec.read("schema.sql")
+    if mysql or not url or not schema:
+        return rows, []
+    try:
+        kept, skipped = rehearse_seed(spec.ddl, rows, schema, url)
+    except DbUnavailable as e:
+        log.warning("[예시 데이터] 검증 DB에 접속하지 못해 행 확인을 건너뜀: %s", e)
+        return rows, []
+    for line in skipped:
+        log.warning("[예시 데이터] DB가 거부해 뺀 행: %s", line)
+    return kept, skipped
 
 
 def write_app(files: dict[str, str], out_dir: Path, *, force: bool = False) -> dict:
