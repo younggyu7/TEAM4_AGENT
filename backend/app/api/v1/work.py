@@ -2,10 +2,12 @@
 
   GET  /version                                   API 버전 {api} (확장이 접속할 때 맞는지 본다)
   GET  /develop/layout?project=                   화면 구성 {layout, menu, screens, path}
-  PUT  /develop/layout                            화면 구성 저장 → dev 커밋 {project, layout} (개발자)
+  PUT  /develop/layout                            화면 구성 저장 → dev 커밋 {project, layout} (개발자, 진행 중인 영역의 메뉴 이동은 400)
+  POST /develop/layout/suggest                    업무 영역 다시 묶기 제안 {project, mode: rules|ai, layout?} → {layout, usage} (저장 안 함, 개발자)
   GET  /develop/work?project=                     작업 묶음·상태·진행 현황 {items, counts, people, developers}
   GET  /develop/work/item?project=&key=           작업 하나 + 작업 설명(TASK.md)
   POST /develop/work/assign                       배정 {project, key, user_id} → 작업 브랜치·알림 (개발자)
+  POST /develop/work/assign-many                  일괄 배정 {project, keys[], user_id} → 묶음별 결과 {results, assigned, failed} (개발자)
   POST /develop/work/submit                       제출 {project, key, note} → 합치기 요청 (담당자)
   POST /develop/work/approve                      승인 {project, key} → dev에 합침 (다른 개발자, 개발자 1명이면 본인)
   POST /develop/work/reject                       반려 {project, key, reason} (다른 개발자, 개발자 1명이면 본인)
@@ -31,12 +33,24 @@ class LayoutBody(BaseModel):
     layout: dict
 
 
+class SuggestBody(BaseModel):
+    project: str
+    mode: str = "rules"             # rules: 규칙(LLM 없음) · ai: LLM 한 번
+    layout: dict | None = None      # 지금 화면에서 고치던 구성 (없으면 저장된 것)
+
+
 class KeyBody(BaseModel):
     project: str
     key: str
 
 
 class AssignBody(KeyBody):
+    user_id: int
+
+
+class AssignManyBody(BaseModel):
+    project: str
+    keys: list[str]
     user_id: int
 
 
@@ -78,6 +92,12 @@ def put_layout(body: LayoutBody, member: users.Member = Depends(current_user)):
     return layout.save(_project(body.project), body.layout, member)
 
 
+@router.post("/develop/layout/suggest", summary="업무 영역 다시 묶기 제안 (저장 안 함, 개발자)")
+def suggest_layout(body: SuggestBody, member: users.Member = Depends(current_user)):
+    ensure(member, "develop")
+    return layout.suggest(_project(body.project), body.mode, body.layout)
+
+
 @router.get("/develop/work", summary="작업 묶음·진행 현황")
 def get_work(project: str):
     return work.overview(_project(project))
@@ -97,6 +117,12 @@ def get_item(project: str, key: str):
 def assign(body: AssignBody, member: users.Member = Depends(current_user)):
     ensure(member, "develop")
     return work.assign(_project(body.project), body.key, body.user_id, member)
+
+
+@router.post("/develop/work/assign-many", summary="일괄 배정 (개발자)")
+def assign_many(body: AssignManyBody, member: users.Member = Depends(current_user)):
+    ensure(member, "develop")
+    return work.assign_many(_project(body.project), body.keys, body.user_id, member)
 
 
 @router.post("/develop/work/submit", summary="작업 제출 (담당자)")

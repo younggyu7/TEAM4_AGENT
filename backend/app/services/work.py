@@ -1,10 +1,10 @@
 """최종 개발물 작업 묶음·배정·제출·검토 (FR-050·051·053).
 
-묶음 (파일 경로로 정한다, classify):
-  common-ui      공통 화면 틀: frontend의 앱 틀·부품·테마·화면 구성·생성기 관리 파일 (아래 둘에 속하지 않는 frontend 파일)
-  ui-<메뉴>      화면: 메뉴 화면 파일 menus/<메뉴>.tsx(+ menus/<메뉴>/ 아래 새 파일)와 그 메뉴 기능의 AI 화면 pages/<기능>.tsx
-  common-server  공통 서버·DB: 인증·공통 코드·조회 API·schema·seed·Docker·배포·문서 (아래에 속하지 않는 파일)
-  fn-<기능>      서버: 그 기능의 API·업무 로직·인수 테스트 (파일 이름이 기능 ID에서 정해진다: FN-SFR-001-05 → FnSfr00105·fn_sfr00105)
+묶음 (파일 경로로 정한다, classify). <영역>은 화면 구성의 업무 영역(비슷한 메뉴 묶음, layout.json sections)의 id:
+  common-ui        공통 화면 틀: frontend의 앱 틀·부품·테마·화면 구성·생성기 관리 파일 (아래에 속하지 않는 frontend 파일)
+  screen-<영역>    화면: 그 영역 메뉴들의 화면 파일 menus/<메뉴>.tsx(+ menus/<메뉴>/ 아래 새 파일)와 그 기능들의 AI 화면 pages/<기능>.tsx
+  common-server    공통 서버·DB: 인증·공통 코드·조회 API·schema·seed·Docker·배포·문서, 메뉴가 없는 자동 실행 기능 (아래에 속하지 않는 파일)
+  server-<영역>    서버: 그 영역 기능들의 API·업무 로직·인수 테스트 (파일 이름이 기능 ID에서 정해진다: FN-SFR-001-05 → FnSfr00105·fn_sfr00105)
 
 작업 기록은 프로젝트 파일 work.json {items: {묶음 키: {assignee, branch, status, request_id, reason, history}}}.
 상태: 요청 옴(assigned) → 작업중(브랜치에 dev보다 앞선 커밋) → 승인 대기(review, 합치기 요청) → 완료(done) / 반려(rejected).
@@ -22,7 +22,7 @@ from pathlib import Path
 from app.agents.storage import get_store
 from app.core.auth import allowed
 from app.core.exceptions import BadRequest, Conflict, Forbidden, NotFound
-from app.services import repo, users
+from app.services import layout, repo, users
 from app.services.develop import app_dir
 
 WORK_FILE = "work.json"
@@ -43,9 +43,9 @@ def _design(app: Path) -> dict:
 
 
 class _Index:
-    """기능 ID ↔ 파일 이름 (클래스·모듈), 기능 → 메뉴, 메뉴 파일 이름"""
+    """기능 ID ↔ 파일 이름 (클래스·모듈), 기능 → 메뉴, 메뉴 파일 이름, 메뉴 → 업무 영역"""
 
-    def __init__(self, design: dict):
+    def __init__(self, design: dict, sections: list[dict] | None = None):
         from app.agents.tools.scaffold import class_name, menu_file
         from app.agents.tools.scaffold_fastapi import module_name
 
@@ -57,6 +57,10 @@ class _Index:
         self.menus = {m["group"]: m for m in design.get("menu", [])}
         self.menu_of = {s["function_id"]: s["group"].split(".")[0] for s in design.get("screens", [])}
         self.menu_by_file = {menu_file(g): g for g in self.menus}
+        self.menu_file = menu_file
+        self.screens = {s["screen_id"]: s for s in design.get("screens", [])}
+        self.sections = {s["id"]: s for s in sections or []}
+        self.area_of = {g: s["id"] for s in sections or [] for g in s["menus"]}
 
     def function_of(self, name: str) -> str | None:
         stem = name.split(".")[0]
@@ -69,25 +73,30 @@ class _Index:
         return self.by_module.get(stem)
 
 
+def _index(app: Path) -> _Index:
+    design = _design(app)
+    return _Index(design, layout.read(app, design)["sections"] if design.get("menu") else [])
+
+
 def classify(path: str, index: _Index) -> str:
     """파일 경로 → 묶음 키"""
     front = next((r for r in FRONT_ROOTS if path.startswith(r)), None)
     if front:
         rest = path[len(front):]
         parts = rest.split("/")
+        group = None
         if parts[0] == "menus" and len(parts) >= 2:
-            name = parts[1].split(".")[0] if len(parts) == 2 else parts[1]
-            if name in index.menu_by_file:
-                return f"ui-{index.menu_by_file[name]}"
-        if parts[0] == "pages" and len(parts) == 2 and (fid := index.function_of(parts[1])) and fid in index.menu_of:
-            return f"ui-{index.menu_of[fid]}"
-        return "common-ui"
+            group = index.menu_by_file.get(parts[1].split(".")[0] if len(parts) == 2 else parts[1])
+        elif parts[0] == "pages" and len(parts) == 2 and (fid := index.function_of(parts[1])):
+            group = index.menu_of.get(fid)
+        return f"screen-{index.area_of[group]}" if group in index.area_of else "common-ui"
     if path.startswith("frontend/"):
         return "common-ui"
     if path.startswith("backend/"):
         name = path.rsplit("/", 1)[-1]
-        if (fid := index.function_of(name)) and any(seg in path.split("/") for seg in ("feature", "api", "logic", "acceptance")):
-            return f"fn-{fid}"
+        if ((fid := index.function_of(name)) and any(seg in path.split("/") for seg in ("feature", "api", "logic", "acceptance"))
+                and index.menu_of.get(fid) in index.area_of):
+            return f"server-{index.area_of[index.menu_of[fid]]}"
     return "common-server"
 
 
@@ -111,32 +120,32 @@ def _files(root: Path) -> list[str]:
 
 def _bundle_meta(key: str, index: _Index) -> dict:
     if key == "common-ui":
-        return {"kind": "common_ui", "layer": "frontend", "title": "공통 화면 틀", "functions": [],
-                "summary": "앱 틀(메뉴·홈·로그인)·화면 부품·테마·화면 구성. 대시보드 모양처럼 모든 메뉴에 걸친 화면을 바꾼다."}
+        return {"kind": "common_ui", "layer": "frontend", "title": "공통 화면 틀", "functions": [], "area": None,
+                "summary": "앱 틀(메뉴·홈·로그인)·화면 부품·테마·화면 구성. 홈(대시보드) 모양처럼 모든 메뉴에 걸친 화면을 바꾼다."}
     if key == "common-server":
-        return {"kind": "common_server", "layer": "backend", "title": "공통 서버·DB", "functions": [],
-                "summary": "인증·공통 코드·조회 API·DB(schema·seed)·Docker·배포 설정. 여러 기능이 같이 쓰는 서버 코드."}
-    if key.startswith("ui-"):
-        group = key[3:]
-        menu = index.menus.get(group) or {"name": group, "pages": []}
-        fids = [fid for fid, g in index.menu_of.items() if g == group]
-        return {"kind": "ui", "layer": "frontend", "title": f"화면 · {menu['name']}", "group": group, "functions": fids,
-                "summary": f"메뉴 '{menu['name']}'의 화면 (업무 {len(menu['pages'])}개: {', '.join(p['name'] for p in menu['pages'][:8])})"}
-    fid = key[3:]
-    f = index.functions.get(fid) or {"name": fid}
-    return {"kind": "function", "layer": "backend", "title": f"서버 · {fid} {f.get('name', '')}".strip(), "functions": [fid],
-            "summary": f.get("description") or f.get("name", "")}
+        return {"kind": "common_server", "layer": "backend", "title": "공통 서버·DB", "functions": [], "area": None,
+                "summary": "인증·공통 코드·조회 API·DB(schema·seed)·Docker·배포 설정, 메뉴가 없는 자동 실행 기능. 여러 기능이 같이 쓰는 서버 코드."}
+    kind, sid = key.split("-", 1)
+    sec = index.sections.get(sid) or {"id": sid, "name": sid, "menus": []}
+    menus = [{"group": g, "name": index.menus[g]["name"]} for g in sec["menus"] if g in index.menus]
+    fids = [fid for fid, g in index.menu_of.items() if g in sec["menus"]]
+    area = {"id": sid, "name": sec["name"], "menus": menus}
+    names = ", ".join(m["name"] for m in menus[:6]) + (f" 외 {len(menus) - 6}" if len(menus) > 6 else "")
+    if kind == "screen":
+        return {"kind": "ui", "layer": "frontend", "title": f"화면 · {sec['name']}", "functions": fids, "area": area,
+                "summary": f"업무 영역 '{sec['name']}'의 메뉴 화면 {len(menus)}개 설계·구현 ({names})"}
+    return {"kind": "server", "layer": "backend", "title": f"서버 · {sec['name']}", "functions": fids, "area": area,
+            "summary": f"업무 영역 '{sec['name']}'의 기능 {len(fids)}개 API·업무 로직·인수 테스트 (메뉴: {names})"}
 
 
 def bundles(project: str) -> list[dict]:
-    """작업 묶음 (공통 화면 틀 → 화면(메뉴 순) → 공통 서버·DB → 서버(기능 순)). 파일은 모두 한 묶음에 들어간다"""
+    """작업 묶음 (공통 화면 틀 → 화면(영역 순) → 공통 서버·DB → 서버(영역 순)). 파일은 모두 한 묶음에 들어간다"""
     app = repo.ensure_repo(project)
-    index = _Index(_design(app))
+    index = _index(app)
     by_key: dict[str, list[str]] = {}
     for path in _files(app):
         by_key.setdefault(classify(path, index), []).append(path)
-    keys = ["common-ui", *[f"ui-{g}" for g in index.menus], "common-server", *[f"fn-{fid}" for fid in index.functions]]
-    keys += [k for k in by_key if k not in keys]
+    keys = ["common-ui", *[f"screen-{s}" for s in index.sections], "common-server", *[f"server-{s}" for s in index.sections]]
     return [{"key": k, **_bundle_meta(k, index), "files": by_key.get(k, [])} for k in keys if by_key.get(k)]
 
 
@@ -208,7 +217,12 @@ def overview(project: str) -> dict:
             p["done"] += b["status"] == "done"
             p["review"] += b["status"] == "review"
     devs = [{"id": m.id, "name": m.name} for m in project_access.assignees(project) if allowed(m.role, "repo_write")]
-    return {"items": out, "counts": counts, "people": list(people.values()), "developers": devs,
+    areas: dict[str, dict] = {}
+    for b in out:   # 영역마다 한 줄: 화면 묶음·서버 묶음 키 (웹 표·일괄 배정)
+        if b["area"]:
+            a = areas.setdefault(b["area"]["id"], {**b["area"], "screen": None, "server": None})
+            a["screen" if b["kind"] == "ui" else "server"] = b["key"]
+    return {"items": out, "counts": counts, "people": list(people.values()), "developers": devs, "areas": list(areas.values()),
             "labels": STATUS_LABELS, "version": repo.final_version(project)}
 
 
@@ -223,7 +237,7 @@ def _history(entry: dict, member, what: str) -> None:
     entry.setdefault("history", []).append({"at": _now(), "by": {"id": member.id, "name": member.name}, "what": what})
 
 
-def assign(project: str, key: str, user_id: int, member) -> dict:
+def assign(project: str, key: str, user_id: int, member, notify: bool = True) -> dict:
     """담당자 배정: 작업 브랜치 task/<묶음>을 dev에서 만들고(있으면 담당자만 바꿈) 담당자에게 알린다. 승인 대기 중이면 409"""
     from app.services import directives, project_access
 
@@ -254,15 +268,39 @@ def assign(project: str, key: str, user_id: int, member) -> dict:
         data["items"][key] = entry
         _write(project, data)
     meta = _item(project, key)
-    directives.add_event(project, "task_assigned", f"{member.name}님이 작업을 맡겼습니다: {meta['title']}",
-                         f"브랜치 {branch} · 파일 {meta['file_count']}개", "develop", repo.final_version(project), None,
-                         member_ids={target.id})
+    if notify:
+        directives.add_event(project, "task_assigned", f"{member.name}님이 작업을 맡겼습니다: {meta['title']}",
+                             f"브랜치 {branch} · 파일 {meta['file_count']}개", "develop", repo.final_version(project), None,
+                             member_ids={target.id})
     return meta
+
+
+def assign_many(project: str, keys: list[str], user_id: int, member) -> dict:
+    """여러 묶음을 한 사람에게 (일괄 배정). 묶음마다 결과를 돌려주고 하나가 실패해도 나머지는 배정한다. 알림은 한 번에 하나"""
+    from app.core.exceptions import AppError
+    from app.services import directives
+
+    if not keys:
+        raise BadRequest("배정할 작업 묶음을 고르세요.")
+    results, done = [], []
+    for key in dict.fromkeys(keys):
+        try:
+            item = assign(project, key, user_id, member, notify=False)
+            done.append(item)
+            results.append({"key": key, "ok": True, "title": item["title"]})
+        except AppError as e:
+            results.append({"key": key, "ok": False, "error": e.detail})
+    if done:
+        target = done[0]["assignee"]
+        titles = ", ".join(i["title"] for i in done[:5]) + (f" 외 {len(done) - 5}개" if len(done) > 5 else "")
+        directives.add_event(project, "task_assigned", f"{member.name}님이 작업 {len(done)}개를 맡겼습니다", titles,
+                             "develop", repo.final_version(project), None, member_ids={target["id"]})
+    return {"results": results, "assigned": len(done), "failed": len(results) - len(done)}
 
 
 def outside(project: str, key: str, paths: list[str]) -> list[str]:
     """그 묶음 밖의 파일 (제출·올리기 검사)"""
-    index = _Index(_design(app_dir(project)))
+    index = _index(app_dir(project))
     return [p for p in paths if classify(p, index) != key]
 
 
@@ -326,7 +364,8 @@ def reject(project: str, key: str, reason: str, member) -> dict:
 RULES = """# 작업 규칙 (모든 작업 공통)
 
 1. 고칠 수 있는 파일은 `files.txt`에 있는 파일과, 같은 묶음에 속하는 새 파일뿐이다. 다른 파일은 읽기만 한다.
-   - 화면 묶음은 `menus/<메뉴>.tsx`와 `menus/<메뉴>/` 아래 새 파일, 서버 기능 묶음은 그 기능의 Controller·Logic·인수 테스트.
+   - 화면 묶음은 그 영역 메뉴들의 `menus/<메뉴>.tsx`와 `menus/<메뉴>/` 아래 새 파일·AI 화면 `pages/<기능>.tsx`,
+     서버 묶음은 그 영역 기능들의 Controller·Logic·인수 테스트.
    - 묶음 밖 파일을 바꾸면 제출이 거부된다. 공통 코드가 필요하면 공통 묶음 담당자에게 요청한다.
 2. 이름은 생성기가 정한 것을 쓴다: 기능 `FN-SFR-001-05` → 클래스 `FnSfr00105…`, 모듈 `fn_sfr00105`. 새 이름을 만들 때도 이 접두사를 붙인다.
 3. 계약을 바꾸지 않는다: API 경로·요청·응답은 `spec/openapi.yaml`·`spec/API.md`, 테이블·컬럼은 `db/schema.sql`을 따른다.
@@ -357,22 +396,50 @@ def brief(project: str, key: str) -> str:
         owned, _ = scaffold.owned_operations(spec)
         by_id = {f.function_id: f for f in spec.functions}
         lines += ["## 어떻게 (개발 스펙)", ""]
+        if item["kind"] == "ui":
+            lines += _screen_design(project, item)
         for fid in item["functions"]:
             f = by_id.get(fid)
             if f is None:
                 continue
-            if item["kind"] == "function":
+            if item["kind"] == "server":
                 lines += [builder.build_request(spec, f, owned.get(fid) or []), ""]
             else:
                 ac = builder._section(builder._doc(spec, "ACCEPTANCE_CRITERIA.md"), 3, fid + " ")
                 lines += [f"### {fid} {f.name}", "", f.description or "", "", ac or "", ""]
+    elif item["kind"] == "ui":
+        lines += _screen_design(project, item)
     elif item["kind"] == "common_ui":
-        lines += ["## 어떻게", "", "- 앱 틀은 `App.tsx`(메뉴·홈), 메뉴 화면 공통 부분은 `menu.tsx`, 부품은 `kit.tsx`·`Screen.tsx`, 색은 `theme.css`.",
-                  "- 메뉴 이름·순서·숨김은 코드 대신 웹 '화면 구성'으로 바꾼다 (`generated/layout.json`).", ""]
+        lines += ["## 어떻게", "", "- 앱 틀은 `App.tsx`(왼쪽 메뉴·홈), 메뉴 화면 공통 부분은 `menu.tsx`, 부품은 `kit.tsx`·`Screen.tsx`, 색은 `theme.css`.",
+                  "- 홈(대시보드)은 `App.tsx`의 Home이 그린다. 업무 영역 카드·처리할 일·공지를 업무에 맞게 설계한다.",
+                  "- 업무 영역 묶음·메뉴 이름·순서·숨김은 코드 대신 웹 '화면 구성'으로 바꾼다 (`generated/layout.json`).", ""]
     elif item["kind"] == "common_server":
         lines += ["## 어떻게", "", "- 공통 코드·인증·조회 API·DB 파일. 기능별 서버 코드는 각 기능 묶음이 맡는다.",
                   "- DB를 바꾸면 `db/schema.sql`·`db/seed.sql`을 함께 고치고 스펙(ERD)과 맞는지 담당자에게 확인한다.", ""]
     return "\n".join(lines)
+
+
+def _screen_design(project: str, item: dict) -> list[str]:
+    """화면 묶음의 '화면 설계': 메뉴마다 화면 파일·업무·화면·API (screens.json에서)"""
+    index = _index(app_dir(project))
+    lines = ["## 화면 설계 (이 영역의 메뉴 화면)", "",
+             "- 메뉴마다 화면 파일 `frontend/src/menus/<메뉴>.tsx`를 고쳐 그 메뉴의 화면을 만든다. 처음에는 공통 메뉴 화면(`DefaultMenuPage`)을 그대로 쓴다.",
+             "- 업무를 카드나 목록으로 늘어놓지 말고 업무 흐름에 맞게 한 화면으로 설계한다: 탭, 목록 + 상세, 검색 조건, 상태별 보기, 처리 버튼 배치 등.",
+             "- 데이터·버튼은 props(`screens`·`screen`·`built`)와 `kit.tsx`·`Screen.tsx` 부품, `api.ts`를 쓴다. API 경로·필드는 바꾸지 않는다.",
+             "- 메뉴가 많아 한 화면에 다 들어가지 않으면 메뉴 폴더(`menus/<메뉴>/`) 아래에 부품 파일을 나눠 만든다.", ""]
+    for m in (item.get("area") or {}).get("menus", []):
+        menu = index.menus.get(m["group"]) or {"pages": []}
+        lines += [f"### 메뉴 {m['name']} (`menus/{index.menu_file(m['group'])}.tsx`)", ""]
+        for page in menu["pages"]:
+            lines.append(f"- 업무 **{page['name']}**")
+            for sid in page["screens"]:
+                sc = index.screens.get(sid)
+                if not sc:
+                    continue
+                ops = ", ".join(f"{o['method']} {o['path']}" for o in sc.get("operations") or [])
+                lines.append(f"  - {sc['name']} ({sc.get('pattern_label') or sc.get('pattern') or ''}, 테이블 {sc.get('table_label') or sc.get('table') or '-'}) — {ops}")
+        lines.append("")
+    return lines
 
 
 def _catch_up(project: str, item: dict, member) -> dict:

@@ -88,6 +88,14 @@ button:disabled { opacity: .55; cursor: default; }
 .side nav a:hover { background: var(--side-hover); }
 .side nav a.on { background: var(--side-on); color: #ffffff; font-weight: 700; }
 .side-cap { font-size: 10px; font-weight: 700; letter-spacing: .14em; color: var(--side-cap); margin: 18px 12px 6px; }
+.side-group > button { display: flex; align-items: center; gap: 6px; width: 100%; padding: 9px 12px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.side-group > button:hover { background: var(--side-hover); }
+.side-group > button.on { color: #ffffff; font-weight: 700; }
+.side-group > button span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-group > button small { color: var(--side-cap); font-size: 11px; }
+.side-group > button i { font-style: normal; color: var(--side-cap); width: 12px; text-align: center; }
+.side-menus { display: grid; gap: 1px; margin: 0 0 6px 10px; padding-left: 6px; border-left: 1px solid var(--side-line); }
+.side-menus a { font-size: 13.5px; }
 .side .sub { display: grid; gap: 1px; margin: 2px 0 8px 12px; padding-left: 8px; border-left: 1px solid var(--side-line); }
 .side .sub a { padding: 6px 10px; font-size: 13px; }
 .side .sub a.on { background: transparent; color: #ffffff; box-shadow: inset 3px 0 0 var(--mark); }
@@ -162,6 +170,13 @@ tbody tr:last-child td { border-bottom: 0; }
 .area-list a { display: flex; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
 .area-list a:hover { border-color: var(--accent-line); }
 .home > .areas { margin-top: 16px; }
+.area-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.area-cards > li { border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; }
+.area-cards h3 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0 0 8px; font-size: 15px; }
+.area-cards h3 .dim { font-size: 12px; font-weight: 400; }
+.area-cards ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.area-cards ul a { display: flex; justify-content: space-between; gap: 8px; padding: 5px 6px; border-radius: 6px; }
+.area-cards ul a:hover { background: var(--accent-soft, rgba(0, 0, 0, .04)); }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin: 0; }
 .tiles > div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
 .tiles dt { font-size: 12px; color: var(--muted); }

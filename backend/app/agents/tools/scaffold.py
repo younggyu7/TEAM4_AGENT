@@ -1253,8 +1253,11 @@ def menu_file(group: str) -> str:
 
 
 def default_layout(data: dict) -> dict:
-    """화면 구성 기본값 (frontend/src/generated/layout.json). 웹 '화면 구성'에서 고치면 앱이 이 파일대로 메뉴·홈을 그린다"""
-    return {"format": 1, "home": {"todo": True, "notices": True, "areas": True},
+    """화면 구성 기본값 (frontend/src/generated/layout.json). 웹 '화면 구성'에서 고치면 앱이 이 파일대로 메뉴·홈을 그린다.
+    sections는 비슷한 메뉴를 묶은 업무 영역 (규칙 묶기, areas.group_menus): 앱의 왼쪽 메뉴·홈 영역 카드와 작업 묶음이 쓴다"""
+    from app.agents.tools.areas import group_menus
+
+    return {"format": 2, "home": {"todo": True, "notices": True, "areas": True}, "sections": group_menus(data),
             "menu": [{"group": m["group"], "name": m["name"], "hidden": False,
                       "pages": [{"name": p["name"], "screens": p["screens"], "hidden": False} for p in m["pages"]]}
                      for m in data["menu"]]}

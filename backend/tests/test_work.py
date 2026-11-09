@@ -36,11 +36,11 @@ def test_bundles_cover_every_file_once_in_four_kinds(sample_doc):
     pm, dev, _, _ = _team()
     data = dev.get("/api/v1/develop/work", params={"project": P}).json()
     kinds = {i["kind"] for i in data["items"]}
-    assert kinds == {"common_ui", "ui", "common_server", "function"}
+    assert kinds == {"common_ui", "ui", "common_server", "server"}
     files = [f for i in data["items"] for f in i["files"]]
     assert len(files) == len(set(files)), "파일은 한 묶음에만"
     assert sorted(files) == sorted(work._files(develop.app_dir(P))), "빠진 파일 없음"
-    first_fn = next(i for i in data["items"] if i["kind"] == "function")
+    first_fn = next(i for i in data["items"] if i["kind"] == "server")
     assert all(f.startswith("backend/") for f in first_fn["files"]) and first_fn["functions"]
     ui = next(i for i in data["items"] if i["kind"] == "ui")
     assert any("/menus/" in f for f in ui["files"])
@@ -75,7 +75,7 @@ def test_assign_extension_upload_submit_approve_flow(sample_doc):
     _developed(sample_doc)
     pm, dev, dev2, ids = _team()
     items = dev.get("/api/v1/develop/work", params={"project": P}).json()["items"]
-    fn = next(i for i in items if i["kind"] == "function" and any("logic/" in f or "feature/" in f or "api/" in f for f in i["files"]))
+    fn = next(i for i in items if i["kind"] == "server" and any("logic/" in f or "feature/" in f or "api/" in f for f in i["files"]))
     key = fn["key"]
     assert pm.post("/api/v1/develop/work/assign", json={"project": P, "key": key, "user_id": ids["dev"]}).status_code == 403
     assert dev.post("/api/v1/develop/work/assign", json={"project": P, "key": key, "user_id": ids["관리자"]}).status_code == 400, "개발자 담당자만"
@@ -165,15 +165,15 @@ def test_archive_brings_in_latest_dev_merged_by_others(sample_doc):
     """받을 때 작업 브랜치에 최신 dev를 넣는다: 올린 것이 없으면 dev로 앞으로 감고, 있으면 합친다. 충돌이면 그대로 두고 알린다"""
     _developed(sample_doc)
     _, dev, dev2, ids = _team()
-    fns = [i for i in dev.get("/api/v1/develop/work", params={"project": P}).json()["items"]
-           if i["kind"] == "function" and any(f.endswith((".java", ".py", ".ts")) for f in i["files"])]
-    mine, other = fns[0], fns[1]
+    items = dev.get("/api/v1/develop/work", params={"project": P}).json()["items"]
+    mine = next(i for i in items if i["kind"] == "server" and any(f.endswith((".java", ".py", ".ts")) for f in i["files"]))
+    other = next(i for i in items if i["kind"] == "ui")
     for item, who in ((mine, "dev"), (other, "dev2")):
         assert dev.post("/api/v1/develop/work/assign", json={"project": P, "key": item["key"], "user_id": ids[who]}).status_code == 200
     git = lambda *a: subprocess.run(["git", *a], cwd=develop.app_dir(P), capture_output=True, text=True).stdout.strip()   # noqa: E731
 
     # 다른 사람(dev2)이 자기 작업을 올려 dev에 합친다
-    theirs = next(f for f in other["files"] if f.endswith((".java", ".py", ".ts")))
+    theirs = next(f for f in other["files"] if f.endswith(".tsx"))
     pack2 = dev2.get("/api/v1/develop/work/archive", params={"project": P, "key": other["key"]}).json()
     body = base64.b64decode(next(f["content"] for f in pack2["files"] if f["path"] == theirs)).decode("utf-8")
     assert dev2.post("/api/v1/develop/work/upload", json={"project": P, "key": other["key"], "base": pack2["head"], "submit": True,
@@ -224,3 +224,84 @@ def test_regenerate_with_real_generator_writes_gen_worktree_only(sample_doc):
     res = repo.commit_develop(P, FINAL.removeprefix("v"), "다시 개발", runner)
     assert res["commit"] and res["request"] and (gen / "README.md").is_file()
     assert not (develop.app_dir(P) / ".git" / "MERGE_HEAD").exists() and repo.changes(develop.app_dir(P)) == {}, "dev 작업 폴더는 그대로"
+
+
+def test_group_menus_merges_similar_menus_without_fixed_count():
+    """규칙 묶기: 같은 테이블·겹치는 이름 낱말이면 한 영역, 거의 모두가 쓰는 테이블은 무시, 메뉴는 정확히 한 번씩"""
+    from app.agents.tools.areas import clean_sections, group_menus
+
+    names = [("A", "사업자 로그인"), ("B", "관리자 로그인"), ("C", "예산 편성"), ("D", "예산 집행"), ("E", "급여 계산"), ("F", "출장 신청")]
+    tables = {"A": ["member"], "B": ["member"], "C": ["budget", "member"], "D": ["budget", "member"], "E": ["payroll", "member"], "F": ["trip", "member"]}
+    design = {"menu": [{"group": g, "name": n, "pages": []} for g, n in names],
+              "screens": [{"group": g, "table": t} for g, ts in tables.items() for t in ts]}
+    got = group_menus(design)
+    assert [s["menus"] for s in got] == [["A", "B"], ["C", "D"], ["E"], ["F"]], "member(모두 씀)로는 잇지 않는다"
+    assert [s["name"] for s in got[:2]] == ["로그인", "예산"] and got[2]["name"] == "급여 계산"
+    fixed = clean_sections([{"id": "x", "name": "", "menus": ["A", "A", "없음"]}, {"id": "x", "menus": ["B"]}], design)
+    assert [(s["id"], s["menus"]) for s in fixed[:2]] == [("x", ["A"]), ("B", ["B"])], "겹친 메뉴·id는 정리"
+    assert sorted(g for s in fixed for g in s["menus"]) == list("ABCDEF"), "빠진 메뉴는 규칙으로 묶어 끝에"
+
+
+def test_layout_areas_bulk_assign_lock_and_suggest(sample_doc):
+    """예전 화면 구성(영역 없음)도 영역으로 읽고, 영역 단위 묶음을 한꺼번에 배정, 진행 중인 영역은 메뉴 이동 400, 영역 제안(규칙·AI·AI 실패)"""
+    from app.agents.llm import client as llm
+    from app.agents.llm.client import LLMClient
+    from app.services import layout as layout_service
+
+    _developed(sample_doc)
+    pm, dev, dev2, ids = _team()
+    app = develop.app_dir(P)
+    path = app / "frontend/src/generated/layout.json"
+    old = json.loads(path.read_text(encoding="utf-8"))
+    assert old["format"] == 2 and old["sections"], "새로 만든 앱은 영역이 있다"
+    path.write_text(json.dumps({"format": 1, "home": {}, "menu": old["menu"]}, ensure_ascii=False), encoding="utf-8")
+    got = dev.get("/api/v1/develop/layout", params={"project": P}).json()
+    assert got["layout"]["format"] == 2 and [g for s in got["layout"]["sections"] for g in s["menus"]] == [m["group"] for m in old["menu"]]
+    path.write_text(json.dumps(old, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+    data = dev.get("/api/v1/develop/work", params={"project": P}).json()
+    area = data["areas"][0]
+    assert area["screen"] == f"screen-{area['id']}" and area["server"] == f"server-{area['id']}" and area["menus"]
+    keys = [area["screen"], area["server"], "없는-묶음"]
+    assert pm.post("/api/v1/develop/work/assign-many", json={"project": P, "keys": keys, "user_id": ids["dev"]}).status_code == 403
+    res = dev2.post("/api/v1/develop/work/assign-many", json={"project": P, "keys": keys, "user_id": ids["dev"]}).json()
+    assert (res["assigned"], res["failed"]) == (2, 1) and not res["results"][2]["ok"] and "없는-묶음" in res["results"][2]["error"]
+    notes = [n for n in dev.get("/api/v1/notices").json()["notices"] if n["kind"] == "task_assigned"]
+    assert len(notes) == 1 and "2개" in notes[0]["title"], "알림은 한 번에"
+    brief = dev.get("/api/v1/develop/work/item", params={"project": P, "key": area["screen"]}).json()["brief"]
+    assert "## 화면 설계" in brief and "카드나 목록으로 늘어놓지 말고" in brief and "menus/" in brief
+
+    lay = dev.get("/api/v1/develop/layout", params={"project": P}).json()
+    assert lay["locked"] == [area["id"]]
+    renamed = {**lay["layout"], "sections": [{**s, "name": "새 이름"} for s in lay["layout"]["sections"]]}
+    assert dev.put("/api/v1/develop/layout", json={"project": P, "layout": renamed}).json()["layout"]["sections"][0]["name"] == "새 이름"
+    moved = {**lay["layout"], "sections": [{"id": "other", "name": "옮김", "menus": area_menus}
+                                           for area_menus in [[g for s in lay["layout"]["sections"] for g in s["menus"]]]]}
+    bad = dev.put("/api/v1/develop/layout", json={"project": P, "layout": moved})
+    assert bad.status_code == 400 and "진행 중인 작업" in bad.json()["detail"]
+
+    rules = dev.post("/api/v1/develop/layout/suggest", json={"project": P, "mode": "rules"}).json()
+    assert rules["usage"] is None and rules["layout"]["sections"]
+    menus = [m["group"] for m in lay["layout"]["menu"]]
+
+    class AreaLLM(LLMClient):
+        provider = "fake"
+
+        def __init__(self, fail=False):
+            super().__init__("fake-model")
+            self.fail = fail
+
+        def _call(self, system, user, schema, max_tokens, **_):
+            if self.fail:
+                raise RuntimeError("모델 오류")
+            return schema(sections=[{"name": "AI 영역", "menus": menus}]), 120, 30
+
+    llm.set_llm(AreaLLM())
+    ai = dev.post("/api/v1/develop/layout/suggest", json={"project": P, "mode": "ai", "layout": lay["layout"]}).json()
+    assert [s["name"] for s in ai["layout"]["sections"]] == ["AI 영역"] and ai["layout"]["sections"][0]["id"] == area["id"], "첫 메뉴가 같으면 id 유지"
+    assert ai["usage"]["input_tokens"] == 120
+    assert layout_service.get(P)["layout"]["sections"][0]["name"] == "새 이름", "제안은 저장하지 않는다"
+    llm.set_llm(AreaLLM(fail=True))
+    failed = dev.post("/api/v1/develop/layout/suggest", json={"project": P, "mode": "ai"})
+    assert failed.status_code == 502 and "AI 영역 제안에 실패" in failed.json()["detail"]
+    assert pm.post("/api/v1/develop/layout/suggest", json={"project": P, "mode": "rules"}).status_code == 403

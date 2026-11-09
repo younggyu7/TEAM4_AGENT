@@ -29,7 +29,7 @@ def test_extension_downloads_edits_and_submits_over_http(sample_doc):
     _developed(sample_doc)
     _, dev, dev2, ids = _team()
     key = next(i["key"] for i in dev.get("/api/v1/develop/work", params={"project": P}).json()["items"]
-               if i["kind"] == "function" and any(f.endswith((".java", ".py", ".ts")) for f in i["files"]))
+               if i["kind"] == "server" and any(f.endswith((".java", ".py", ".ts")) for f in i["files"]))
     assert dev2.post("/api/v1/develop/work/assign", json={"project": P, "key": key, "user_id": ids["dev"]}).status_code == 200
     token = dev.post("/api/v1/auth/tokens", json={"name": "e2e"}).json()["token"]
 

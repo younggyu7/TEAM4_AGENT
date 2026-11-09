@@ -8,8 +8,11 @@ import type { Design, Screen } from './types'
 
 export interface MenuPageInfo { name: string; screens: string[] }
 export interface MenuInfo { group: string; name: string; short: string; pages: MenuPageInfo[] }
+export interface SectionInfo { id: string; name: string; menus: MenuInfo[] }
 export interface Layout {
   home?: { todo?: boolean; notices?: boolean; areas?: boolean }
+  /** 업무 영역: 비슷한 메뉴를 묶은 대메뉴 (왼쪽 메뉴 영역 → 메뉴, 홈 영역 카드). 메뉴 순서도 이 순서를 따른다 */
+  sections?: { id: string; name: string; menus: string[] }[]
   menu?: { group: string; name?: string; hidden?: boolean; pages?: { name?: string; screens: string[]; hidden?: boolean }[] }[]
 }
 
@@ -32,6 +35,17 @@ export function applyLayout(menu: Design['menu'], layout: Layout): MenuInfo[] {
   }
   for (const m of menu) if (!placed.has(m.group)) out.push(m)
   return out.filter((m) => m.pages.length > 0)
+}
+
+/** 업무 영역을 메뉴에 적용한다. 영역이 없는 예전 화면 구성이면 빈 목록(메뉴를 한 줄로 보인다). 어느 영역에도 없는 메뉴는 '기타'로 */
+export function applySections(menus: MenuInfo[], layout: Layout): SectionInfo[] {
+  if (!layout.sections?.length) return []
+  const byGroup = new Map(menus.map((m) => [m.group, m]))
+  const out = layout.sections.map((s) => ({ id: s.id, name: s.name, menus: s.menus.map((g) => byGroup.get(g)).filter((m): m is MenuInfo => Boolean(m)) }))
+  const placed = new Set(layout.sections.flatMap((s) => s.menus))
+  const rest = menus.filter((m) => !placed.has(m.group))
+  if (rest.length) out.push({ id: '_rest', name: '기타', menus: rest })
+  return out.filter((s) => s.menus.length > 0)
 }
 
 /** 같은 업무 대상(테이블)의 화면들을 하나로: 첫 목록 화면에 다른 화면의 등록·수정·삭제·처리 버튼을 모은다 */

@@ -3,8 +3,8 @@ import rawDesign from './generated/screens.json'
 import rawLayout from './generated/layout.json'
 import { checkLogin, fetchRows, logout, SERVER } from './api'
 import { Login } from './Login'
-import { applyLayout, DefaultMenuPage } from './menu'
-import type { Layout } from './menu'
+import { applyLayout, applySections, DefaultMenuPage } from './menu'
+import type { Layout, MenuInfo } from './menu'
 import { menus } from './menus'
 import { Cell, statusField, titleField, waiting } from './Screen'
 import { pages as built } from './pages'
@@ -12,12 +12,14 @@ import { getSession, setSession } from './session'
 import type { Session } from './session'
 import type { Design, Row, Screen } from './types'
 
-// 앱 틀: 로그인 → 왼쪽 메뉴(업무 홈 · 업무 영역 · 그 영역의 업무) + 가운데 화면.
-// 주소: #home 업무 홈, #m-<영역> 영역의 업무 카드, #<화면ID> 화면.
-// 메뉴 이름·순서·숨김과 홈 칸은 generated/layout.json(화면 구성)을 따르고, 메뉴 화면은 menus/<메뉴>.tsx가 그린다.
+// 앱 틀: 로그인 → 왼쪽 메뉴(업무 홈 · 업무 영역(접고 펼침) → 메뉴 → 그 메뉴의 업무) + 가운데 화면.
+// 주소: #home 업무 홈, #m-<메뉴> 메뉴의 업무 카드, #<화면ID> 화면.
+// 업무 영역(비슷한 메뉴 묶음)·메뉴 이름·숨김과 홈 칸은 generated/layout.json(화면 구성)을 따르고, 메뉴 화면은 menus/<메뉴>.tsx가 그린다.
 const design = rawDesign as unknown as Design
 const layout = rawLayout as Layout
 const MENU = applyLayout(design.menu, layout)
+const SECTIONS = applySections(MENU, layout)
+const sectionOf = new Map(SECTIONS.flatMap((s) => s.menus.map((m) => [m.group, s] as const)))
 const BRAND = design.company || design.title
 const byId = new Map(design.screens.map((s) => [s.screen_id, s]))
 const ALL_ROLES = '전체 보기'
@@ -140,7 +142,24 @@ function Home({ role }: { role: string }) {
           </section>
         )}
       </div>
-      {show.areas && modules.length > 0 && (
+      {show.areas && modules.length > 0 && SECTIONS.length > 0 && (
+        <section className="panel areas">
+          <h2>업무 영역</h2>
+          <ul className="area-cards">
+            {SECTIONS.map((s) => ({ ...s, menus: s.menus.filter((m) => pagesOf(m.group, role).length > 0) })).filter((s) => s.menus.length > 0).map((s) => (
+              <li key={s.id}>
+                <h3>{s.name}<span className="dim num">메뉴 {s.menus.length} · 업무 {s.menus.reduce((n, m) => n + pagesOf(m.group, role).length, 0)}</span></h3>
+                <ul>
+                  {s.menus.map((m) => (
+                    <li key={m.group}><a href={`#m-${encodeURIComponent(m.group)}`}>{m.name}<span className="dim num">{pagesOf(m.group, role).length}</span></a></li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {show.areas && modules.length > 0 && SECTIONS.length === 0 && (
         <section className="panel areas">
           <h2>업무 영역</h2>
           <ul className="area-list">
@@ -163,6 +182,7 @@ export function App() {
   const [notice, setNotice] = useState('')
   const [review, setReview] = useState(false)
   const [toast, setToast] = useState('')
+  const [opened, setOpened] = useState<Set<string>>(new Set())   // 사람이 펼친 업무 영역 (지금 보는 메뉴의 영역은 늘 펼침)
   const role = session?.role ?? ''
   const screen = byId.get(hash)
   const page = screen ? pageOf.get(screen.screen_id) : undefined
@@ -197,6 +217,17 @@ export function App() {
   if (!session) return <Login design={design} brand={BRAND} notice={notice} onDone={(s) => { setCurrent(s); setNotice('') }} />
 
   const modules = MENU.filter((m) => pagesOf(m.group, role).length > 0)
+  const section = module ? sectionOf.get(module.group) : undefined
+  const menuLink = (m: MenuInfo) => (
+    <div key={m.group}>
+      <a className={m === module ? 'on' : ''} href={`#m-${encodeURIComponent(m.group)}`} title={m.name}>{m.name}</a>
+      {m === module && (
+        <div className="sub">
+          {pagesOf(m.group, role).map((p) => <a key={p.screens[0]} className={p === page ? 'on' : ''} href={pageLink(p, role)}>{p.name}</a>)}
+        </div>
+      )}
+    </div>
+  )
   return (
     <div className="app">
       <aside className="side">
@@ -204,16 +235,21 @@ export function App() {
         <nav aria-label="메뉴">
           <a className={!module ? 'on' : ''} href="#home">업무 홈</a>
           <p className="side-cap">업무 영역</p>
-          {modules.map((m) => (
-            <div key={m.group}>
-              <a className={m === module ? 'on' : ''} href={`#m-${encodeURIComponent(m.group)}`} title={m.name}>{m.name}</a>
-              {m === module && (
-                <div className="sub">
-                  {pagesOf(m.group, role).map((p) => <a key={p.screens[0]} className={p === page ? 'on' : ''} href={pageLink(p, role)}>{p.name}</a>)}
-                </div>
-              )}
-            </div>
-          ))}
+          {SECTIONS.length === 0 ? modules.map(menuLink) : SECTIONS.map((s) => {
+            const shown = s.menus.filter((m) => modules.includes(m))
+            if (shown.length === 0) return null
+            if (shown.length === 1) return menuLink(shown[0])   // 메뉴가 하나뿐인 영역은 메뉴를 바로 보인다
+            const isOpen = opened.has(s.id) || s === section
+            return (
+              <div key={s.id} className="side-group">
+                <button type="button" className={s === section ? 'on' : ''} aria-expanded={isOpen}
+                  onClick={() => setOpened((o) => { const n = new Set(o); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n })}>
+                  <span>{s.name}</span><small className="num">{shown.length}</small><i aria-hidden="true">{isOpen ? '−' : '+'}</i>
+                </button>
+                {isOpen && <div className="side-menus">{shown.map(menuLink)}</div>}
+              </div>
+            )
+          })}
         </nav>
         <footer>
           <strong>{role}</strong>
@@ -225,6 +261,7 @@ export function App() {
         <header className="top">
           <span className="crumb">
             <a href="#home">업무 공간</a>
+            {section && section.menus.length > 1 && <><i aria-hidden="true">/</i><span>{section.name}</span></>}
             {module && <><i aria-hidden="true">/</i><a href={`#m-${encodeURIComponent(module.group)}`}>{module.short}</a></>}
             {page && <><i aria-hidden="true">/</i><strong>{page.name}</strong></>}
           </span>
@@ -256,7 +293,7 @@ export function App() {
         ) : module ? (
           <div className="home">
             <div className="hero">
-              <span className="eyebrow">업무 영역</span>
+              <span className="eyebrow">{section && section.menus.length > 1 ? section.name : '업무 영역'}</span>
               <h1>{module.name}</h1>
               <p>업무 {pagesOf(module.group, role).length}개. 업무를 골라 조회하거나 처리하세요.</p>
             </div>
