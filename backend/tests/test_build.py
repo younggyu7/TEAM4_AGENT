@@ -135,6 +135,18 @@ def test_bad_code_is_retried_and_failed_function_keeps_generated_code(sample_doc
     assert f"frontend/src/pages/{class_name(other)}.tsx" not in files
 
 
+def test_records_of_functions_not_in_this_final_are_ignored(sample_doc):
+    """예전 최종본에만 있던 기능의 구현 기록이 남아 있어도, 화면 목록(pages/index.ts)·화면·컨트롤러에 넣지 않는다
+    (넣으면 index.ts가 쓰지 않은 화면 파일을 불러 화면 빌드가 'Cannot find module'로 실패한다)."""
+    out, spec = _spec(sample_doc)
+    fid = spec.functions[0].function_id
+    record = {"status": "채움", "controller": "class X {}", "page": "export default function P() { return null }"}
+    files, _ = scaffold.render_app(spec, built={fid: record, "FN-OLD-999": record})
+    index = files["frontend/src/pages/index.ts"]
+    assert class_name(fid) in index and class_name("FN-OLD-999") not in index
+    assert not any(class_name("FN-OLD-999") in path for path in files)
+
+
 def test_without_build_nothing_changes(sample_doc):
     out, spec = _spec(sample_doc)
     files, _ = scaffold.render_app(spec)

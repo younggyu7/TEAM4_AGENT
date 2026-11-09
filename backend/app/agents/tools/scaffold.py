@@ -1127,7 +1127,11 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
 
     logic = logic or {}
     records = built or {}
-    built = {fid: r for fid, r in records.items() if r.get("status") == "채움" and r.get("controller") and r.get("page")} if has_backend(spec) else {}
+    # 이 최종본의 기능만: 예전 최종본에만 있던 기능의 구현 기록(.req-agent/build)이 남아 있어도 쓰지 않는다
+    # (화면 목록 pages/index.ts가 쓰지 않은 화면 파일을 불러 화면 빌드가 실패했다)
+    ids = {f.function_id for f in spec.functions}
+    built = {fid: r for fid, r in records.items() if fid in ids and r.get("status") == "채움" and r.get("controller") and r.get("page")} \
+        if has_backend(spec) else {}
     backend = has_backend(spec)
     python = stack_parts(spec)["backend"] == "fastapi"   # FastAPI 틀: backend/는 scaffold_fastapi가 만든다 (Spring 틀은 쓰지 않는다)
     nest = stack_parts(spec)["backend"] == "nestjs"   # NestJS 틀: backend/는 scaffold_nestjs가 만든다
