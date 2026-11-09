@@ -52,12 +52,14 @@ class BriefBody(KeyBody):
 
 class AssignBody(KeyBody):
     user_id: int
+    base: str = ""                  # 보낼 브랜치 (비우면 dev): 받을 때 이 브랜치의 서버 최신 내용, 승인하면 여기로 합침
 
 
 class AssignManyBody(BaseModel):
     project: str
     keys: list[str]
     user_id: int
+    base: str = ""
 
 
 class NoteBody(KeyBody):
@@ -128,13 +130,13 @@ def save_brief(body: BriefBody, member: users.Member = Depends(current_user)):
 @router.post("/develop/work/assign", summary="담당자 배정 (개발자)")
 def assign(body: AssignBody, member: users.Member = Depends(current_user)):
     ensure(member, "develop")
-    return work.assign(_project(body.project), body.key, body.user_id, member)
+    return work.assign(_project(body.project), body.key, body.user_id, member, base=body.base or None)
 
 
 @router.post("/develop/work/assign-many", summary="일괄 배정 (개발자)")
 def assign_many(body: AssignManyBody, member: users.Member = Depends(current_user)):
     ensure(member, "develop")
-    return work.assign_many(_project(body.project), body.keys, body.user_id, member)
+    return work.assign_many(_project(body.project), body.keys, body.user_id, member, base=body.base or None)
 
 
 @router.post("/develop/work/submit", summary="작업 제출 (담당자)")

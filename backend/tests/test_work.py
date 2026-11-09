@@ -210,6 +210,46 @@ def test_archive_brings_in_latest_dev_merged_by_others(sample_doc):
     assert not pack["sync"]["merged"] and pack["sync"]["conflicts"] == ["README.md"] and got["README.md"] == "# 내 쪽\n"
 
 
+def test_work_sent_from_a_branch_gets_its_latest_code_and_merges_back_into_it(sample_doc):
+    """다시 개발한 candidate-v2로 보낸 작업: 그 브랜치 코드를 받고, 승인하면 그 브랜치로 합치며 dev는 그대로. 어디서 파생됐는지 함께 알린다"""
+    _developed(sample_doc)
+    pm, dev, dev2, ids = _team()
+    runner = type("M", (), {"id": 999, "name": "한개발", "role": "developer", "email": "d@x"})()
+    gen = repo.gen_tree(P)
+    (gen / "CANDIDATE.txt").write_text("후보\n", encoding="utf-8")
+    assert repo.commit_develop(P, FINAL.removeprefix("v"), "다시 개발", runner)["branch"] == "candidate-v2"
+    before = repo.git(develop.app_dir(P), "rev-parse", "dev").strip()
+    data = dev.get("/api/v1/develop/work", params={"project": P}).json()
+    assert data["bases"] == ["dev", "candidate-v2"], "main·gen·작업 브랜치에는 보내지 않는다"
+    fn = next(i for i in data["items"] if i["kind"] == "server")
+    key = fn["key"]
+    bad = dev.post("/api/v1/develop/work/assign", json={"project": P, "key": key, "user_id": ids["dev"], "base": "gen"})
+    assert bad.status_code == 400
+    item = dev.post("/api/v1/develop/work/assign", json={"project": P, "key": key, "user_id": ids["dev"], "base": "candidate-v2"}).json()
+    assert item["base"] == "candidate-v2" and item["status"] == "assigned" and item["ahead"] == 0, "후보에서 막 파생됐으면 작업중이 아니다"
+    assert dev.post("/api/v1/develop/work/assign", json={"project": P, "key": key, "user_id": ids["dev"], "base": "dev"}).status_code == 409
+
+    tree = repo.worktree(P, "candidate-v2")
+    (tree / "LATER.txt").write_text("나중에 들어온 것\n", encoding="utf-8")
+    repo.git(tree, "add", "-A")
+    repo.git(tree, "commit", "-qm", "후보에 추가", who=("t", "t@x"))
+    pack = dev.get("/api/v1/develop/work/archive", params={"project": P, "key": key}).json()
+    paths = {f["path"] for f in pack["files"]}
+    assert pack["base"] == "candidate-v2" and {"CANDIDATE.txt", "LATER.txt"} <= paths, "그 브랜치의 서버 최신 내용을 받는다"
+    assert "`candidate-v2`" in pack["task"]["TASK.md"]
+
+    target = next(p for p in fn["files"] if p.endswith((".java", ".py", ".ts")))
+    original = base64.b64decode(next(f["content"] for f in pack["files"] if f["path"] == target)).decode("utf-8")
+    assert dev.post("/api/v1/develop/work/upload", json={"project": P, "key": key, "base": pack["head"], "message": "채움",
+                                                         "files": [{"path": target, "content": _b64(original + "\n// 채움\n")}]}).status_code == 200
+    sub = dev.post("/api/v1/develop/work/submit", json={"project": P, "key": key}).json()
+    assert sub["status"] == "review" and repo.requests(P)[0]["target"] == "candidate-v2"
+    assert dev.delete("/api/v1/develop/repo/branch", params={"project": P, "name": "candidate-v2"}).status_code == 400, "파생된 작업이 있으면 지우지 않는다"
+    done = dev2.post("/api/v1/develop/work/approve", json={"project": P, "key": key})
+    assert done.status_code == 200 and done.json()["status"] == "done", done.text
+    assert repo.git(tree, "show", f"HEAD:{target}").endswith("// 채움\n") and repo.git(develop.app_dir(P), "rev-parse", "dev").strip() == before, "dev는 그대로"
+
+
 def test_regenerate_with_real_generator_writes_gen_worktree_only(sample_doc):
     """실제 생성기를 gen 작업 폴더(--out)로 다시 돌리면: 같은 스펙이면 바뀐 것 없음, 생성 파일을 지우면 gen에만 되살리고 dev는 그대로"""
     _developed(sample_doc)
@@ -222,7 +262,7 @@ def test_regenerate_with_real_generator_writes_gen_worktree_only(sample_doc):
     repo.git(gen, "commit", "-qam", "지움", who=("t", "t@x"))
     assert cli.main(["develop", P, "--from", FINAL, "--out", str(gen)]) == 0
     res = repo.commit_develop(P, FINAL.removeprefix("v"), "다시 개발", runner)
-    assert res["commit"] and res["request"] and (gen / "README.md").is_file()
+    assert res["commit"] and res["branch"] == "candidate-v2" and (gen / "README.md").is_file()
     assert not (develop.app_dir(P) / ".git" / "MERGE_HEAD").exists() and repo.changes(develop.app_dir(P)) == {}, "dev 작업 폴더는 그대로"
 
 

@@ -7,7 +7,7 @@
   2) 생성 결과의 화면을 예시 데이터 모드로 빌드 → app/.preview/mock (npm install은 package.json이 바뀔 때만)
      우리 백엔드가 /api/v1/preview/<프로젝트>/mock/ 으로 보여 준다 (로그인한 회원만, api/v1/develop.py)
   3) 코드 저장소(services/repo.py)의 gen에 req-agent 커밋 + 태그 final-v<최종본> (바뀐 것이 없으면 커밋 없음).
-     처음이면 dev도 같은 커밋, 다시 개발하면 gen → dev 합치기 요청 (개발자가 승인해야 dev에 들어간다)
+     처음이면 dev도 같은 커밋, 다시 개발하면 그 커밋으로 새 브랜치 candidate-v<n> (dev는 그대로)
   4) 최종본 버전 기록의 develop에 누가·언제·AI 사용 여부·결과·커밋을 남긴다. 실행 중인 앱(services/preview.py)은 다음에 열 때 다시 빌드한다
      자동 확인(Docker)은 dev를 띄우므로 처음 개발할 때만 자동으로 하고, 그 뒤에는 '다시 확인'(start_check)으로 지금 dev를 검사해 기록을 바꾼다
 gen 작업 폴더는 사람이 고치지 않으므로 생성 결과가 그대로 커밋되고, 사람이 dev에서 고친 코드와는 git 합치기로 만난다.
@@ -141,16 +141,15 @@ class _DevelopRunner(_Runner):
                        "by": {"id": self.member.id, "name": self.member.name, "role": self.member.role},
                        "build": self.build, "ai": self.ai, "logic": self.ai.get("mode") == "logic", "mock": built,
                        "backend": (self.out / "backend").is_dir(), "summary": summary, "check": check,
-                       "usage": self.usage(), "commit": commit["commit"], "request": commit["request"],
+                       "usage": self.usage(), "commit": commit["commit"], "branch": commit["branch"],
                        "log": [line for line in self.job.log if line.lstrip().startswith(("새로 쓴", "사람이 고쳐", "기능 구현(LLM)", "스펙 v"))][-6:]}
             update_version(self.project, self.version, develop=develop, developments=[*(record.get("developments") or []), develop])
             self.job.new_version = self.version
             if check and not check.get("ok"):
                 problem = check.get("message") or f"서버 오류 {len(check.get('errors') or [])}건"
                 return self._finish("done", f"개발했지만 자동 확인에서 문제가 있습니다: {problem}")
-            if commit["request"]:
-                return self._finish("done", f"개발했습니다. 결과는 gen에 있고, dev에 합치기 요청 #{commit['request']}을 냈습니다 "
-                                            "(다른 개발자가 승인하면 dev에 들어갑니다).")
+            if commit["branch"]:
+                return self._finish("done", f"개발했습니다. 결과는 새 브랜치 {commit['branch']}에 있고 dev는 그대로입니다. 작업 묶음에서 이 브랜치를 골라 담당자에게 보낼 수 있습니다.")
             self._finish("done", "개발했습니다. 최종 개발물 1단계에서 결과를, 2단계에서 실행 중인 앱을 볼 수 있습니다.")
         except Exception as e:  # noqa: BLE001 - 작업 스레드의 오류는 화면에 보여 준다
             self._push(repr(e))
@@ -165,16 +164,16 @@ class _DevelopRunner(_Runner):
             res = repo.commit_develop(self.project, self.version, repo.develop_message(self.version, self.ai, self.member.name), self.member)
         except Exception as e:  # noqa: BLE001 - 커밋 실패로 개발 결과를 버리지 않는다
             self._push(f"코드 저장소에 커밋하지 못했습니다: {e}")
-            return {"commit": None, "request": None}
+            return {"commit": None, "branch": None}
         sha = res["commit"]
         if not sha:
             self._push("코드 저장소: 바뀐 파일이 없어 커밋하지 않음")
         elif res["first"]:
             self._push(f"코드 저장소 gen에 커밋: {sha[:10]} (태그 final-v{self.version}) · 처음이라 dev도 같은 커밋")
         else:
-            self._push(f"코드 저장소 gen에 커밋: {sha[:10]} (태그 final-v{self.version}) · dev 합치기 요청 #{res['request']}")
-            self._push("자동 확인(Docker)은 dev를 띄우므로 건너뜀 — 합친 뒤 2단계에서 실행해 확인하세요.")
-        return {"commit": sha, "request": res["request"]}
+            self._push(f"코드 저장소 새 브랜치 {res['branch']}: {sha[:10]} (태그 final-v{self.version}) · dev는 그대로")
+            self._push("자동 확인(Docker)은 dev를 띄우므로 건너뜀")
+        return {"commit": sha, "branch": res["branch"]}
 
     def usage(self) -> dict:
         """이번 개발에 쓴 LLM: CLI 기록의 'LLM n회, 입력 x · 출력 y 토큰' 줄(기능 구현·업무 로직·AI 뼈대)을 더한다"""
@@ -314,9 +313,9 @@ def build_frontend(runner: _DevelopRunner | object, project: str, mode: str, env
     return runner._sh([npx, "vite", "build", "--base", "./", "--outDir", str(out), "--emptyOutDir"], front, env) == 0
 
 
-def start_develop(*, project: str, version: str, build: bool, model: str, effort: str, member, logic: bool = False, theme: str = "") -> Job:
+def start_develop(*, project: str, version: str, build: bool, model: str, effort: str, member, logic: bool = False, theme: str = "", layout: str = "") -> Job:
     """build: 업무 기능 전체를 AI가 구현 (--build) · logic: 빈 업무 로직 자리만 AI (--logic) · 둘 다 아니면 코드 틀만 (LLM 없음).
-    theme: 화면 스타일 (프로젝트에 저장해 다음 개발도 같은 스타일)"""
+    theme·layout: 화면 색·형태 (프로젝트에 저장해 다음 개발도 같게)"""
     from app.core.config import get_settings
     from app.services import repo
 
@@ -329,6 +328,8 @@ def start_develop(*, project: str, version: str, build: bool, model: str, effort
     ai = {}
     if theme:
         args += ["--theme", theme]
+    if layout:
+        args += ["--layout", layout]
     if build or logic:
         args.append("--build" if build else "--logic")
         if model:

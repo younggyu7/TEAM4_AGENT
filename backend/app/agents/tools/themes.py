@@ -1,9 +1,12 @@
 """개발한 앱의 화면 스타일 (최종 개발하기에서 고름). 앱 틀의 styles.css는 색을 모두 토큰(CSS 변수)으로 쓰므로,
 스타일은 그 토큰만 바꾸는 frontend/src/theme.css 한 파일이다 (LLM 없음). AI가 짠 화면도 같은 부품(kit)을 쓰므로 같이 바뀐다.
+형태(LAYOUTS)는 색과 따로 골라 색 밖의 모양도 바꾸고, 문서의 화면 배치를 AI가 따른다. 형태를 고르지 않으면 AI 입력을 바꾸지 않고, 색은 AI 입력에 넣지 않는다 (다시 개발 비용).
 - light: 밝은 테마에서 바꿀 토큰, dark: 어두운 테마에서 바꿀 토큰 (없는 토큰은 styles.css 기본값)
 - preview: 고르는 화면의 작은 미리보기 색 (배경·메뉴·메뉴 글자·강조·강조 글자·표지)
 """
 from __future__ import annotations
+
+from pathlib import Path
 
 DEFAULT = "portal"
 
@@ -50,7 +53,59 @@ THEMES = [
            "#2b59c3", bg="#fafbfc", panel2="#f1f3f6", rule="#e1e5eb", dark_accent="#8fb0f5", dark_side="#11151c",
            side_cap="#6b7686", side_on="#e6edfb", side_hover="#f1f4fb", side_line="#e1e5eb", mark_ink="#2b59c3", cover_ink="#273142"),
 ]
+# 화면 형태: 색과 따로 고른다. 색 밖의 모양(글자·밀도·모서리·표·메뉴)을 바꾸고, 문서(designs/<id>.md)의 배치를 화면 AI가 따른다
+DESIGNS = Path(__file__).parents[1] / "designs"
+_WHITE_MENU = {"--side": "var(--panel)", "--side-ink": "var(--ink)", "--side-cap": "var(--muted)", "--side-on": "var(--accent-soft)", "--side-hover": "var(--panel-2)",
+               "--side-line": "var(--line)", "--side-strong": "var(--accent)", "--mark": "var(--accent)", "--mark-ink": "var(--accent-ink)"}
+LAYOUTS = [
+    {"id": "bento", "name": "벤토 대시보드", "note": "크기가 다른 둥근 칸을 격자로. 현황을 한눈에",
+     "light": {"--th-bg": "transparent", "--title": "clamp(30px, 3.4vw, 44px)", "--cell-y": "13px", "--cell-x": "18px", "--gap": "16px", "--side-w": "248px",
+               "--radius": "12px", "--radius-box": "22px", "--radius-card": "24px", "--shadow": "0 1px 2px rgba(20, 30, 40, .06), 0 10px 30px rgba(20, 30, 40, .06)"},
+     "dark": {"--shadow": "none"},
+     "rules": """.table-wrap, .filters, .card, .panel, .tiles > div, .split-pane, .box { border-color: transparent; }
+.table-wrap, .box .filters, .box .tiles > div { box-shadow: none; }
+.box { padding: 20px 22px; }
+.tiles dd { font-size: 36px; }
+.filters { padding: 16px 20px; }
+.box .filters, .box .tiles > div { padding: 0; }
+button:not(.link, .toggle) { border-radius: 999px; }
+.side-group > button { border-radius: var(--radius); }
+"""},
+    {"id": "compact", "name": "컴팩트 워크스페이스", "note": "작은 글자와 낮은 행, 목록·상세를 함께. 많은 건 처리",
+     "light": {"--size": "13px", "--table-size": "12px", "--title": "20px", "--control": "30px", "--cell-y": "5px", "--cell-x": "9px", "--gap": "8px", "--side-w": "204px",
+               "--radius": "4px", "--radius-box": "6px", "--radius-card": "6px"},
+     "dark": {},
+     "rules": """input, select, textarea { padding: 3px 7px; }
+button:not(.link, .toggle) { padding: 3px 11px; }
+.side-group > button { padding: 7px 10px; }
+tbody tr:nth-child(even):not(:hover, .none) { background: var(--panel-2); }
+.content { padding: 0 16px 32px; }
+.top { min-height: 44px; }
+.hero { margin: 12px 0 8px; }
+.side { padding: 14px 10px; gap: 14px; }
+.filters { padding: 8px; gap: 8px; }
+.split-pane, .box { padding: 10px; }
+"""},
+    {"id": "editorial", "name": "에디토리얼", "note": "큰 제목과 여백, 얇은 선. 문서처럼 읽는 업무",
+     "light": {**_WHITE_MENU, "--th-bg": "transparent", "--th-ink": "var(--ink)", "--title": "clamp(38px, 5vw, 64px)", "--cell-y": "15px", "--cell-x": "8px", "--gap": "28px", "--side-w": "232px",
+               "--radius": "2px", "--radius-box": "0px", "--radius-card": "0px"},
+     "dark": _WHITE_MENU,
+     "rules": """body { background: var(--panel); }
+.side { border-right: 1px solid var(--line); }
+.table-wrap, .filters, .split-pane, .box, .card, .panel, .tiles > div { background: transparent; border: 0; }
+.filters, .box { padding: 0; }
+.box { border-top: 1px solid var(--line); padding-top: 18px; }
+.box > h2 { font-size: 18px; letter-spacing: -.03em; }
+th { border-bottom: 2px solid var(--ink); }
+tbody tr:hover { background: transparent; }
+tbody tr:hover td { color: var(--accent); }
+.hero { margin: 56px 0 34px; }
+"""},
+]
+LAYOUT_BY_ID = {x["id"]: x for x in LAYOUTS}
 BY_ID = {t["id"]: t for t in THEMES}
+BY_ID["minimal"]["light"].update({"--side-strong": "#1f2a3a", "--cover-title": "#1f2a3a"})   # 흰 메뉴·표지: 글자는 어둡게
+BY_ID["minimal"]["dark"].update({"--side-strong": "#ffffff", "--cover-title": "#ffffff"})
 
 
 def choices() -> list[dict]:
@@ -58,15 +113,45 @@ def choices() -> list[dict]:
     return [{"id": t["id"], "name": t["name"], "note": t["note"], "preview": t["preview"]} for t in THEMES]
 
 
-def css(theme_id: str | None) -> str:
-    """frontend/src/theme.css 내용. 기본 스타일이면 바꿀 토큰이 없다 (styles.css 그대로)"""
+def layouts() -> list[dict]:
+    """화면에서 고를 형태"""
+    return [{"id": x["id"], "name": x["name"], "note": x["note"]} for x in LAYOUTS]
+
+
+def css(theme_id: str | None, layout_id: str | None = None) -> str:
+    """frontend/src/theme.css 내용: 고른 색의 토큰 + 고른 형태의 토큰·규칙. 기본 색에 형태가 없으면 바꿀 토큰이 없다 (styles.css 그대로)"""
     t = BY_ID.get(theme_id or DEFAULT) or BY_ID[DEFAULT]
-    lines = [f"/* 화면 스타일: {t['name']} — 최종 개발하기에서 고름 (코드가 만든 파일). styles.css의 색 토큰만 바꾼다. */"]
-    if t["light"]:
-        lines.append(":root {\n" + "".join(f"  {k}: {v};\n" for k, v in t["light"].items()) + "}")
-    if t["dark"]:
-        block = "".join(f"  {k}: {v};\n" for k, v in t["dark"].items())
+    form = LAYOUT_BY_ID.get(layout_id or "") or {"name": "기본", "light": {}, "dark": {}, "rules": ""}
+    light, dark = {**t["light"], **form["light"]}, {**t["dark"], **form["dark"]}
+    lines = [f"/* 화면 스타일: {t['name']} · {form['name']} — 최종 개발하기에서 고름 (코드가 만든 파일). styles.css의 토큰을 바꾼다. */"]
+    if light:
+        lines.append(":root {\n" + "".join(f"  {k}: {v};\n" for k, v in light.items()) + "}")
+    if dark:
+        block = "".join(f"  {k}: {v};\n" for k, v in dark.items())
         lines.append("@media (prefers-color-scheme: dark) {\n  :root:not([data-theme=\"light\"]) {\n"
                      + "".join(f"  {x}\n" for x in block.rstrip().split("\n")) + "  }\n}")
         lines.append(":root[data-theme=\"dark\"] {\n" + block + "}")
+    if form["rules"]:
+        lines.append(form["rules"].rstrip())
     return "\n".join(lines) + "\n"
+
+
+def layout_doc(layout_id: str | None) -> str | None:
+    """형태의 배치 규칙 (화면 AI 입력). 색은 넣지 않는다 — 색만 바꿀 때 기능을 다시 만들지 않게"""
+    return (DESIGNS / f"{layout_id}.md").read_text(encoding="utf-8") if layout_id in LAYOUT_BY_ID else None
+
+
+NO_COLOR = "색을 코드에 직접 쓰지 않는다 (`style`의 색, `#색상값`, `rgb()`). 색과 모양은 `frontend/src/theme.css`와 `styles.css`가 정한다."
+
+
+def design_md(theme_id: str | None, layout_id: str | None) -> str | None:
+    """spec/DESIGN.md: 고른 형태 + 색 (사람과 개발 AI가 함께 보는 기준). 형태를 고르지 않았으면 None"""
+    doc = layout_doc(layout_id)
+    if doc is None:
+        return None
+    t = BY_ID.get(theme_id or DEFAULT) or BY_ID[DEFAULT]
+    p = t["preview"]
+    return "\n".join([f"# 화면 디자인: {LAYOUT_BY_ID[layout_id]['name']} · {t['name']}", "", "최종 개발하기에서 고른 형태와 색이다. 화면을 만들거나 고칠 때 이 문서를 따른다.", "", doc.rstrip(), "",
+                       f"## 색: {t['name']}", "", t["note"], "", "| 쓰임 | 토큰 | 값 |", "|---|---|---|",
+                       f"| 강조 (버튼·선택) | `--accent` | {p['accent']} |", f"| 메뉴 배경 | `--side` | {p['side']} |", f"| 화면 배경 | `--bg` | {p['bg']} |", "",
+                       "## 공통 규칙", "", f"- {NO_COLOR}", "- 부품은 `kit`의 것을 쓰고, 배치는 이 문서의 className을 쓴다.", ""])

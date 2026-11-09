@@ -170,6 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     p_develop.add_argument("--only", help="--logic·--build를 이 기능 ID만 (쉼표로 구분)")
     p_develop.add_argument("--company", help="화면에 보일 회사 이름 (기본: 프로젝트 이름. 주면 프로젝트에 저장)")
     p_develop.add_argument("--stack", metavar="층=값,…", help="개발할 세 층을 바꿔 만든다 (예: frontend=nextjs,backend=fastapi,database=mysql, 시험용)")
+    p_develop.add_argument("--layout", help="화면 형태 id (tools/themes.py: bento·compact·editorial). 주면 프로젝트에 저장해 다음 개발도 같은 형태")
     p_develop.add_argument("--theme", help="화면 스타일 id (tools/themes.py, 예: navy). 주면 프로젝트에 저장해 다음 개발도 같은 스타일")
     p_develop.add_argument("--effort", choices=["low", "medium", "high"], help="--logic·--build의 LLM 생각 정도 (기본: 설정 dev_effort)")
     p_develop.add_argument("--menu", action="append", default=[], metavar="영역=이름", help="메뉴 이름 (예: SFR-001=재무회계, 여러 번 쓸 수 있음)")
@@ -807,6 +808,13 @@ def _develop(args) -> int:
             return 2
         save_project_info(project, theme=args.theme)
         spec.options["theme"] = args.theme
+    if args.layout is not None:
+        from app.agents.tools import themes
+        if args.layout and args.layout not in themes.LAYOUT_BY_ID:
+            print(f"시작할 수 없습니다: 없는 화면 형태 '{args.layout}' (고를 수 있는 것: {', '.join(themes.LAYOUT_BY_ID)})")
+            return 2
+        save_project_info(project, layout=args.layout)
+        spec.options["layout"] = args.layout
     if args.company is not None:
         save_project_info(project, company=args.company.strip())
         spec.options["company"] = args.company.strip() or project

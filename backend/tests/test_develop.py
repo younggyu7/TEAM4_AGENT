@@ -735,6 +735,32 @@ def test_nextjs_frontend_uses_same_screens_under_ui_and_static_export(sample_doc
     assert files == scaffold.render_app(spec)[0], "같은 스펙이면 같은 결과"
 
 
+def test_layout_and_color_are_chosen_separately_and_reach_css_and_design_doc(sample_doc):
+    """형태 3가지 × 색: theme.css에 둘 다, spec/DESIGN.md에 둘 다. AI 입력에는 형태만 (색만 바꾸면 다시 만들지 않는다). 다음 개발도 같게"""
+    from app.agents.roles import builder
+    from app.agents.tools import themes
+
+    assert [x["id"] for x in themes.layouts()] == ["bento", "compact", "editorial"]
+    assert themes.design_md("navy", "") is None and themes.layout_doc("portal") is None, "형태를 안 고르면 AI 입력이 그대로다 (다시 개발 비용 없음)"
+    for layout in themes.LAYOUT_BY_ID:
+        doc = themes.design_md("wine", layout)
+        assert "와인" in doc and themes.LAYOUT_BY_ID[layout]["name"] in doc and "`--accent`" in doc and "#색상값" in doc
+        assert "#8c2f45" not in themes.layout_doc(layout), "AI에게 주는 문서에는 색이 없다"
+    out = _start(sample_doc)
+    assert cli.main(["develop", "sample", "--from", FINAL]) == 0
+    app = _app(out)
+    assert cli.main(["develop", "sample", "--from", FINAL, "--theme", "navy", "--layout", "compact"]) == 0
+    css = (app / "frontend/src/theme.css").read_text(encoding="utf-8")
+    assert "--side: #1b2a4a;" in css and "--cell-y: 5px;" in css and ".split-pane" in css
+    assert "컴팩트 워크스페이스" in (app / "spec/DESIGN.md").read_text(encoding="utf-8")
+    assert cli.main(["develop", "sample", "--from", FINAL]) == 0 and "--cell-y: 5px;" in (app / "frontend/src/theme.css").read_text(encoding="utf-8"), "다음 개발도 같은 형태"
+    assert cli.main(["develop", "sample", "--from", FINAL, "--layout", "nope"]) == 2
+
+    page = "export default function FnAPage() { return <div style={{ color: '#ff0000' }} /> }"
+    assert any("색을 직접" in e for e in builder.check_page(page, "FnA", set(), design=True))
+    assert not any("색을 직접" in e for e in builder.check_page(page, "FnA", set())), "형태를 안 고른 예전 화면은 다시 만들지 않는다"
+
+
 def test_theme_changes_only_color_tokens_and_is_kept_for_next_develop(sample_doc):
     """화면 스타일: styles.css의 색 토큰만 바꾸는 theme.css (기본은 주석만). --theme은 프로젝트에 저장해 다음 개발도 같은 스타일"""
     from app.agents.tools import themes

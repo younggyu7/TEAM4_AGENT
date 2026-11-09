@@ -71,7 +71,7 @@ def load_spec(project: str, version: str) -> Spec:
     info = project_info(project)
     options = {"standard": record.get("standard"), "title": title.group(1).strip() if title else "",
                "company": info.get("company") or info.get("name") or project_name(project),
-               "theme": info.get("theme", "")}   # 화면 스타일 (최종 개발하기에서 고름, tools/themes.py)
+               "theme": info.get("theme", ""), "layout": info.get("layout", "")}   # 화면 색·형태 (최종 개발하기에서 고름, tools/themes.py)
     profile = profile_of(options)
     physical, conv = model, None
     if profile and profile.renames:
@@ -1162,7 +1162,7 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
         files[f"frontend/src/menus/{menu_file(m['group'])}.tsx"] = _menu_page(m)
     files["frontend/src/menus/index.ts"] = _menus_index(data["menu"])
     from app.agents.tools import themes
-    files["frontend/src/theme.css"] = themes.css(spec.options.get("theme"))
+    files["frontend/src/theme.css"] = themes.css(spec.options.get("theme"), spec.options.get("layout"))
     files["frontend/src/generated/mock-data.json"] = json.dumps(mock_data(spec.model, spec.names, rows), ensure_ascii=False, indent=1) + "\n"
     root = "backend/src/main/java/app"
     if backend and not own:
@@ -1214,6 +1214,8 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
     for name in (*SPEC_FILES, "schema.sql", "erd.mmd"):   # ERD 그림(Mermaid)도 개발 AI가 볼 수 있게
         if (text := spec.read(name)) is not None:
             files[f"spec/{name}"] = text
+    if (design := themes.design_md(spec.options.get("theme"), spec.options.get("layout"))) is not None:
+        files["spec/DESIGN.md"] = design
     if stack_parts(spec)["frontend"] == "nextjs":
         files = _for_nextjs(files)
     return files, data

@@ -17,6 +17,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from app.agents.storage import get_store
 from app.agents.tools.versions import find_version, update_version
@@ -68,9 +69,35 @@ def save_settings(project: str, body: dict) -> dict:
     if branch != repo.MAIN:
         branch = repo.clean_name(branch)
     token = (body.get("token") or "").strip()
-    saved = {"url": url, "branch": branch, "token": _fernet().encrypt(token.encode()).decode() if token else saved["token"]}
+    same_host = urlsplit(url).netloc == urlsplit(saved["url"]).netloc   # 저장된 토큰을 다른 서버로 보내지 않는다
+    old_url, kept = saved["url"], saved["token"] if same_host else ""
+    saved = {"url": url, "branch": branch, "token": _fernet().encrypt(token.encode()).decode() if token else kept}
     get_store().write_project_file(project, SETTINGS, json.dumps(saved, ensure_ascii=False))
+    if url != old_url:
+        _forget_remote(project, remove=False)
     return settings(project)
+
+
+def delete_settings(project: str) -> dict:
+    """원격 설정 삭제 (주소·토큰·받아 둔 원격 참조). 프로젝트 코드와 원격 저장소의 내용은 그대로다"""
+    get_store().write_project_file(project, SETTINGS, json.dumps({"url": "", "branch": "", "token": ""}, ensure_ascii=False))
+    _forget_remote(project, remove=True)
+    return settings(project)
+
+
+def _forget_remote(project: str, remove: bool) -> None:
+    """주소를 바꾸거나 지우면 예전 원격에서 받아 둔 참조와 확인 결과를 지운다"""
+    if not repo.ready(project):
+        return
+    app = repo.ensure_repo(project)
+    with repo._lock:
+        for ref in repo.git(app, "for-each-ref", "refs/remotes/origin", "--format=%(refname)").split():
+            repo.git(app, "update-ref", "-d", ref, check=False)
+        if remove:
+            repo.git(app, "remote", "remove", "origin", check=False)
+        data = repo._data(project)
+        data["remote"] = {}
+        repo._write(project, data)
 
 
 def _token(project: str) -> str:
@@ -114,10 +141,31 @@ def remote_status(project: str) -> dict:
     return out
 
 
+def _foreign(app: Path, header: str) -> str:
+    """원격이 이 프로젝트와 이력이 이어지지 않은 다른 저장소면 오류 문장 (브랜치가 하나도 없는 빈 저장소는 괜찮다). 받아 둔 다른 저장소 참조도 지운다"""
+    listed = repo.git(app, "ls-remote", "--heads", "origin", check=False, header=header)
+    code, out = listed.split("\n", 1)
+    heads = [line.split("\t")[1] for line in out.splitlines() if "\t" in line] if code == "0" else []
+    if not heads:
+        return ""
+    probe = "refs/req-agent/remote-check"
+    head = next((h for h in heads if h == f"refs/heads/{repo.DEV}"), None) or next((h for h in heads if h == f"refs/heads/{repo.MAIN}"), heads[0])
+    fetched = repo.git(app, "fetch", "-q", "origin", f"+{head}:{probe}", check=False, header=header)
+    related = not fetched.startswith("0\n") or repo._ok(app, "merge-base", repo.DEV, probe)   # 받지 못한 경우는 뒤의 fetch가 오류로 알린다
+    repo.git(app, "update-ref", "-d", probe, check=False)
+    if related:
+        return ""
+    for ref in repo.git(app, "for-each-ref", "refs/remotes/origin", "--format=%(refname)").split():
+        repo.git(app, "update-ref", "-d", ref, check=False)
+    return "이 주소는 이 프로젝트와 이력이 이어지지 않은 다른 저장소입니다. 올리지 않았습니다. 이 프로젝트 전용 빈 저장소 주소로 원격 설정을 고치세요."
+
+
 def _fetch(project: str, app: Path, conf: dict, token: str, branch: str = repo.DEV) -> tuple[bool, str]:
-    """원격 브랜치를 origin/<branch>로 받는다. (원격에 브랜치가 있는지, 오류 메시지)"""
+    """원격 브랜치를 origin/<branch>로 받는다. 다른 저장소면 받지 않는다. (원격에 브랜치가 있는지, 오류 메시지)"""
     _set_remote(app, conf["url"])
     header = _header(token)
+    if foreign := _foreign(app, header):
+        return False, foreign
     listed = repo.git(app, "ls-remote", "--heads", "origin", branch, check=False, header=header)
     code, out = listed.split("\n", 1)
     if code != "0":

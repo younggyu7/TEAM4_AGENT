@@ -59,36 +59,28 @@ def test_first_develop_puts_gen_and_dev_on_same_commit_without_main():
     assert repo.final_version(P) == "1.1.1"
 
 
-def test_regenerate_commits_on_gen_and_requests_merge_to_dev(sample_doc):
-    """다시 개발: gen에만 커밋하고 gen → dev 합치기 요청을 낸다. 열린 요청이 있으면 그 요청을 최신으로. 승인해야 dev에 들어간다"""
+def test_regenerate_makes_new_branch_and_leaves_dev_alone(sample_doc):
+    """다시 개발: 결과로 새 브랜치 candidate-v<n>을 만들고 dev는 그대로, 합치기 요청도 없다. 바뀐 것이 없으면 브랜치도 없다"""
     from app.services import project_access
     from test_develop_screen import _approved_final
     _approved_final(sample_doc)
     first = _developed()
-    assert _regen({})["commit"] is None and repo.requests(P) == [], "바뀐 것이 없으면 커밋·요청 없음"
+    assert _regen({})["branch"] is None and repo.requests(P) == [], "바뀐 것이 없으면 커밋·브랜치 없음"
     res = _regen({"README.md": "# app v2\n"})
-    assert res["commit"] and not res["first"] and res["request"]
+    assert res["commit"] and not res["first"] and res["branch"] == "candidate-v2" and repo.requests(P) == []
     assert _git("rev-parse", "dev").strip() == first and (develop.app_dir(P) / "README.md").read_text(encoding="utf-8") == "# app\n", "dev는 그대로"
-    assert _git("rev-parse", "final-v1.1.1").strip() == res["commit"], "같은 최종본을 다시 개발하면 태그를 옮긴다"
-    req = repo.requests(P)[0]
-    assert (req["branch"], req["status"], req["generated"], req["by"]["name"]) == ("gen", "open", True, "한개발")
-    dev, dev2 = signed_in_client("developer", "dev"), signed_in_client("developer", "dev2")
-    asked = [n for n in dev.get("/api/v1/notices").json()["notices"] if n["kind"] == "merge_request"]
-    assert asked and asked[0]["title"].startswith("AI 재생성 결과를 dev에 합치기 요청")
-    diff = dev.get("/api/v1/develop/repo/diff", params={"project": P, "branch": "gen"}).json()
-    assert [(f["path"], f["status"]) for f in diff["files"]] == [("README.md", "M")]
-
+    assert _git("rev-parse", "final-v1.1.1").strip() == res["commit"] == _git("rev-parse", "candidate-v2").strip()
     again = _regen({"frontend/src/App.tsx": "y\n"}, message="또 개발")
-    assert again["request"] == res["request"] and len(repo.requests(P)) == 1, "열린 gen 요청은 하나 (최신 gen으로 바뀜)"
-    assert repo.requests(P)[0]["note"] == "또 개발" and repo.requests(P)[0]["ahead"] == 2
+    assert again["branch"] == "candidate-v3" and _git("show", "candidate-v2:README.md") == "# app v2\n", "지난 회차는 그대로 남는다"
+    assert _git("show", "candidate-v3:frontend/src/App.tsx") == "y\n"
 
+    dev, dev2 = signed_in_client("developer", "dev"), signed_in_client("developer", "dev2")
     ids = {m.name: m.id for m in users.list_members()}
     project_access.set_members(P, [ids["dev"], ids["dev2"]])
-    merged = dev2.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": res["request"]})
-    assert merged.status_code == 200 and merged.json()["status"] == "merged", merged.text
-    app = develop.app_dir(P)
-    assert (app / "README.md").read_text(encoding="utf-8") == "# app v2\n" and (app / "frontend/src/App.tsx").read_text(encoding="utf-8") == "y\n"
-    assert _git("log", "-1", "--format=%s", "dev").strip().startswith("합치기: gen (요청 한개발, 승인 dev2)")
+    req = dev.post("/api/v1/develop/repo/request", json={"project": P, "branch": "candidate-v3"}).json()
+    assert req["target"] == "dev", "후보를 dev에 넣는 길은 합치기 요청"
+    assert dev2.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]}).status_code == 200
+    assert (develop.app_dir(P) / "frontend/src/App.tsx").read_text(encoding="utf-8") == "y\n"
 
 
 def test_regenerate_conflict_with_human_change_is_409_and_gen_is_protected(sample_doc):
@@ -102,14 +94,15 @@ def test_regenerate_conflict_with_human_change_is_409_and_gen_is_protected(sampl
     assert dev2.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]}).status_code == 200
     res = _regen({"README.md": "# AI가 다시 씀\n"})
     before = _git("rev-parse", "dev").strip()
-    clash = dev2.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": res["request"]})
+    regen = dev.post("/api/v1/develop/repo/request", json={"project": P, "branch": res["branch"]}).json()
+    clash = dev2.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": regen["id"]})
     assert clash.status_code == 409 and clash.json()["conflicts"] == ["README.md"] and "AI가 바꾼 파일" in clash.json()["detail"]
     assert _git("rev-parse", "dev").strip() == before and (develop.app_dir(P) / "README.md").read_text(encoding="utf-8") == "# 사람이 고침\n"
 
     edit = {"project": P, "path": "README.md", "content": "x", "branch": "gen"}
     assert dev.put("/api/v1/develop/file", json=edit).status_code == 400, "gen은 직접 고치지 않는다"
     assert dev.post("/api/v1/develop/repo/commit", json={"project": P, "branch": "gen", "message": "x"}).status_code == 400
-    assert dev.post("/api/v1/develop/repo/request", json={"project": P, "branch": "gen"}).status_code == 400, "gen 요청은 개발하기만 낸다"
+    assert dev.post("/api/v1/develop/repo/request", json={"project": P, "branch": "gen"}).status_code == 400, "gen은 합치기 요청을 내지 않는다"
     assert dev.post("/api/v1/develop/repo/update-branch", json={"project": P, "branch": "gen"}).status_code == 400
     assert dev.post("/api/v1/develop/repo/branch", json={"project": P, "name": "gen"}).status_code == 400
     assert dev.delete("/api/v1/develop/repo/branch", params={"project": P, "name": "gen"}).status_code == 404
@@ -145,12 +138,12 @@ def test_runner_records_develop_commit(monkeypatch):
     assert run("# app\n").first
     assert recorded["develop"]["commit"] == _git("rev-parse", "dev").strip() == _git("rev-parse", "gen").strip() and order == ["1"], "자동 확인 전에 커밋"
     assert _git("log", "-1", "--format=%s").strip() == "최종본 v1.1.1 개발 · AI 안 씀 (개발: 한개발)"
-    assert recorded["develop"]["request"] is None
+    assert recorded["develop"]["branch"] is None
 
     runner = run("# app v2\n")
     assert not runner.first and order == ["1"], "다시 개발하면 자동 확인을 건너뛴다"
     assert recorded["develop"]["commit"] == _git("rev-parse", "gen").strip() != _git("rev-parse", "dev").strip()
-    assert recorded["develop"]["request"] == repo.requests(P)[0]["id"] and "합치기 요청" in runner.job.message
+    assert recorded["develop"]["branch"] == "candidate-v2" and "candidate-v2" in runner.job.message and repo.requests(P) == []
 
 
 def test_branch_worktree_save_commit_and_permissions():
@@ -215,7 +208,7 @@ def test_merge_request_merge_and_notices(sample_doc):
 
     kinds = lambda c, k: [n for n in c.get("/api/v1/notices").json()["notices"] if n["kind"] == k]   # noqa: E731
     asked = kinds(head, "merge_request")
-    assert len(asked) == 1 and asked[0]["title"] == f"dev님의 합치기 요청 ({branch})" and asked[0]["version"] == "1.1.1"
+    assert len(asked) == 1 and asked[0]["title"] == f"dev님의 합치기 요청 ({branch} → dev)" and asked[0]["version"] == "1.1.1"
     assert not kinds(dev, "merge_request") and not kinds(pm, "merge_request"), "요청 알림은 다른 개발자에게 (요청한 본인·PM은 아님)"
 
     diff = head.get("/api/v1/develop/repo/diff", params={"project": P, "branch": branch}).json()
@@ -224,10 +217,10 @@ def test_merge_request_merge_and_notices(sample_doc):
     merged = head.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]})
     assert merged.status_code == 200 and merged.json()["status"] == "merged", merged.text
     assert (develop.app_dir(P) / "README.md").read_text(encoding="utf-8") == "# app 고침\n"
-    assert _git("log", "-1", "--format=%an|%s|%P", "dev").strip().startswith(f"dev2|합치기: {branch} (요청 dev, 승인 dev2)|")
+    assert _git("log", "-1", "--format=%an|%s|%P", "dev").strip().startswith(f"dev2|합치기: {branch} → dev (요청 dev, 승인 dev2)|")
     assert len(_git("log", "-1", "--format=%P", "dev").split()) == 2, "--no-ff 합친 커밋"
     got = kinds(dev, "merged")
-    assert len(got) == 1 and got[0]["title"] == f"dev2님이 합치기 요청을 반영했습니다 ({branch})"
+    assert len(got) == 1 and got[0]["title"] == f"dev2님이 합치기 요청을 반영했습니다 ({branch} → dev)"
     assert not kinds(head, "merged") and not kinds(pm, "merged"), "합친 알림은 요청한 사람에게만"
     assert head.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]}).status_code == 400, "이미 처리"
 
@@ -291,6 +284,53 @@ def test_log_and_commit_diff():
     assert dev.get("/api/v1/develop/repo/commit", params={"project": P, "sha": "zz; rm"}).status_code == 400
 
 
+def test_remote_of_another_repository_is_refused_and_not_drawn(tmp_path, monkeypatch):
+    """원격 주소가 이력이 이어지지 않은 다른 저장소면: 받지도 올리지도 않고, 전에 받아 둔 참조도 그리지 않는다"""
+    _developed()
+    bare = tmp_path / "team4.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
+    other = tmp_path / "team4"
+    subprocess.run(["git", "clone", "-q", str(bare), str(other)], check=True, capture_output=True)
+    subprocess.run(["git", "-c", "user.name=o", "-c", "user.email=o@x", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "다른 저장소 커밋"], cwd=other, check=True)
+    subprocess.run(["git", "push", "-q", "origin", "HEAD:main"], cwd=other, check=True, capture_output=True)
+    app = develop.app_dir(P)
+    out = get_settings().output_dir / P
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "git.json").write_text(json.dumps({"url": str(bare), "branch": "main", "token": ""}), encoding="utf-8")
+    repo.git(app, "remote", "add", "origin", str(bare))
+    repo.git(app, "fetch", "-q", "origin", "+refs/heads/main:refs/remotes/origin/main")   # 고치기 전에 받아 둔 상태
+    assert all(c["subject"] != "다른 저장소 커밋" for c in repo.log(P)), "이어지지 않은 원격은 그리지 않는다"
+
+    checked = gitpush.check_remote(P)
+    assert "다른 저장소" in checked["error"] and not repo._ok(app, "rev-parse", "--verify", "-q", "refs/remotes/origin/main")
+    member = type("M", (), {"id": 1, "name": "한개발", "email": "dev@team4.local"})()
+    job = jobs.Job(id="g", project=P, base="1.1.1", source="git", status="running", message="")
+    monkeypatch.setattr(gitpush, "find_version", lambda p, v: {})
+    gitpush._GitRunner(job, P, "1.1.1", member, "dev")._run([])
+    assert job.status == "failed" and "다른 저장소" in job.message
+    branches = subprocess.run(["git", "--git-dir", str(bare), "branch"], capture_output=True, text=True).stdout
+    assert "dev" not in branches, "프로젝트 코드가 다른 저장소로 나가지 않는다"
+
+
+def test_remote_settings_can_be_changed_and_deleted():
+    """주소를 바꾸면 예전 원격 참조를 지우고 다른 서버로 토큰을 넘기지 않는다. 삭제하면 주소·토큰·origin이 없어지고 코드는 그대로"""
+    _developed()
+    app = develop.app_dir(P)
+    dev, viewer = signed_in_client("developer"), signed_in_client("pm")
+    assert dev.post("/api/v1/develop/git", json={"project": P, "url": "https://github.com/a/old.git", "branch": "", "token": "ghp_x"}).json()["has_token"]
+    repo.git(app, "remote", "add", "origin", "https://github.com/a/old.git")
+    repo.git(app, "update-ref", "refs/remotes/origin/dev", "dev")
+    same = dev.post("/api/v1/develop/git", json={"project": P, "url": "https://github.com/a/new.git", "branch": "", "token": ""}).json()
+    assert same["url"].endswith("new.git") and same["has_token"], "같은 서버면 토큰을 유지한다"
+    assert not repo._ok(app, "rev-parse", "--verify", "-q", "refs/remotes/origin/dev"), "바꾼 뒤 예전 원격 참조는 없다"
+    assert not dev.post("/api/v1/develop/git", json={"project": P, "url": "https://gitlab.com/a/new.git", "branch": "", "token": ""}).json()["has_token"], "다른 서버로 토큰을 보내지 않는다"
+    head = _git("rev-parse", "dev").strip()
+    assert viewer.delete("/api/v1/develop/git", params={"project": P}).status_code == 403
+    gone = dev.delete("/api/v1/develop/git", params={"project": P})
+    assert gone.status_code == 200 and gone.json() == {"url": "", "branch": "main", "has_token": False}
+    assert not repo._ok(app, "remote", "get-url", "origin") and _git("rev-parse", "dev").strip() == head, "코드는 그대로"
+
+
 def test_single_remote_push_refuses_non_fast_forward_and_migrates_old_settings(tmp_path, monkeypatch):
     _developed()
     out = get_settings().output_dir / P
@@ -330,7 +370,8 @@ def test_single_remote_push_refuses_non_fast_forward_and_migrates_old_settings(t
     assert (status["ahead"], status["behind"]) == (0, 0)
 
     res = _regen({"README.md": "# 새 개발\n"})
-    repo.merge(P, res["request"], _member("developer"))
+    req = repo.request_merge(P, res["branch"], "새 개발", _member("developer"))
+    repo.merge(P, req["id"], _member("developer"))
     assert gitpush.remote_status(P)["ahead"] == 2, "올리기 전: 원격보다 2개 앞섬 (gen 커밋 + 합친 커밋, fetch 없이)"
 
     # 원격에 서버에 없는 커밋이 생기면 올리지 않는다

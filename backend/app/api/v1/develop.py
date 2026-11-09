@@ -7,7 +7,7 @@
   GET  /preview/{프로젝트}/mock/…           예시 데이터 화면 (서버 없이)
   GET  /preview/{프로젝트}/accounts         앱 시연 계정 (admin·user 비밀번호, PM·개발자)
   GET  /preview/{프로젝트}/status · POST /preview/{프로젝트}/start · POST /preview/{프로젝트}/stop (끄기는 PM·개발자)
-  GET·POST /develop/git?project=          원격 설정 하나 {url, branch, token} (토큰은 다시 보내지 않음, 개발자)
+  GET·POST·DELETE /develop/git?project=   원격 설정 하나 {url, branch, token} 보기·저장·삭제 (토큰은 다시 보내지 않음, 개발자)
   POST /develop/git/push                  원격에 고른 브랜치(dev·main)와 태그 올리기 {target} → {job} (개발자)
   GET  /develop/files?project=&branch=    코드 파일 목록 (dev 또는 브랜치 작업 폴더, 빈 업무 로직·사람이 고침·커밋 안 한 변경 표시)
   GET·PUT /develop/file?project=&path=&branch=  파일 내용 보기 · 브랜치에서 고쳐 저장 (dev·main 거부, 개발자)
@@ -38,7 +38,8 @@ class DevelopBody(BaseModel):
     version: str
     build: bool = False      # 업무 기능 전체를 AI가 구현 (--build, 토큰 사용)
     logic: bool = False      # 빈 업무 로직 자리만 AI가 채움 (--logic, 토큰 사용). build와 함께 켜지 않는다
-    theme: str = ""          # 화면 스타일 id (tools/themes.py, 비우면 지난번·기본)
+    theme: str = ""          # 화면 색 id (tools/themes.py, 비우면 지난번·기본)
+    layout: str = ""         # 화면 형태 id (tools/themes.py, 비우면 지난번)
     model: str = ""          # build일 때 모델 (비우면 .env 기본)
     effort: str = ""         # build일 때 생각 수준 low·medium·high (비우면 설정 dev_effort)
 
@@ -68,10 +69,13 @@ class FileBody(BaseModel):
     branch: str = ""         # 고칠 브랜치 (main·빈 값은 거부)
 
 
-@router.get("/develop/themes", summary="개발한 앱의 화면 스타일 선택지 (미리보기 색)")
-def list_themes():
+@router.get("/develop/themes", summary="개발한 앱의 화면 색·형태 선택지와 이 프로젝트가 고른 값")
+def list_themes(project: str = "", member: users.Member = Depends(current_user)):
     from app.agents.tools import themes
-    return {"themes": themes.choices(), "default": themes.DEFAULT}
+    from app.agents.tools.versions import project_info
+    info = project_info(_project(project)) if project else {}
+    return {"themes": themes.choices(), "default": themes.DEFAULT, "layouts": themes.layouts(),
+            "current": {"theme": info.get("theme", ""), "layout": info.get("layout", "")}}
 
 
 @router.get("/develop/plan", summary="개발 전 예상 (화면·파일·AI 비용)")
@@ -94,12 +98,14 @@ def start(body: DevelopBody, member: users.Member = Depends(current_user)):
     from app.agents.tools import themes
     if body.theme and body.theme not in themes.BY_ID:
         raise BadRequest(f"없는 화면 스타일입니다: {body.theme}")
+    if body.layout and body.layout not in themes.LAYOUT_BY_ID:
+        raise BadRequest(f"없는 화면 형태입니다: {body.layout}")
     if body.effort and body.effort not in EFFORTS:
         raise BadRequest(f"effort는 {', '.join(EFFORTS)} 중 하나입니다.")
     if body.model and body.model not in {m["id"] for m in llm_options()["models"]}:
         raise BadRequest(f"고를 수 없는 모델입니다: {body.model}")
     _no_running_job(body.project)
-    return {"job": develop.start_develop(project=project, version=version, build=body.build, logic=body.logic, theme=body.theme,
+    return {"job": develop.start_develop(project=project, version=version, build=body.build, logic=body.logic, theme=body.theme, layout=body.layout,
                                               model=body.model, effort=body.effort, member=member).to_dict()}
 
 
@@ -200,6 +206,13 @@ def get_git(project: str):
 def set_git(body: GitSettings, member: users.Member = Depends(current_user)):
     ensure(member, "develop")
     return gitpush.save_settings(_project(body.project), body.model_dump())
+
+
+@router.delete("/develop/git", summary="원격 설정 삭제")
+def delete_git(project: str, member: users.Member = Depends(current_user)):
+    ensure(member, "develop")
+    _no_running_job(project)
+    return gitpush.delete_settings(_project(project))
 
 
 @router.post("/develop/git/push", status_code=202, summary="원격에 올리기 (작업)")

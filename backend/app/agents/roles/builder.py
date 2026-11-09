@@ -29,6 +29,7 @@ from app.schemas.function import FunctionSpec
 from app.agents.tools.dev_spec import Spec
 from app.agents.tools.scaffold import TEMPLATES, class_name, has_backend, owned_operations
 from app.agents.roles import builder_fastapi, builder_nestjs
+from app.agents.tools import themes
 from app.agents.roles.developer import DATE_PARSE, TABLE_IN_SQL, TodoOut, glued_sql, sql_tables, _strip_comments, _strip_strings
 
 log = logging.getLogger(__name__)
@@ -238,10 +239,17 @@ def _kit_reference() -> str:
     return "\n".join(out)
 
 
+def _design(spec: Spec) -> str | None:
+    return themes.layout_doc(spec.options.get("layout"))
+
+
 def _shared(spec: Spec) -> str:
-    """모든 기능에 같은 앞부분 (프롬프트 캐시): 작업 규칙, API 공통 규칙, 화면 부품."""
-    return "\n\n".join(["# AGENTS.md", _doc(spec, "AGENTS.md"), "# API.md 공통 규칙", _section(_doc(spec, "API.md"), 2, "1."),
-                        "# 화면 부품 (../kit)", "```tsx", _kit_reference(), "```"])
+    """모든 기능에 같은 앞부분 (프롬프트 캐시): 작업 규칙, API 공통 규칙, 화면 부품, 고른 스타일의 디자인 문서 (있을 때만)."""
+    parts = ["# AGENTS.md", _doc(spec, "AGENTS.md"), "# API.md 공통 규칙", _section(_doc(spec, "API.md"), 2, "1."),
+             "# 화면 부품 (../kit)", "```tsx", _kit_reference(), "```"]
+    if (design := _design(spec)) is not None:
+        parts += ["# DESIGN.md (이 앱의 화면 디자인)", "화면의 배치·문장은 이 문서를 따른다. 화면 규칙의 '위쪽은 목록, 등록·처리는 Drawer'와 다르면 이 문서가 우선이다. " + themes.NO_COLOR, design]
+    return "\n\n".join(parts)
 
 
 def build_request(spec: Spec, f: FunctionSpec, ops: list[dict]) -> str:
@@ -337,8 +345,13 @@ def check_controller(code: str, cls: str, ops: list[dict], tables: set[str]) -> 
     return list(dict.fromkeys(errors))
 
 
-def check_page(code: str, cls: str, paths: set[tuple[str, str]]) -> list[str]:
+HARD_COLOR = re.compile(r"#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(")
+
+
+def check_page(code: str, cls: str, paths: set[tuple[str, str]], design: bool = False) -> list[str]:
     errors = _cramped(code, "화면")
+    if design and HARD_COLOR.search(code):   # 색은 스타일(CSS)이 정한다. 코드에 쓰면 고른 스타일이 적용되지 않는다
+        errors.append("화면 코드에 색을 직접 씀 (#색상값·rgb()·hsl()) — DESIGN.md대로 색은 쓰지 않는다")
     if not re.search(rf"export default function {cls}Page\b", code):
         errors.append(f"export default function {cls}Page가 없음")
     for name in TS_IMPORT.findall(code):
@@ -372,7 +385,7 @@ def check_server(spec: Spec, code: str, cls: str, ops: list[dict], tables: set[s
 def recheck(spec: Spec, f: FunctionSpec, ops: list[dict], record: dict, tables: set[str]) -> list[str]:
     """저장한 코드를 지금 검사로 다시 본다 (검사를 고치면 토큰을 다시 쓰지 않고 판정이 바뀐다)."""
     cls = class_name(f.function_id)
-    return check_server(spec, record.get("controller") or "", cls, ops, tables) + check_page(record.get("page") or "", cls, _callable_paths(spec, f))
+    return check_server(spec, record.get("controller") or "", cls, ops, tables) + check_page(record.get("page") or "", cls, _callable_paths(spec, f), design=_design(spec) is not None)
 
 
 # ------------------------------------------------------------------ 저장
@@ -414,7 +427,7 @@ def _ask(llm, spec: Spec, f: FunctionSpec, ops: list[dict], request: str, tables
     for attempt in range(2):
         out = llm.structured(system=system_prompt(spec), user=user, schema=builder_nestjs.BuildOutTs if nest else builder_fastapi.BuildOutPy if python else BuildOut, shared=_shared(spec),
                              effort=get_settings().dev_effort, max_tokens=MAX_TOKENS, purpose=f"기능 구현 {f.function_id}")
-        errors = check_server(spec, out.controller, cls, ops, tables) + check_page(out.page, cls, _callable_paths(spec, f))
+        errors = check_server(spec, out.controller, cls, ops, tables) + check_page(out.page, cls, _callable_paths(spec, f), design=_design(spec) is not None)
         if not errors:
             break
         log.warning("[기능 구현] %s 코드 검사 실패 (시도 %d): %s", f.function_id, attempt + 1, "; ".join(errors))

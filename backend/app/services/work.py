@@ -169,7 +169,30 @@ def branch_of(key: str) -> str:
     return "task/" + re.sub(r"[^\w.-]", "-", key)
 
 
-def _sync(item: dict, branches: dict[str, dict], requests: dict[int, dict]) -> dict:
+def _base(item: dict) -> str:
+    """작업이 파생된 브랜치 (승인하면 여기로 합친다). 예전 작업은 dev"""
+    return item.get("base") or repo.DEV
+
+
+def based_on(project: str, branch: str) -> bool:
+    """이 브랜치에서 파생된 진행 중 작업이 있는가"""
+    return any(_base(v) == branch and v.get("status") in ("assigned", "in_progress", "review", "rejected") for v in _data(project)["items"].values())
+
+
+def base_of(project: str, branch: str) -> str:
+    """브랜치의 기준: 작업 브랜치면 파생 브랜치, 아니면 dev"""
+    return next((_base(v) for v in _data(project)["items"].values() if v.get("branch") == branch), repo.DEV)
+
+
+def bases(project: str) -> list[str]:
+    """작업을 보낼 수 있는 브랜치: dev, 다시 개발한 candidate-v<n> (최신이 앞), 사람이 만든 브랜치 (main·gen·작업 브랜치 제외)"""
+    names = [b["name"] for b in repo.branches(project)]
+    number = lambda n: int(repo.CANDIDATE.match(n)[1])   # noqa: E731
+    return [repo.DEV, *sorted(filter(repo.CANDIDATE.match, names), key=number, reverse=True),
+            *[n for n in names if n not in repo.PROTECTED and not repo.CANDIDATE.match(n) and not n.startswith("task/")]]
+
+
+def _sync(project: str, item: dict, branches: dict[str, dict], requests: dict[int, dict]) -> dict:
     """합치기 요청 결과로 작업 기록을 맞추고(item을 고침, 웹의 합치기·반려 화면에서 처리한 것도), 화면에 보일 상태를 돌려준다.
     요청 옴인데 브랜치에 dev보다 앞선 커밋이 있으면 작업중으로 보인다 (기록은 그대로)"""
     req = requests.get(item.get("request_id") or -1)
@@ -180,9 +203,12 @@ def _sync(item: dict, branches: dict[str, dict], requests: dict[int, dict]) -> d
             item.update(status="rejected", reason=req.get("reason", ""), done_by=req.get("done_by"))
     branch = branches.get(item.get("branch") or "")
     view = dict(item)
-    if view.get("status") == "assigned" and branch and branch["ahead"] > 0:
+    base = _base(item)
+    behind, ahead = (0, 0) if not branch else (branch["behind"], branch["ahead"]) if base == repo.DEV or base not in branches \
+        else repo._counts(repo.app_dir(project), base, item["branch"])
+    if view.get("status") == "assigned" and ahead > 0:
         view["status"] = "in_progress"
-    view.update(ahead=branch["ahead"] if branch else 0, behind=branch["behind"] if branch else 0, changes=branch["changes"] if branch else 0)
+    view.update(base=base, ahead=ahead, behind=behind, changes=branch["changes"] if branch else 0)
     return view
 
 
@@ -222,7 +248,7 @@ def overview(project: str) -> dict:
         before = json.dumps(data, sort_keys=True)
         branches = {b["name"]: b for b in repo.branches(project)}
         requests = {r["id"]: r for r in repo.requests(project)}
-        views = {k: _sync(v, branches, requests) for k, v in data["items"].items()}
+        views = {k: _sync(project, v, branches, requests) for k, v in data["items"].items()}
         if json.dumps(data, sort_keys=True) != before:
             _write(project, data)
     todos = _todos(project)
@@ -252,7 +278,7 @@ def overview(project: str) -> dict:
             a = areas.setdefault(b["area"]["id"], {**b["area"], "screen": None, "server": None})
             a["screen" if b["kind"] == "ui" else "server"] = b["key"]
     return {"items": out, "counts": counts, "people": list(people.values()), "developers": devs, "areas": list(areas.values()),
-            "labels": STATUS_LABELS, "version": repo.final_version(project)}
+            "labels": STATUS_LABELS, "version": repo.final_version(project), "bases": bases(project)}
 
 
 def _item(project: str, key: str) -> dict:
@@ -266,8 +292,9 @@ def _history(entry: dict, member, what: str) -> None:
     entry.setdefault("history", []).append({"at": _now(), "by": {"id": member.id, "name": member.name}, "what": what})
 
 
-def assign(project: str, key: str, user_id: int, member, notify: bool = True) -> dict:
-    """담당자 배정: 작업 브랜치 task/<묶음>을 dev에서 만들고(있으면 담당자만 바꿈) 담당자에게 알린다. 승인 대기 중이면 409"""
+def assign(project: str, key: str, user_id: int, member, notify: bool = True, base: str | None = None) -> dict:
+    """담당자 배정: 작업 브랜치 task/<묶음>을 base(기본 dev)에서 만들고(있으면 담당자만 바꿈) 담당자에게 알린다. 승인 대기 중이면 409.
+    받을 때 base의 서버 최신 내용이 들어가고, 승인하면 base로 합친다"""
     from app.services import directives, project_access
 
     _item(project, key)
@@ -275,6 +302,9 @@ def assign(project: str, key: str, user_id: int, member, notify: bool = True) ->
     if target is None or not allowed(target.role, "repo_write"):
         raise BadRequest("이 프로젝트의 개발자 담당자에게만 배정합니다.")
     branch = branch_of(key)
+    base = base or repo.DEV
+    if base not in bases(project):
+        raise BadRequest(f"이 브랜치로는 보낼 수 없습니다: {base}")
     with _lock:
         data = _data(project)
         entry = data["items"].get(key) or {}
@@ -285,26 +315,28 @@ def assign(project: str, key: str, user_id: int, member, notify: bool = True) ->
         if exists and entry.get("status") == "done":   # 끝난 작업을 다시 맡기면 dev에서 새로 시작
             repo.delete_branch(project, branch, member)
             exists = False
+        if exists and _base(entry) != base:
+            raise Conflict(f"이 작업은 {_base(entry)}에서 파생되어 진행 중입니다. 끝난 뒤 {base}로 보내세요.")
         if not exists:
-            repo.create_branch(project, branch, target)
+            repo.create_branch(project, branch, target, base)
         else:
             rd = repo._data(project)
             rd["branches"].setdefault(branch, {})["owner"] = {"id": target.id, "name": target.name}
             repo._write(project, rd)
-        entry.update(assignee={"id": target.id, "name": target.name}, branch=branch, status="assigned",
+        entry.update(assignee={"id": target.id, "name": target.name}, branch=branch, base=base, status="assigned",
                      request_id=None, reason="", assigned_at=_now())
-        _history(entry, member, f"{target.name}님에게 배정")
+        _history(entry, member, f"{target.name}님에게 배정 ({base}에서 파생)")
         data["items"][key] = entry
         _write(project, data)
     meta = _item(project, key)
     if notify:
         directives.add_event(project, "task_assigned", f"{member.name}님이 작업을 맡겼습니다: {meta['title']}",
-                             f"브랜치 {branch} · 파일 {meta['file_count']}개", "develop", repo.final_version(project), None,
+                             f"{base}에서 파생 · 브랜치 {branch} · 파일 {meta['file_count']}개", "develop", repo.final_version(project), None,
                              member_ids={target.id}, by=member.id)
     return meta
 
 
-def assign_many(project: str, keys: list[str], user_id: int, member) -> dict:
+def assign_many(project: str, keys: list[str], user_id: int, member, base: str | None = None) -> dict:
     """여러 묶음을 한 사람에게 (일괄 배정). 묶음마다 결과를 돌려주고 하나가 실패해도 나머지는 배정한다. 알림은 한 번에 하나"""
     from app.core.exceptions import AppError
     from app.services import directives
@@ -314,7 +346,7 @@ def assign_many(project: str, keys: list[str], user_id: int, member) -> dict:
     results, done = [], []
     for key in dict.fromkeys(keys):
         try:
-            item = assign(project, key, user_id, member, notify=False)
+            item = assign(project, key, user_id, member, notify=False, base=base)
             done.append(item)
             results.append({"key": key, "ok": True, "title": item["title"]})
         except AppError as e:
@@ -333,9 +365,9 @@ def outside(project: str, key: str, paths: list[str]) -> list[str]:
     return [p for p in paths if classify(p, index) != key]
 
 
-def _changed(project: str, branch: str) -> list[str]:
+def _changed(project: str, branch: str, base: str = repo.DEV) -> list[str]:
     app = repo.ensure_repo(project)
-    out = repo.git(app, "diff", "--name-only", "-z", f"{repo.DEV}...{branch}")
+    out = repo.git(app, "diff", "--name-only", "-z", f"{base}...{branch}")
     return [p for p in out.split("\0") if p]
 
 
@@ -346,11 +378,11 @@ def submit(project: str, key: str, note: str, member) -> dict:
         raise Forbidden("이 작업의 담당자만 제출합니다.")
     if item["status"] not in ("assigned", "in_progress", "rejected"):
         raise BadRequest(f"지금 상태({item['status_label']})에서는 제출하지 않습니다.")
-    bad = outside(project, key, _changed(project, item["branch"]))
+    bad = outside(project, key, _changed(project, item["branch"], _base(item)))
     if bad:
         raise BadRequest(f"이 작업 묶음 밖의 파일을 바꿨습니다 ({len(bad)}개): {', '.join(bad[:10])}. "
                          "되돌리거나 그 파일의 묶음 담당자에게 요청하세요.")
-    req = repo.request_merge(project, item["branch"], note or f"작업 제출: {item['title']}", member)
+    req = repo.request_merge(project, item["branch"], note or f"작업 제출: {item['title']}", member, target=_base(item))
     with _lock:
         data = _data(project)
         entry = data["items"][key]
@@ -369,7 +401,7 @@ def approve(project: str, key: str, member) -> dict:
         data = _data(project)
         entry = data["items"][key]
         entry.update(status="done", done_at=req.get("done_at"), done_by=req.get("done_by"), self_approved=req.get("self_approved", False))
-        _history(entry, member, "승인 (dev에 합침)" + (" · 본인 승인" if req.get("self_approved") else ""))
+        _history(entry, member, f"승인 ({_base(item)}에 합침)" + (" · 본인 승인" if req.get("self_approved") else ""))
         _write(project, data)
     return _item(project, key)
 
@@ -433,7 +465,7 @@ def brief(project: str, key: str) -> str:
     item = _item(project, key)
     if saved := _data(project)["briefs"].get(key):
         return saved["text"]
-    lines = [f"# 작업: {item['title']}", "", f"- 묶음 키: `{key}` · 브랜치: `{item.get('branch') or branch_of(key)}`",
+    lines = [f"# 작업: {item['title']}", "", f"- 묶음 키: `{key}` · 브랜치: `{item.get('branch') or branch_of(key)}` · 파생 브랜치: `{_base(item)}` (승인하면 여기로 합침)",
              f"- 담당: {(item.get('assignee') or {}).get('name', '미배정')} · 상태: {item['status_label']}",
              f"- 고칠 파일: {item['file_count']}개 (`files.txt`) · 빈 업무 로직 {item['empty_holes']}곳", "", "## 무엇을", "", item["summary"], ""]
     if item.get("reason"):
@@ -499,19 +531,19 @@ def _screen_design(project: str, item: dict) -> list[str]:
 
 
 def _catch_up(project: str, item: dict, member) -> dict:
-    """받기 전에 작업 브랜치에 최신 dev를 넣는다 (다른 사람이 그 사이 dev에 합친 것). 승인 대기·완료면 그대로 둔다.
+    """받기 전에 작업 브랜치에 파생 브랜치의 최신 내용을 넣는다 (다른 사람이 그 사이 합친 것). 승인 대기·완료면 그대로 둔다.
     아직 올린 것이 없으면 dev로 앞으로 감고, 있으면 합친다. 충돌이면 합치지 않고 충돌 파일을 알린다"""
     if item["status"] in ("review", "done"):
         return {"merged": False, "message": "", "conflicts": []}
     try:
-        res = repo.update_branch(project, item["branch"], member)
+        res = repo.update_branch(project, item["branch"], member, _base(item))
     except repo.MergeConflict as e:
         return {"merged": False, "message": e.detail, "conflicts": e.extra["conflicts"]}
     return {"merged": res["merged"], "message": res["message"] if res["merged"] else "", "conflicts": []}
 
 
 def archive(project: str, key: str, member) -> dict:
-    """작업 코드 받기 (확장): 최신 dev를 넣은 작업 브랜치의 파일 전체(base64) + .task/TASK.md·files.txt·RULES.md. 담당자·개발자만"""
+    """작업 코드 받기 (확장): 파생 브랜치의 서버 최신 내용을 넣은 작업 브랜치의 파일 전체(base64) + .task/TASK.md·files.txt·RULES.md. 담당자·개발자만"""
     item = _item(project, key)
     if not item.get("branch"):
         raise BadRequest("아직 배정하지 않은 작업입니다.")
@@ -528,7 +560,7 @@ def archive(project: str, key: str, member) -> dict:
         files.append({"path": rel, "content": base64.b64encode(raw).decode("ascii")})
     head = repo.git(root, "rev-parse", "HEAD").strip()
     task = {"TASK.md": brief(project, key), "files.txt": "\n".join(item["files"]) + "\n", "RULES.md": RULES}
-    return {"project": project, "key": key, "branch": item["branch"], "head": head, "files": files, "task": task,
+    return {"project": project, "key": key, "branch": item["branch"], "base": _base(item), "head": head, "files": files, "task": task,
             "editable": item["files"], "sync": sync}
 
 
@@ -603,12 +635,12 @@ def review_files(project: str, key: str) -> dict:
     if not item.get("branch"):
         raise BadRequest("아직 배정하지 않은 작업입니다.")
     app = repo.ensure_repo(project)
-    base = repo.git(app, "merge-base", repo.DEV, item["branch"]).strip()
+    base = repo.git(app, "merge-base", _base(item), item["branch"]).strip()
     out = []
-    for rel in _changed(project, item["branch"]):
+    for rel in _changed(project, item["branch"], _base(item)):
         def show(ref: str) -> str | None:
             res = repo.git(app, "show", f"{ref}:{rel}", check=False)
             code, _, text = res.partition("\n")
             return base64.b64encode(text.encode("utf-8")).decode("ascii") if code == "0" else None
         out.append({"path": rel, "before": show(base), "after": show(item["branch"])})
-    return {"key": key, "branch": item["branch"], "files": out, "outside": outside(project, key, [f["path"] for f in out])}
+    return {"key": key, "branch": item["branch"], "base": _base(item), "files": out, "outside": outside(project, key, [f["path"] for f in out])}

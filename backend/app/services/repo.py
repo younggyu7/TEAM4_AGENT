@@ -2,7 +2,7 @@
 
 - 코드 폴더(OUTPUT_DIR/<프로젝트>/app)가 저장소이고 그 작업 폴더는 dev 브랜치(통합·테스트 배포)다. gen·dev·main은 화면에서 직접 고치거나 커밋하지 않는다.
   gen(AI 생성 결과)은 최종 개발하기만 커밋한다 (작성자 req-agent, 태그 final-v<최종본>). 생성기는 gen 작업 폴더(.preview/worktrees/gen)에 쓴다.
-  처음 개발하면 dev를 gen과 같은 커밋으로 만든다(자동 병합). 다시 개발하면 gen → dev 합치기 요청을 자동으로 낸다 (개발자가 승인).
+  처음 개발하면 dev를 gen과 같은 커밋으로 만든다(자동 병합). 다시 개발하면 그 결과로 새 브랜치 candidate-v<n>을 만들고 dev는 그대로 둔다.
   dev가 바뀌는 길: ① 합치기 요청을 합침 (gen 또는 작업 브랜치) ② 화면 구성 저장.
   main(고객 납품)은 첫 '릴리스' 때 만들고, 그 뒤로도 릴리스로만 dev까지 앞으로 감긴다(태그 release-<날짜>-<n>).
   예전 저장소는 처음 열 때 main에서 dev를, dev에서 gen을 만든다.
@@ -32,6 +32,7 @@ MAIN = "main"       # 고객 납품 (첫 릴리스 때 생기고 릴리스로만
 DEV = "dev"         # 통합·테스트 배포 (코드 폴더의 작업 브랜치)
 GEN = "gen"         # AI 생성 결과 (최종 개발하기만 커밋)
 PROTECTED = (MAIN, DEV, GEN)
+CANDIDATE = re.compile(r"^candidate-v(\d+)$")   # 다시 개발한 결과 (dev는 그대로 둔다). 처음 개발이 v1(dev)이라 v2부터
 AI_NAME, AI_EMAIL = "req-agent", "req-agent@req-agent.local"
 REPO_FILE = "repo.json"
 EXCLUDE = ".preview/\n.req-agent/\nlocal/\nnode_modules/\ndist/\ntarget/\n.env\n"
@@ -131,8 +132,8 @@ def gen_tree(project: str) -> Path:
 def commit_develop(project: str, version: str, message: str, member) -> dict:
     """최종 개발하기 뒤: 생성 결과를 gen에 req-agent 커밋으로, 태그 final-v<최종본>을 그 커밋에 (다시 개발하면 옮김).
     처음(저장소가 없을 때: 생성기가 코드 폴더에 썼다)이면 dev를 gen과 같은 커밋으로 둔다 (자동 병합).
-    다시 개발해 바뀐 것이 있으면 gen → dev 합치기 요청을 낸다 (요청한 사람 = 개발을 시작한 회원).
-    → {commit: sha|None, first: bool, request: 요청 ID|None}"""
+    다시 개발해 바뀐 것이 있으면 그 결과로 새 브랜치 candidate-v<n>을 만든다 (dev는 그대로. 사람이 고른 브랜치로 작업을 보낸다).
+    → {commit: sha|None, first: bool, branch: 새 브랜치|None}"""
     app = app_dir(project)
     if not (app / ".git").exists():
         with _lock:
@@ -144,7 +145,7 @@ def commit_develop(project: str, version: str, message: str, member) -> dict:
             git(app, "tag", "-f", f"final-v{version}", GEN)
             sha = git(app, "rev-parse", GEN).strip()
         gen_tree(project)
-        return {"commit": sha, "first": True, "request": None}
+        return {"commit": sha, "first": True, "branch": None}
     tree = gen_tree(project)
     with _lock:
         git(tree, "add", "-A")
@@ -153,8 +154,15 @@ def commit_develop(project: str, version: str, message: str, member) -> dict:
             git(tree, "commit", "-q", "-m", message, who=(AI_NAME, AI_EMAIL))
             sha = git(tree, "rev-parse", "HEAD").strip()
         git(app, "tag", "-f", f"final-v{version}", GEN)
-    req = request_merge(project, GEN, message, member, generated=True) if sha else None
-    return {"commit": sha, "first": False, "request": req["id"] if req else None}
+        branch = None
+        if sha:
+            numbers = [int(m[1]) for b in git(app, "for-each-ref", "refs/heads", "--format=%(refname:short)").split() if (m := CANDIDATE.match(b))]
+            branch = f"candidate-v{max(numbers, default=1) + 1}"
+            git(app, "branch", branch, GEN)
+            data = _data(project)
+            data["branches"][branch] = {"owner": _who(member), "at": _now(), "from": GEN}
+            _write(project, data)
+    return {"commit": sha, "first": False, "branch": branch}
 
 
 def develop_message(version: str, ai: dict, member_name: str) -> str:
@@ -289,6 +297,9 @@ def delete_branch(project: str, name: str, member) -> None:
         raise Forbidden("브랜치는 만든 사람이나 개발자만 지웁니다.")
     if any(r["branch"] == name and r["status"] == "open" for r in data["requests"]):
         raise BadRequest("열린 합치기 요청이 있는 브랜치는 지우지 않습니다 (반려되거나 합친 뒤 지우세요).")
+    from app.services import work
+    if work.based_on(project, name):
+        raise BadRequest("이 브랜치에서 파생된 진행 중 작업이 있어 지우지 않습니다 (작업이 끝난 뒤 지우세요).")
     with _lock:
         if (path := _worktrees(app).get(name)) is not None:
             git(app, "worktree", "remove", "--force", str(path))
@@ -318,9 +329,9 @@ def commit(project: str, branch: str, message: str, member, paths: list[str] | N
     return {"commit": sha, "files": picked, "branch": branch}
 
 
-def update_branch(project: str, branch: str, member) -> dict:
-    """dev 가져오기: dev를 그 브랜치에 합친다 (커밋 안 한 변경이 있으면 거부, 충돌이면 되돌리고 409).
-    브랜치에 dev에 없는 커밋이 없으면 합치기 커밋 없이 dev로 앞으로 감는다"""
+def update_branch(project: str, branch: str, member, base: str = DEV) -> dict:
+    """base 가져오기 (기본 dev): base를 그 브랜치에 합친다 (커밋 안 한 변경이 있으면 거부, 충돌이면 되돌리고 409).
+    브랜치에 base에 없는 커밋이 없으면 합치기 커밋 없이 base로 앞으로 감는다"""
     if not branch or branch in PROTECTED:
         raise BadRequest("브랜치를 고르세요.")
     root = worktree(project, branch)
@@ -328,19 +339,19 @@ def update_branch(project: str, branch: str, member) -> dict:
         if changes(root):
             raise BadRequest("커밋하지 않은 변경이 있습니다. 먼저 '저장하기'를 하세요.")
         app = app_dir(project)
-        behind, ahead = _counts(app, DEV, branch)
+        behind, ahead = _counts(app, base, branch)
         if not behind:
-            return {"merged": False, "message": "이미 dev의 최신 내용이 들어 있습니다."}
+            return {"merged": False, "message": f"이미 {base}의 최신 내용이 들어 있습니다."}
         if not ahead:
-            git(root, "merge", "-q", "--ff-only", DEV)
-            return {"merged": True, "message": f"dev의 커밋 {behind}개를 가져왔습니다.", "commit": git(root, "rev-parse", "HEAD").strip()}
-        result = git(root, "merge", "--no-ff", "--no-edit", "-m", f"dev 가져오기: {DEV} → {branch}", DEV,
+            git(root, "merge", "-q", "--ff-only", base)
+            return {"merged": True, "message": f"{base}의 커밋 {behind}개를 가져왔습니다.", "commit": git(root, "rev-parse", "HEAD").strip()}
+        result = git(root, "merge", "--no-ff", "--no-edit", "-m", f"{base} 가져오기: {base} → {branch}", base,
                      check=False, who=(member.name, member.email))
         if not result.startswith("0\n"):
             files = _conflicts(root)
             git(root, "merge", "--abort", check=False)
-            raise MergeConflict(f"dev와 충돌해 가져오지 않았습니다: {', '.join(files) or '알 수 없음'}", files)
-    return {"merged": True, "message": f"dev의 커밋 {behind}개를 가져왔습니다.", "commit": git(root, "rev-parse", "HEAD").strip()}
+            raise MergeConflict(f"{base}와 충돌해 가져오지 않았습니다: {', '.join(files) or '알 수 없음'}", files)
+    return {"merged": True, "message": f"{base}의 커밋 {behind}개를 가져왔습니다.", "commit": git(root, "rev-parse", "HEAD").strip()}
 
 
 def _conflicts(root: Path) -> list[str]:
@@ -372,42 +383,36 @@ def _request(data: dict, request_id: int) -> dict:
     return found
 
 
-def request_merge(project: str, branch: str, note: str, member, generated: bool = False) -> dict:
-    """합치기 요청: dev보다 앞선 커밋이 있고 커밋 안 한 변경이 없어야 한다. 개발자에게 알림.
-    generated: 다시 개발한 결과(gen → dev) — 최종 개발하기만 낸다. 열린 gen 요청이 있으면 새로 내지 않고 그 요청을 최신 gen으로 바꾼다"""
+def request_merge(project: str, branch: str, note: str, member, target: str = DEV) -> dict:
+    """합치기 요청: target(기본 dev)보다 앞선 커밋이 있고 커밋 안 한 변경이 없어야 한다. 개발자에게 알림"""
     from app.services import directives
 
-    if not branch or (branch in PROTECTED and not (generated and branch == GEN)):
+    if not branch or branch in PROTECTED:
         raise BadRequest("dev·main·gen은 합치기 요청을 하지 않습니다.")
     root = worktree(project, branch)
     if changes(root):
         raise BadRequest("커밋하지 않은 변경이 있습니다. 먼저 '저장하기'를 하세요.")
-    _, ahead = _counts(app_dir(project), DEV, branch)
+    _, ahead = _counts(app_dir(project), target, branch)
     if not ahead:
-        raise BadRequest("dev에 없는 커밋이 없습니다 (합칠 것이 없음).")
+        raise BadRequest(f"{target}에 없는 커밋이 없습니다 (합칠 것이 없음).")
     with _lock:
         data = _data(project)
         head = git(root, "rev-parse", "HEAD").strip()
         req = next((r for r in data["requests"] if r["branch"] == branch and r["status"] == "open"), None)
-        if req is not None and not generated:
-            raise BadRequest("이 브랜치에는 이미 열린 합치기 요청이 있습니다.")
         if req is not None:
-            req.update(note=note.strip()[:1000], by=_who(member), at=_now(), head=head, ahead=ahead, conflicts=[])
-        else:
-            req = {"id": max([r["id"] for r in data["requests"]] or [0]) + 1, "branch": branch, "note": note.strip()[:1000],
-                   "by": _who(member), "at": _now(), "status": "open", "head": head, "ahead": ahead, "conflicts": []}
-            data["requests"].insert(0, req)
-        if generated:
-            req["generated"] = True
+            raise BadRequest("이 브랜치에는 이미 열린 합치기 요청이 있습니다.")
+        req = {"id": max([r["id"] for r in data["requests"]] or [0]) + 1, "branch": branch, "target": target, "note": note.strip()[:1000],
+               "by": _who(member), "at": _now(), "status": "open", "head": head, "ahead": ahead, "conflicts": []}
+        data["requests"].insert(0, req)
         _write(project, data)
-    title = f"AI 재생성 결과를 dev에 합치기 요청 ({member.name}님 개발)" if generated else f"{member.name}님의 합치기 요청 ({branch})"
+    title = f"{member.name}님의 합치기 요청 ({branch} → {target})"
     directives.add_event(project, "merge_request", title, req["note"] or f"커밋 {ahead}개", "develop", final_version(project), {DEVELOPER},
                          by=member.id)
     return req
 
 
 def merge(project: str, request_id: int, member) -> dict:
-    """개발자가 합친다: dev 작업 폴더(코드 폴더)에서 git merge --no-ff. 충돌이면 되돌리고 409(요청은 열린 채 conflicts 표시).
+    """개발자가 합친다: 요청의 대상 브랜치(예전 요청은 dev) 작업 폴더에서 git merge --no-ff. 충돌이면 되돌리고 409(요청은 열린 채 conflicts 표시).
     요청한 사람은 자기 요청을 합치지 않는다 (개발자 담당자가 한 명이면 허용·'본인 승인' 기록)"""
     from app.services import directives, preview
 
@@ -419,24 +424,27 @@ def merge(project: str, request_id: int, member) -> dict:
         branch = req["branch"]
         if not _exists(app, branch):
             raise NotFound(f"브랜치가 없습니다: {branch}")
-        if changes(app):
-            raise Conflict("dev 작업 폴더에 커밋하지 않은 변경이 있어 합치지 않습니다 (서버 코드 폴더를 확인하세요).")
-        message = f"합치기: {branch} (요청 {req['by']['name']}, 승인 {member.name}{' · 본인 승인' if alone else ''})"
-        result = git(app, "merge", "--no-ff", "-m", message, branch, check=False, who=(member.name, member.email))
+        target = req.get("target") or DEV
+        root = worktree(project, target)
+        if changes(root):
+            raise Conflict(f"{target} 작업 폴더에 커밋하지 않은 변경이 있어 합치지 않습니다 (서버 코드 폴더를 확인하세요).")
+        message = f"합치기: {branch} → {target} (요청 {req['by']['name']}, 승인 {member.name}{' · 본인 승인' if alone else ''})"
+        result = git(root, "merge", "--no-ff", "-m", message, branch, check=False, who=(member.name, member.email))
         if not result.startswith("0\n"):
-            files = _conflicts(app)
-            git(app, "merge", "--abort", check=False)
+            files = _conflicts(root)
+            git(root, "merge", "--abort", check=False)
             req["conflicts"] = files
             _write(project, data)
             how = ("AI가 바꾼 파일을 사람도 dev에서 고쳤습니다. 반려한 뒤 그 파일은 작업 브랜치에서 사람이 맞추세요."
-                   if branch == GEN else "요청한 사람이 'dev 가져오기'로 충돌을 풀고 다시 저장해야 합니다.")
-            raise MergeConflict(f"dev와 충돌해 합치지 않았습니다: {', '.join(files) or '알 수 없음'}. {how}", files)
-        req.update(status="merged", conflicts=[], commit=git(app, "rev-parse", "HEAD").strip(), done_by=_who(member), done_at=_now(),
+                   if branch == GEN or CANDIDATE.match(branch) else f"요청한 사람이 '{target} 가져오기'로 충돌을 풀고 다시 저장해야 합니다.")
+            raise MergeConflict(f"{target}와 충돌해 합치지 않았습니다: {', '.join(files) or '알 수 없음'}. {how}", files)
+        req.update(status="merged", conflicts=[], commit=git(root, "rev-parse", "HEAD").strip(), done_by=_who(member), done_at=_now(),
                    self_approved=alone)
         _write(project, data)
-    directives.add_event(project, "merged", f"{member.name}님이 합치기 요청을 반영했습니다 ({branch})", req["note"],
+    directives.add_event(project, "merged", f"{member.name}님이 합치기 요청을 반영했습니다 ({branch} → {target})", req["note"],
                          "develop", final_version(project), None, member_ids={req["by"]["id"]}, by=member.id)
-    preview.mark_stale(project)
+    if target == DEV:
+        preview.mark_stale(project)
     return req
 
 
@@ -511,11 +519,13 @@ def release(project: str, member) -> dict:
 # ---------------------------------------------------------------- 이력 그래프 · 차이 보기
 
 def log(project: str, limit: int = 80) -> list[dict]:
-    """모든 브랜치의 커밋 (시간 순, 최신이 먼저): sha·부모·작성자·날짜·제목·ref(브랜치·태그·원격·HEAD)·ai(req-agent)"""
+    """프로젝트 브랜치·태그와 이어진 원격의 커밋 (시간 순, 최신이 먼저): sha·부모·작성자·날짜·제목·ref(브랜치·태그·원격·HEAD)·ai(req-agent).
+    이력이 이어지지 않은 원격 참조는 다른 저장소이므로 그리지 않는다"""
     app = ensure_repo(project)
+    remotes = [r for r in git(app, "for-each-ref", "refs/remotes", "--format=%(refname)").split() if _ok(app, "merge-base", DEV, r)]
     fmt = "%H%x00%P%x00%an%x00%ae%x00%aI%x00%s%x00%D%x1e"
     out = []
-    for rec in git(app, "log", "--all", "--date-order", f"-n{max(1, min(limit, 500))}", f"--format={fmt}").split("\x1e"):
+    for rec in git(app, "log", "--branches", "--tags", *remotes, "--date-order", f"-n{max(1, min(limit, 500))}", f"--format={fmt}").split("\x1e"):
         rec = rec.strip("\n")
         if not rec:
             continue
@@ -586,9 +596,10 @@ def branch_diff(project: str, branch: str) -> dict:
         return {"branch": MAIN, "ahead": behind, "behind": ahead, "files": _diff(app, base, head)}
     if branch == DEV or not _exists(app, branch):
         raise NotFound(f"브랜치가 없습니다: {branch}")
-    base = git(app, "merge-base", DEV, branch).strip()
-    behind, ahead = _counts(app, DEV, branch)
-    return {"branch": branch, "ahead": ahead, "behind": behind, "files": _diff(app, base, branch)}
+    target = next((r.get("target") or DEV for r in _data(project)["requests"] if r["branch"] == branch and r["status"] == "open"), DEV)
+    base = git(app, "merge-base", target, branch).strip()
+    behind, ahead = _counts(app, target, branch)
+    return {"branch": branch, "target": target, "ahead": ahead, "behind": behind, "files": _diff(app, base, branch)}
 
 
 def overview(project: str) -> dict:

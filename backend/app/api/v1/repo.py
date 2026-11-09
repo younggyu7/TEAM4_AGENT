@@ -101,13 +101,15 @@ def commit(body: CommitBody, member: users.Member = Depends(current_user)):
 @router.post("/develop/repo/update-branch", summary="dev 가져오기: dev를 브랜치에 합침")
 def update_branch(body: BranchOnly, member: users.Member = Depends(current_user)):
     ensure(member, "repo_write")
-    return repo.update_branch(_project(body.project), body.branch, member)
+    from app.services import work
+    return repo.update_branch(_project(body.project), body.branch, member, work.base_of(_project(body.project), body.branch))
 
 
 @router.post("/develop/repo/request", summary="합치기 요청 (개발자)")
 def request_merge(body: RequestBody, member: users.Member = Depends(current_user)):
     ensure(member, "repo_write")
-    return repo.request_merge(_project(body.project), body.branch, body.note, member)
+    from app.services import work
+    return repo.request_merge(_project(body.project), body.branch, body.note, member, work.base_of(_project(body.project), body.branch))
 
 
 @router.post("/develop/repo/merge", summary="합치기 (개발자)")
