@@ -360,3 +360,14 @@ def test_preview_reports_why_the_app_server_stopped(monkeypatch):
     assert reason.startswith("Caused by: ConflictingBeanDefinitionException") and "app.feature.FnA" in reason
     assert any("Application run failed" in p for p in pushed) and not any(p.strip().endswith("(Foo.java:1)") for p in pushed), \
         "원인 줄만 (스택 줄 at … 은 뺀다)"
+
+
+def test_demo_accounts_use_the_latest_password(tmp_path, monkeypatch):
+    """앱 DB를 새로 만들면 앱이 시연 계정 비밀번호를 accounts.txt 뒤에 덧붙인다: 같은 아이디가 여러 번이면 마지막(현재 DB) 것을 쓴다"""
+    from app.services import preview
+
+    monkeypatch.setattr(preview, "app_dir", lambda project: tmp_path)
+    (tmp_path / "local").mkdir()
+    (tmp_path / "local" / "accounts.txt").write_text(
+        "# 시연 계정\nadmin\t전체 보기\told-a\nuser\t임직원\told-u\nadmin\t전체 보기\tnew-a\nuser\t임직원\tnew-u\n", encoding="utf-8")
+    assert [(a["loginId"], a["password"]) for a in preview.accounts("x")] == [("admin", "new-a"), ("user", "new-u")]

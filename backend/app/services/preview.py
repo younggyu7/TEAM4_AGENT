@@ -279,6 +279,9 @@ def _bring_up(project: str) -> None:
         # 스키마가 바뀌었을 때, 계정 비밀번호 파일이 없을 때(DB에만 계정이 있으면 로그인할 수 없다)
         if s.get("schema") != schema or not (app / "local" / "accounts.txt").is_file():
             out._sh([*cmd, "down", "-v"], app, env)
+            # DB의 계정이 사라졌으므로 옛 비밀번호 파일도 지운다: 남겨 두면 앱이 새 비밀번호를 뒤에 덧붙여
+            # 같은 아이디가 두 번 적히고, 옛 비밀번호로 로그인해 401이 났다
+            (app / "local" / "accounts.txt").unlink(missing_ok=True)
         if out._sh([*cmd, "up", "-d"], app, env) != 0:
             raise RuntimeError("컨테이너를 시작하지 못했습니다 (위 기록).")
         import httpx
@@ -319,17 +322,19 @@ def terminal(project: str) -> dict:
 
 
 def accounts(project: str) -> list[dict]:
-    """앱이 처음 뜰 때 만든 시연 계정 (local/accounts.txt: 아이디·역할·비밀번호, 탭 구분)"""
+    """앱이 처음 뜰 때 만든 시연 계정 (local/accounts.txt: 아이디·역할·비밀번호, 탭 구분).
+    앱은 계정을 새로 만들 때마다 뒤에 덧붙이므로, 같은 아이디가 여러 번 있으면 마지막(가장 최근) 것을 쓴다"""
     path = app_dir(project) / "local" / "accounts.txt"
     if not path.is_file():
         return []
-    out = []
+    out: dict[str, dict] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         parts = line.split("\t")
         if line.startswith("#") or len(parts) < 3:
             continue
-        out.append({"loginId": parts[0], "role": parts[1], "password": parts[2]})
-    return out
+        out.pop(parts[0], None)   # 나중에 적힌 것이 순서도 뒤로
+        out[parts[0]] = {"loginId": parts[0], "role": parts[1], "password": parts[2]}
+    return list(out.values())
 
 
 def wait(project: str, limit: int = 20 * 60) -> dict:
