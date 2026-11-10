@@ -916,6 +916,31 @@ EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
 """
 
+# 저장할 때 자동 정렬(Prettier·Black)이 생성 코드를 다시 쓰지 않게: 바뀐 곳이 묻히고 합칠 때 충돌한다.
+# 생성 코드는 Prettier 규칙으로 만든 것이 아니라 스타일만 맞춰서는 해결되지 않는다 (실측: 설정을 맞춰도 파일 대부분이 바뀜)
+PRETTIERRC = """{
+  "requirePragma": true
+}
+"""
+EDITORCONFIG = """root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.{ts,tsx,js,mjs,json,css,html,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.{java,py}]
+indent_style = space
+indent_size = 4
+"""
+PYPROJECT = """# 저장할 때 Black이 생성 코드를 다시 쓰지 않게 한다 (바뀐 곳이 묻히고 합칠 때 충돌한다)
+[tool.black]
+force-exclude = ".*"
+"""
 DOCKERIGNORE = "**/node_modules\n**/target\n**/dist\n**/dist-check\nlocal\n.req-agent\n.preview\n.git\n"
 
 COMPOSE = """# 시연용 서비스: PostgreSQL(schema.sql + seed.sql) + 서버(화면 포함). 운영 설정이 아니다.
@@ -1202,6 +1227,9 @@ def render_app(spec: Spec, menu_names: dict[str, str] | None = None, logic: dict
         files["Dockerfile"] = DOCKERFILE
         files[".dockerignore"] = DOCKERIGNORE
     # .preview(미리보기·브랜치 작업 폴더)·.req-agent(생성기 기록)는 코드 저장소에 커밋하지 않는다 (services/repo.py)
+    files[".prettierrc"], files[".editorconfig"] = PRETTIERRC, EDITORCONFIG
+    if python:
+        files["pyproject.toml"] = PYPROJECT
     files[".gitignore"] = "node_modules/\ndist/\ntarget/\n.env\nlocal/\n.preview/\n.req-agent/\n" + ("__pycache__/\n.venv/\n" if python else "")
     files["README.md"] = _readme(spec, data, skipped)
     if backend:   # dev를 원격에 올리면 테스트 서버에 다시 띄운다 (비밀값이 없으면 건너뜀)

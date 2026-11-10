@@ -735,6 +735,14 @@ def test_nextjs_frontend_uses_same_screens_under_ui_and_static_export(sample_doc
     assert files == scaffold.render_app(spec)[0], "같은 스펙이면 같은 결과"
 
 
+def test_app_turns_off_format_on_save_for_generated_code(sample_doc):
+    """저장할 때 자동 정렬이 생성 코드를 다시 쓰지 않게 .prettierrc(requirePragma)·.editorconfig, Python 틀이면 Black 제외"""
+    files, _ = scaffold.render_app(_spec(sample_doc))
+    assert '"requirePragma": true' in files[".prettierrc"] and "end_of_line = lf" in files[".editorconfig"]
+    assert "pyproject.toml" not in files, "Python 틀이 아니면 Black 설정을 넣지 않는다"
+    assert 'force-exclude = ".*"' in scaffold.PYPROJECT
+
+
 def test_layout_and_color_are_chosen_separately_and_reach_css_and_design_doc(sample_doc):
     """형태 3가지 × 색: theme.css에 둘 다, spec/DESIGN.md에 둘 다. AI 입력에는 형태만 (색만 바꾸면 다시 만들지 않는다). 다음 개발도 같게"""
     from app.agents.roles import builder
