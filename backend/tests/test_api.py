@@ -499,3 +499,14 @@ def test_pm_renames_a_project_and_only_the_shown_name_changes(project):
     assert "project_rename" in pm.get("/api/v1/auth/me").json()["user"]["permissions"]
 
 
+def test_unmet_completion_is_a_check_not_a_failure():
+    """완료 조건 미충족은 실패가 아니라 '필수 확인'으로, 판단 기록의 실패만 실패로 알린다"""
+    from app.services.jobs.common import findings
+
+    design = {"decisions": [{"step": 3, "action": "semantic_reviewer", "result": "완료 → 미해결 오류 7건"}],
+              "completion": {"checks": [{"name": "원문 근거 연결", "passed": False, "detail": "근거 미확인 2건"},
+                                        {"name": "데이터 모델 무결성", "passed": True, "detail": "모델 오류 0건"}]}}
+    assert findings(design) == ([], ["원문 근거 연결: 근거 미확인 2건"])
+    design["decisions"].append({"step": 4, "action": "data_modeler", "result": "LLM 호출 실패 (재시도 소진)"})
+    assert findings(design)[0] == ["#4 data_modeler: LLM 호출 실패 (재시도 소진)"]
+

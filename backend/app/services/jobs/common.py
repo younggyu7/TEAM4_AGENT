@@ -50,7 +50,8 @@ class Job:
     message: str
     log: list[str] = field(default_factory=list)
     new_version: str | None = None
-    warnings: list[str] = field(default_factory=list)   # 새 버전은 만들었지만 Agent 단계가 실패한 경우
+    warnings: list[str] = field(default_factory=list)   # 새 버전은 만들었지만 Agent 단계가 실패한 경우 (진짜 실패: LLM 오류·단계 실패)
+    checks: list[str] = field(default_factory=list)     # 실패는 아니고 사람이 확인할 것 (충족 못 한 완료 조건: 근거 미확인·테이블 없는 기능 …)
     started_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
     finished_at: str | None = None
 
@@ -188,11 +189,13 @@ class _Runner:
         # Agent에 넘긴 기능 명세를 새 버전에 남긴다 (어떤 명세로 만든 ERD인지 확인용)
         if self.submitted_md:
             get_store().write(self.project, newest, "functions.submitted.md", self.submitted_md)
-        self.job.warnings = [*_llm_errors(self.job.log), *self.pre, *_run_warnings(self.project, newest)]
+        failed, checks = _run_findings(self.project, newest)
+        self.job.warnings, self.job.checks = [*_llm_errors(self.job.log), *self.pre, *failed], checks
         if self.on_done:   # 다시 내보내기처럼 한 작업이 버전을 둘(기능 명세 v2 + ERD v2.1) 만들면 둘 다 (제목·만든 사람)
             for label in sorted(created, key=version_key):
                 self.on_done(label)
         self._finish("done", f"v{newest}을 만들었지만 Agent 단계 일부가 실패했습니다." if self.job.warnings
+                     else f"v{newest}을 만들었습니다 · 필수 확인 {len(checks)}건이 있습니다." if checks
                      else f"v{newest}을 만들었습니다.")
 
     def _reviewed(self) -> None:
@@ -242,17 +245,21 @@ def _temp_file(job: Job, name: str, body: str, temp: list[Path]) -> Path:
     return f
 
 
-def _run_warnings(project: str, version: str) -> list[str]:
-    """실행은 끝났어도 Agent가 단계를 반복 실패하면 남은 결과로 '현재 상태로 제공'한다.
-    그런 경우를 화면에 알리도록 판단 기록의 실패 결과와 충족 못 한 완료 조건을 모은다."""
+def _run_findings(project: str, version: str) -> tuple[list[str], list[str]]:
+    """새 버전을 만든 뒤 알릴 것: (진짜 실패, 사람이 확인할 것).
+    Agent가 단계를 반복 실패하면 남은 결과로 '현재 상태로 제공'한다 → 판단 기록의 실패 결과는 실패로 알린다.
+    충족 못 한 완료 조건(근거 미확인·테이블 없는 기능 등)은 산출물이 정상으로 만들어진 것이므로 실패가 아니라 확인 필요로 알린다."""
     try:
         d = json.loads(get_store().read(project, version, "design.json") or "")
     except ValueError:
-        return []
-    failed = [x for x in d.get("decisions") or [] if re.search(r"실패|검토 못 함", x.get("result") or "")]
-    checks = [c for c in (d.get("completion") or {}).get("checks") or [] if not c.get("passed")]
-    return [*(f"#{x['step']} {x['action']}: {x['result']}" for x in failed),
-            *(f"완료 조건 미충족 — {c['name']}: {c['detail']}" for c in checks)]
+        return [], []
+    return findings(d)
+
+
+def findings(design: dict) -> tuple[list[str], list[str]]:
+    failed = [x for x in design.get("decisions") or [] if re.search(r"실패|검토 못 함", x.get("result") or "")]
+    checks = [c for c in (design.get("completion") or {}).get("checks") or [] if not c.get("passed")]
+    return [f"#{x['step']} {x['action']}: {x['result']}" for x in failed], [f"{c['name']}: {c['detail']}" for c in checks]
 
 
 def _llm_errors(log: list[str]) -> list[str]:
