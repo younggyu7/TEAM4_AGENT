@@ -210,6 +210,28 @@ def test_archive_brings_in_latest_dev_merged_by_others(sample_doc):
     assert not pack["sync"]["merged"] and pack["sync"]["conflicts"] == ["README.md"] and got["README.md"] == "# 내 쪽\n"
 
 
+def test_file_list_matches_the_code_the_assignee_receives(sample_doc):
+    """서버 dev 작업 폴더에 커밋 안 된 파일·옛 생성물이 남아도 목록에 넣지 않는다. 받는 files.txt는 받은 코드에 실제로 있는 파일만"""
+    _developed(sample_doc)
+    pm, dev, dev2, ids = _team()
+    app = develop.app_dir(P)
+    fn = next(i for i in dev.get("/api/v1/develop/work", params={"project": P}).json()["items"] if i["kind"] == "server")
+    real = next(p for p in fn["files"] if p.endswith((".java", ".py", ".ts")))
+    stray = real.rsplit("/", 1)[0] + "/stray_" + real.rsplit("/", 1)[1]
+    tracked = set(repo.git(app, "ls-files").split())
+    root, name = "/".join(real.split("/")[:-2]), real.rsplit("/", 1)[1]
+    leftover = next(f"{root}/{d}/{name}" for d in ("feature", "api", "logic") if f"{root}/{d}/{name}" not in tracked)   # 같은 기능의 옛 생성물 자리
+    for extra in (stray, leftover):
+        (app / extra).parent.mkdir(parents=True, exist_ok=True)
+        (app / extra).write_text("// 커밋 안 된 파일\n", encoding="utf-8")
+    item = next(i for i in dev.get("/api/v1/develop/work", params={"project": P}).json()["items"] if i["key"] == fn["key"])
+    assert leftover not in item["files"] and stray not in item["files"] and real in item["files"], "목록은 dev에 커밋된 파일로"
+    assert dev.post("/api/v1/develop/work/assign", json={"project": P, "key": fn["key"], "user_id": ids["dev"]}).status_code == 200
+    pack = dev.get("/api/v1/develop/work/archive", params={"project": P, "key": fn["key"]}).json()
+    sent = {f["path"] for f in pack["files"]}
+    assert set(pack["editable"]) <= sent and pack["task"]["files.txt"].split() == pack["editable"], "고칠 파일은 모두 받은 코드에 있다"
+
+
 def test_work_sent_from_a_branch_gets_its_latest_code_and_merges_back_into_it(sample_doc):
     """다시 개발한 candidate-v2로 보낸 작업: 그 브랜치 코드를 받고, 승인하면 그 브랜치로 합치며 dev는 그대로. 어디서 파생됐는지 함께 알린다"""
     _developed(sample_doc)

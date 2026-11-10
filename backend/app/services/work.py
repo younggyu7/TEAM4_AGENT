@@ -118,6 +118,12 @@ def _files(root: Path) -> list[str]:
     return out
 
 
+def _tracked(app: Path, ref: str) -> list[str]:
+    """그 브랜치에 커밋된 파일 (작업 폴더에 남은 커밋 안 한 파일·옛 생성물은 넣지 않는다, 경로 순)"""
+    names = repo.git(app, "ls-tree", "-r", "-z", "--name-only", ref).split("\0")
+    return sorted(p for p in names if p and not any(part in SKIP or part == ".DS_Store" for part in p.split("/")))
+
+
 def _bundle_meta(key: str, index: _Index) -> dict:
     if key == "common-ui":
         return {"kind": "common_ui", "layer": "frontend", "title": "공통 화면 틀", "functions": [], "area": None,
@@ -139,11 +145,12 @@ def _bundle_meta(key: str, index: _Index) -> dict:
 
 
 def bundles(project: str) -> list[dict]:
-    """작업 묶음 (공통 화면 틀 → 화면(영역 순) → 공통 서버·DB → 서버(영역 순)). 파일은 모두 한 묶음에 들어간다"""
+    """작업 묶음 (공통 화면 틀 → 화면(영역 순) → 공통 서버·DB → 서버(영역 순)). 파일은 모두 한 묶음에 들어간다.
+    파일은 dev에 커밋된 것으로 정한다 (담당자가 받는 코드와 같게. 서버 작업 폴더에 남은 파일로 정하면 목록에만 있는 파일이 생긴다)"""
     app = repo.ensure_repo(project)
     index = _index(app)
     by_key: dict[str, list[str]] = {}
-    for path in _files(app):
+    for path in _tracked(app, repo.DEV):
         by_key.setdefault(classify(path, index), []).append(path)
     keys = ["common-ui", *[f"screen-{s}" for s in index.sections], "common-server", *[f"server-{s}" for s in index.sections]]
     return [{"key": k, **_bundle_meta(k, index), "files": by_key.get(k, [])} for k in keys if by_key.get(k)]
@@ -559,9 +566,11 @@ def archive(project: str, key: str, member) -> dict:
             raise BadRequest("코드가 너무 커서 한 번에 받지 못합니다.")
         files.append({"path": rel, "content": base64.b64encode(raw).decode("ascii")})
     head = repo.git(root, "rev-parse", "HEAD").strip()
-    task = {"TASK.md": brief(project, key), "files.txt": "\n".join(item["files"]) + "\n", "RULES.md": RULES}
+    index = _index(app_dir(project))
+    editable = [f["path"] for f in files if classify(f["path"], index) == key]   # 받는 코드에 실제로 있는 이 묶음의 파일
+    task = {"TASK.md": brief(project, key), "files.txt": "\n".join(editable) + "\n", "RULES.md": RULES}
     return {"project": project, "key": key, "branch": item["branch"], "base": _base(item), "head": head, "files": files, "task": task,
-            "editable": item["files"], "sync": sync}
+            "editable": editable, "sync": sync}
 
 
 def upload(project: str, key: str, base: str, message: str, changes: list[dict], member, submit_after: bool = False, note: str = "") -> dict:
