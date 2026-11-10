@@ -1,3 +1,4 @@
+import pytest
 """최종 개발물 코드 관리 (services/repo.py · gitpush.py): 실제 git으로 임시 폴더에서 확인한다."""
 import json
 import subprocess
@@ -81,6 +82,52 @@ def test_regenerate_makes_new_branch_and_leaves_dev_alone(sample_doc):
     assert req["target"] == "dev", "후보를 dev에 넣는 길은 합치기 요청"
     assert dev2.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]}).status_code == 200
     assert (develop.app_dir(P) / "frontend/src/App.tsx").read_text(encoding="utf-8") == "y\n"
+
+
+def test_adopt_candidate_replaces_dev_and_keeps_only_chosen_human_files(sample_doc):
+    """후보로 dev를 통째로 바꾼다: 사람이 dev에서 고친 파일은 미리보기에 표시되고, 고른 것만 dev 것을 살린다. 충돌로 멈추지 않는다"""
+    from app.services import project_access
+    from test_develop_screen import _approved_final
+    _approved_final(sample_doc)
+    _developed()
+    dev, dev2 = signed_in_client("developer", "dev"), signed_in_client("developer", "dev2")
+    ids = {m.name: m.id for m in users.list_members()}
+    project_access.set_members(P, [ids["dev"], ids["dev2"]])
+    for path, text in (("README.md", "# 사람이 고침\n"), ("frontend/src/App.tsx", "사람 화면\n")):
+        human = _branch_with_commit(dev, f"feature/{path.split('/')[-1]}", path, text)
+        req = dev.post("/api/v1/develop/repo/request", json={"project": P, "branch": human}).json()
+        assert dev2.post("/api/v1/develop/repo/merge", json={"project": P, "request_id": req["id"]}).status_code == 200
+    res = _regen({"README.md": "# AI가 다시 씀\n", "frontend/src/App.tsx": "AI 화면\n", "NEW.md": "새 파일\n"})
+    branch = res["branch"]
+    plan = dev.get("/api/v1/develop/repo/adopt", params={"project": P, "branch": branch}).json()
+    status = {f["path"]: (f["status"], f["human"]) for f in plan["files"]}
+    assert status["README.md"] == ("M", True) and status["frontend/src/App.tsx"] == ("M", True) and status["NEW.md"] == ("A", False)
+    assert plan["files"][0]["human"], "사람이 고친 파일이 위에"
+    assert dev.post("/api/v1/develop/repo/adopt", json={"project": P, "branch": "dev"}).status_code == 400
+    assert signed_in_client("pm").post("/api/v1/develop/repo/adopt", json={"project": P, "branch": branch}).status_code == 403
+    done = dev.post("/api/v1/develop/repo/adopt", json={"project": P, "branch": branch, "keep": ["README.md"]})
+    assert done.status_code == 200, done.text
+    app = develop.app_dir(P)
+    read = lambda p: (app / p).read_text(encoding="utf-8")   # noqa: E731
+    assert read("README.md") == "# 사람이 고침\n" and read("frontend/src/App.tsx") == "AI 화면\n" and read("NEW.md") == "새 파일\n"
+    assert repo._ok(app, "merge-base", "--is-ancestor", branch, "dev"), "이력이 이어져 후보와 계속 합칠 수 있다"
+    assert repo.changes(app) == {} and _git("log", "-1", "--format=%s", "dev").strip().startswith(f"채택: {branch} → dev")
+
+
+def test_merge_drops_seed_rows_that_break_the_real_schema_of_dev(sample_doc):
+    """dev의 schema.sql을 사람이 고친 뒤 합치면, 그 규칙에 걸리는 예시 행을 빼고 커밋한다 (앱 DB가 뜨지 못하는 일을 막는다)"""
+    from app.agents.tools.db_validator import DbUnavailable, check_seed
+    from app.core.config import DEFAULT_VALIDATION_DB_URL
+
+    schema = "CREATE TABLE doc (doc_id bigint PRIMARY KEY, submitted_at date NOT NULL, approved_at date, CONSTRAINT ck CHECK (approved_at >= submitted_at));"
+    seed = ("-- 예시\nBEGIN;\nINSERT INTO doc (doc_id, submitted_at, approved_at) VALUES (1, '2026-03-03', '2026-03-02');\n"
+            "INSERT INTO doc (doc_id, submitted_at, approved_at) VALUES (2, '2026-03-03', '2026-03-04');\nCOMMIT;\n")
+    try:
+        text, dropped = check_seed(schema, seed, DEFAULT_VALIDATION_DB_URL)
+    except DbUnavailable:
+        pytest.skip("검증용 PostgreSQL이 없음")
+    assert len(dropped) == 1 and dropped[0].startswith("doc: ") and "VALUES (1," not in text and "VALUES (2," in text
+    assert text.splitlines()[1].startswith("-- 뺀 행 (DB 규칙에 걸림): doc") and check_seed(schema, text, DEFAULT_VALIDATION_DB_URL)[1] == []
 
 
 def test_regenerate_conflict_with_human_change_is_409_and_gen_is_protected(sample_doc):

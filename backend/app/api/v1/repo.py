@@ -8,6 +8,7 @@
   DELETE /develop/repo/branch?project=&name=        브랜치 지우기 (만든 사람·개발자, 열린 요청 있으면 거부)
   POST /develop/repo/commit                         저장하기 {project, branch, message, paths?} (개발자, dev·main 거부)
   POST /develop/repo/update-branch                  dev 가져오기 {project, branch} (충돌이면 409 + conflicts)
+  GET·POST /develop/repo/adopt                      후보 브랜치 채택: 미리보기(달라지는 파일·사람이 고친 파일) · dev를 후보 내용으로 {keep: 살릴 파일} (개발자)
   POST /develop/repo/request                        합치기 요청 {project, branch, note} → 개발자 알림
   POST /develop/repo/merge                          합치기 {project, request_id} (개발자, 충돌이면 409 + conflicts)
   POST /develop/repo/reject                         반려 {project, request_id, reason} (개발자)
@@ -53,6 +54,12 @@ class DecideBody(BaseModel):
     project: str
     request_id: int
     reason: str = ""
+
+
+class AdoptBody(BaseModel):
+    project: str
+    branch: str
+    keep: list[str] = Field(default_factory=list)   # dev 것을 살릴 파일 (나머지는 후보 것으로)
 
 
 class ProjectBody(BaseModel):
@@ -117,6 +124,18 @@ def merge(body: DecideBody, member: users.Member = Depends(current_user)):
     ensure(member, "develop")
     _no_running_job(body.project)   # 다시 개발·올리는 중에는 main을 바꾸지 않는다
     return repo.merge(_project(body.project), body.request_id, member)
+
+
+@router.get("/develop/repo/adopt", summary="후보 채택 미리보기: dev와 달라지는 파일 (사람이 고친 파일 표시)")
+def adopt_preview(project: str, branch: str):
+    return repo.adopt_preview(_project(project), branch)
+
+
+@router.post("/develop/repo/adopt", summary="후보를 dev로 채택 (개발자)")
+def adopt(body: AdoptBody, member: users.Member = Depends(current_user)):
+    ensure(member, "develop")
+    _no_running_job(body.project)
+    return repo.adopt(_project(body.project), body.branch, body.keep, member)
 
 
 @router.post("/develop/repo/reject", summary="합치기 요청 반려 (개발자)")

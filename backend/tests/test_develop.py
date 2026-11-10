@@ -735,6 +735,27 @@ def test_nextjs_frontend_uses_same_screens_under_ui_and_static_export(sample_doc
     assert files == scaffold.render_app(spec)[0], "같은 스펙이면 같은 결과"
 
 
+def test_value_condition_fixed_in_erd_reaches_schema_and_seed():
+    """ERD 화면에서 값 조건을 고치면(사용자 수정) 그 조건이 남고, schema.sql과 예시 데이터가 고친 조건으로 만들어진다"""
+    from app.agents.tools.ddl import render_script
+    from app.agents.tools.model_edits import apply_user_edits
+    from app.agents.tools.model_validator import validate_model
+    from app.schemas.data_model import CheckRule
+
+    pk = {"primary_key": True, "nullable": False, "data_type": "bigint"}
+    at = {"data_type": "timestamp", "nullable": False}
+    doc = _entity("approval_document", {"name": "approval_document_id", **pk}, {"name": "submitted_at", **at}, {"name": "approved_at", **at},
+                  checks=[CheckRule(column="approved_at", op="<", value="submitted_at")])
+    original = _model(doc)
+    assert any(i.kind == "MODEL_CHECK_TIME_ORDER" for i in validate_model(original))
+    edited = original.model_copy(deep=True)
+    edited.entities[0].checks = [CheckRule(column="approved_at", op=">=", value="submitted_at")]
+    model, summary = apply_user_edits(original, edited)
+    assert summary.edited == ["approval_document"] and model.entities[0].checks[0].op == ">="
+    assert "CHECK (approved_at >= submitted_at)" in render_script(model, "1") and not any(i.kind == "MODEL_CHECK_TIME_ORDER" for i in validate_model(model))
+    assert all(r["approved_at"] >= r["submitted_at"] for r in sample_rows(model)["approval_document"])
+
+
 def test_app_turns_off_format_on_save_for_generated_code(sample_doc):
     """저장할 때 자동 정렬이 생성 코드를 다시 쓰지 않게 .prettierrc(requirePragma)·.editorconfig, Python 틀이면 Black 제외"""
     files, _ = scaffold.render_app(_spec(sample_doc))

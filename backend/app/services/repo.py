@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -27,6 +28,8 @@ from app.agents.storage import get_store
 from app.core.auth import DEVELOPER, allowed
 from app.core.exceptions import BadRequest, Conflict, Forbidden, NotFound
 from app.services.develop import PREVIEW, app_dir
+
+log = logging.getLogger(__name__)
 
 MAIN = "main"       # 고객 납품 (첫 릴리스 때 생기고 릴리스로만 바뀜)
 DEV = "dev"         # 통합·테스트 배포 (코드 폴더의 작업 브랜치)
@@ -438,14 +441,101 @@ def merge(project: str, request_id: int, member) -> dict:
             how = ("AI가 바꾼 파일을 사람도 dev에서 고쳤습니다. 반려한 뒤 그 파일은 작업 브랜치에서 사람이 맞추세요."
                    if branch == GEN or CANDIDATE.match(branch) else f"요청한 사람이 '{target} 가져오기'로 충돌을 풀고 다시 저장해야 합니다.")
             raise MergeConflict(f"{target}와 충돌해 합치지 않았습니다: {', '.join(files) or '알 수 없음'}. {how}", files)
+        dropped = fix_seed(project, root, member)
         req.update(status="merged", conflicts=[], commit=git(root, "rev-parse", "HEAD").strip(), done_by=_who(member), done_at=_now(),
-                   self_approved=alone)
+                   self_approved=alone, seed_dropped=dropped)
         _write(project, data)
     directives.add_event(project, "merged", f"{member.name}님이 합치기 요청을 반영했습니다 ({branch} → {target})", req["note"],
                          "develop", final_version(project), None, member_ids={req["by"]["id"]}, by=member.id)
     if target == DEV:
         preview.mark_stale(project)
     return req
+
+
+def fix_seed(project: str, root: Path, member) -> list[str]:
+    """합친 뒤: 그 브랜치의 실제 schema.sql로 seed.sql을 넣어 보고, 거부된 행을 빼 커밋한다 (앱 DB가 뜨지 못하는 일을 막는다).
+    PostgreSQL이 아니거나 검증 DB에 접속할 수 없으면 건너뛴다 → 뺀 행과 사유"""
+    from app.agents.tools.db_validator import DbUnavailable, check_seed
+    from app.core.config import get_settings
+
+    schema, seed = root / "db" / "schema.sql", root / "db" / "seed.sql"
+    url = get_settings().validation_db_url
+    if not url or not schema.is_file() or not seed.is_file() or "SET NAMES utf8mb4" in schema.read_text(encoding="utf-8")[:2000]:
+        return []
+    try:
+        text, dropped = check_seed(schema.read_text(encoding="utf-8"), seed.read_text(encoding="utf-8"), url)
+    except DbUnavailable as e:
+        log.warning("[예시 데이터] 검증 DB에 접속하지 못해 합친 뒤 확인을 건너뜀: %s", e)
+        return []
+    if dropped:
+        seed.write_text(text, encoding="utf-8", newline="\n")
+        git(root, "add", "--", "db/seed.sql")
+        git(root, "commit", "-q", "-m", f"예시 데이터 정리: DB 규칙에 걸린 {len(dropped)}행 뺌", "--", "db/seed.sql", who=(member.name, member.email))
+    return dropped
+
+
+# ---------------------------------------------------------------- 채택 (다시 개발한 후보로 dev를 바꾼다)
+
+def adopt_preview(project: str, branch: str) -> dict:
+    """후보 브랜치로 dev를 바꿀 때 달라지는 파일. human: 후보가 갈라진 뒤 dev에서 사람이 고친 파일 (살릴지 고른다)"""
+    app = ensure_repo(project)
+    if not CANDIDATE.match(branch or "") or not _exists(app, branch):
+        raise BadRequest("채택은 다시 개발한 후보 브랜치(candidate-v…)만 합니다.")
+    base = git(app, "merge-base", DEV, branch).strip()
+    human: set[str] = set()
+    author = None
+    for line in git(app, "log", "--no-merges", "--format=@%an", "--name-only", f"{base}..{DEV}").splitlines():
+        if line.startswith("@"):
+            author = line[1:]
+        elif line.strip() and author != AI_NAME:
+            human.add(line.strip())
+    files = []
+    for line in git(app, "diff", "--name-status", "--no-renames", DEV, branch).splitlines():
+        status, path = line.split("\t", 1)
+        files.append({"path": path, "status": status[0], "human": path in human})
+    from app.services import work
+    active = [v.get("title") or k for k, v in work._data(project)["items"].items()
+              if work._base(v) == DEV and v.get("status") in ("assigned", "in_progress", "review", "rejected")]
+    files.sort(key=lambda f: (not f["human"], f["path"]))
+    return {"branch": branch, "target": DEV, "files": files, "human": sum(f["human"] for f in files), "active_work": active}
+
+
+def adopt(project: str, branch: str, keep: list[str], member) -> dict:
+    """후보 브랜치 내용으로 dev를 바꾼다 (keep에 적은 파일만 dev 것을 살린다). git 충돌을 거치지 않는다.
+    이력은 합치기 커밋으로 이어 두므로 후보·작업 브랜치와 계속 합칠 수 있다. 합친 뒤 seed.sql을 dev의 schema.sql로 확인한다"""
+    from app.services import directives, preview
+
+    plan = adopt_preview(project, branch)
+    app = app_dir(project)
+    keep_set = set(keep or [])
+    unknown = keep_set - {f["path"] for f in plan["files"]}
+    if unknown:
+        raise BadRequest(f"달라지는 파일이 아닙니다: {', '.join(sorted(unknown)[:5])}")
+    with _lock:
+        if changes(app):
+            raise Conflict("dev 작업 폴더에 커밋하지 않은 변경이 있어 채택하지 않습니다 (서버 코드 폴더를 확인하세요).")
+        before = git(app, "rev-parse", "HEAD").strip()
+        try:
+            git(app, "merge", "--no-ff", "--no-commit", "-s", "ours", branch)
+            gone = [f["path"] for f in plan["files"] if f["status"] == "D" and f["path"] not in keep_set]
+            if gone:
+                git(app, "rm", "-q", "--", *gone)
+            take = [f["path"] for f in plan["files"] if f["status"] != "D" and f["path"] not in keep_set]
+            for i in range(0, len(take), 200):
+                git(app, "checkout", branch, "--", *take[i:i + 200])
+            message = f"채택: {branch} → dev (승인 {member.name}" + (f", dev 파일 {len(keep_set)}개 살림)" if keep_set else ")")
+            git(app, "commit", "-q", "-m", message, who=(member.name, member.email))
+        except Exception:
+            git(app, "merge", "--abort", check=False)
+            git(app, "reset", "-q", "--hard", before, check=False)
+            raise
+        sha = git(app, "rev-parse", "HEAD").strip()
+        dropped = fix_seed(project, app, member)
+    directives.add_event(project, "merged", f"{member.name}님이 {branch}을(를) dev로 채택했습니다",
+                         f"바뀐 파일 {len(plan['files']) - len(keep_set)}개 · 살린 파일 {len(keep_set)}개"
+                         + (f" · 예시 데이터 {len(dropped)}행 뺌" if dropped else ""), "develop", final_version(project), {DEVELOPER}, by=member.id)
+    preview.mark_stale(project)
+    return {"commit": git(app, "rev-parse", "HEAD").strip(), "adopted": sha, "kept": sorted(keep_set), "seed_dropped": dropped}
 
 
 def reject(project: str, request_id: int, reason: str, member) -> dict:

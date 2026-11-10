@@ -89,6 +89,43 @@ def rehearse_seed(model: DataModel, rows: dict[str, list[dict]], schema_sql: str
     return kept, skipped
 
 
+def check_seed(schema_sql: str, seed_sql: str, db_url: str) -> tuple[str, list[str]]:
+    """만들어진 seed.sql을 그 schema.sql(실제로 DB가 쓸 것)로 넣어 본다. (거부된 INSERT를 뺀 seed.sql, 뺀 행과 사유).
+    다시 개발할 때의 확인(rehearse_seed)은 설계 원본 기준이라, 사람이 dev의 schema.sql을 고친 뒤 합치면 어긋날 수 있다.
+    schema.sql 자체가 실패하면 예시 행 문제가 아니므로 그대로 돌려준다"""
+    import psycopg
+
+    schema = f"reqagent_seed_{uuid.uuid4().hex[:12]}"
+    lines, failed = seed_sql.split("\n"), []
+    with _connect(db_url) as conn:
+        conn.execute(f'CREATE SCHEMA "{schema}"')
+        try:
+            conn.execute(f'SET search_path TO "{schema}"')
+            try:
+                conn.execute(schema_sql)
+            except psycopg.Error as e:
+                log.warning("[예시 데이터] schema.sql 실행 실패로 행 확인을 건너뜀: %s", str(e).strip().splitlines()[0])
+                return seed_sql, []
+            for n, line in enumerate(lines):
+                if not line.startswith(("INSERT INTO ", "ALTER TABLE ")):
+                    continue
+                try:
+                    conn.execute(line)
+                except psycopg.Error as e:
+                    if line.startswith("INSERT INTO "):
+                        table = line.split()[2].strip('"')
+                        failed.append((n, f"{table}: {str(e).strip().splitlines()[0]}"))
+        finally:
+            conn.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+    if not failed:
+        return seed_sql, []
+    drop = {n for n, _ in failed}
+    kept = [line for n, line in enumerate(lines) if n not in drop]
+    at = 1 if kept and kept[0].startswith("--") else 0
+    kept[at:at] = [f"-- 뺀 행 (DB 규칙에 걸림): {why}" for _, why in failed]
+    return "\n".join(kept), [why for _, why in failed]
+
+
 def _validate_postgres(model, design_version, run_id, db_url, keep_schema) -> DbValidationResult:
     """임시 스키마에 DDL을 실행하고 테이블·PK·FK·CHECK 수를 확인한 뒤 스키마를 지운다."""
     import psycopg
