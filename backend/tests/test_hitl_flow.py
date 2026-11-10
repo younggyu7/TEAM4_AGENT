@@ -227,3 +227,44 @@ def test_upload_model_and_effort_follow_the_project_and_ddl_is_always_checked(sa
     assert "- 모델: claude-sonnet-5-5" in (_folder("1.1.1") / "review_report.md").read_text(encoding="utf-8"), \
         "최종 확정도 업로드에서 고른 모델 (.env 아님)"
     assert get_settings().anthropic_effort == "low"
+
+
+class _BadQuoteLLM(FakeLLM):
+    """첫 요구사항의 인용문을 원문에 없는 글로 낸다 (원문 근거 지적이 남는다)."""
+
+    def _ExtractionOut(self, user):
+        out = super()._ExtractionOut(user)
+        out.requirements[0].evidence[0].quote = "원문에 없는 인용문"
+        return out
+
+
+def test_human_confirmed_evidence_stays_resolved_in_later_versions(sample_doc, capsys):
+    """Agent가 끝내 못 찾은 원문 근거는 기능 명세 화면에서 사람이 '확인함' → 확정하면 해결로 넘어가고,
+    그 뒤 버전에서 근거를 다시 검사해도 열리지 않는다 ('원문 근거 연결' 충족)."""
+    def evidence(version):
+        d = _design(version)
+        check = next(c for c in d["completion"]["checks"] if c["name"] == "원문 근거 연결")
+        return [i for i in d["issues"] if i["kind"] == "EVIDENCE_NOT_FOUND"], check["passed"]
+
+    _use(_BadQuoteLLM(broken_fk=False))
+    assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer", "--until", "function_designer"]) == 0
+    issues, passed = evidence("1")
+    assert issues and not passed and all(i["status"] != "RESOLVED" for i in issues)
+
+    confirmed = {**_design("1"), "confirm_issues": [i["issue_id"] for i in issues]}
+    path = get_settings().output_dir / "confirmed.json"
+    path.write_text(json.dumps(confirmed, ensure_ascii=False), encoding="utf-8")
+    _use(_BadQuoteLLM(broken_fk=False))
+    capsys.readouterr()
+    assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1", "--design", str(path)]) == 0
+    assert f"원문 확인한 근거 지적 {len(issues)}건 해결" in capsys.readouterr().out
+    issues, passed = evidence("1.1")
+    assert passed and all(i["status"] == "RESOLVED" and i["resolution"] == "사람이 원문 확인" for i in issues)
+
+    _use(_BadQuoteLLM(broken_fk=False))   # ERD를 다시 저장해도 사람이 확인한 근거는 그대로
+    model = get_settings().output_dir / "model.json"
+    edited = json.loads((_folder("1.1") / "data_model.json").read_text(encoding="utf-8"))
+    edited["entities"][0]["label"] += " (수정)"
+    model.write_text(json.dumps(edited, ensure_ascii=False), encoding="utf-8")
+    assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1.1", "--data-model", str(model)]) == 0
+    assert evidence("1.2")[1], "다음 버전에서도 충족"

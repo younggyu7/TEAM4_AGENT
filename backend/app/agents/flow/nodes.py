@@ -59,6 +59,10 @@ def intake(state: AgentState) -> dict:
     }
 
 
+# 사람이 원문을 확인해 해결한 근거 지적의 처리 표기 (rerun.load_submitted_design이 남긴다)
+HUMAN_EVIDENCE = "사람이 원문 확인"
+
+
 # ------------------------------------------------------------------ 결과 검사·공통 상태 갱신
 def inspect_result(state: AgentState) -> dict:
     """방금 실행한 전문 Agent의 결과를 결정적으로 검사하고 이슈 목록을 최신 상태로 맞춘다."""
@@ -94,7 +98,9 @@ def inspect_result(state: AgentState) -> dict:
                 src_findings.append(finding("REQ_SOURCE_NO_REQUIREMENT", "INFO",
                                             f"본문 단위 {s.source_key} '{s.name}'에서 요구사항을 찾지 못함",
                                             target_id=s.source_key, raised_by="inspect_result"))
-        issues = reconcile_issues(issues, ev_findings, lambda k: k == "EVIDENCE_NOT_FOUND", max_attempts)
+        # 사람이 원문을 확인한 근거 지적(기능 명세 화면 '확인함' → 확정)은 다시 검사해도 열지 않는다
+        issues = reconcile_issues(issues, ev_findings, lambda k: k == "EVIDENCE_NOT_FOUND", max_attempts,
+                                  keep=lambda i: i.status == "RESOLVED" and i.resolution.startswith(HUMAN_EVIDENCE))
         issues = reconcile_issues(issues, src_findings, lambda k: k.startswith("REQ_SOURCE_"), max_attempts)
         update["requirements"] = dump(requirements)
 

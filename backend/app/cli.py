@@ -593,7 +593,7 @@ def _rerun(args, out: dict | None = None) -> int:
             return 2
         # 기준 버전의 기능 명세 대신 화면에서 확정한 명세 (답은 코드로 반영한 요구사항·질문까지)
         design = {**design, "functions": submitted["functions"], "requirements": submitted["requirements"],
-                  "questions": submitted["questions"]}
+                  "questions": submitted["questions"], "issues": submitted["issues"]}
     edited: list[str] = []
     if submitted and args.stage == "function_designer":   # 화면에서 고친 기능은 고친 그대로 (LLM이 다시 설계하지 않음)
         edited = changed_functions(base_functions, design["functions"])[0]

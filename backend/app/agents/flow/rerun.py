@@ -136,7 +136,8 @@ def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
     기능 규칙 표시·문장, 공통 결정, 요구사항 결정·확정. 이슈 등 나머지는 기준 버전 것을 그대로 둔다.
     confirm_rules(화면 '추천안 맞음'·'가정 맞음'으로 확인한 '(확인 필요)'·'(가정)' 규칙 [{"function_id", "rule"}])도 LLM 없이 '(결정)'으로 바꾼다
     (규칙 앞 표시만 바뀌어 데이터 설계에서 그 기능의 엔티티를 다시 설계하지 않는다).
-    {"functions", "common"(없으면 None), "requirements", "questions", "note": 안내 줄}. 형식·ID가 틀리면 RerunError.
+    confirm_issues(화면 '확인함'으로 원문을 확인한 근거 지적 ID 목록)는 해결로 바꿔 다음 버전부터 '원문 근거 연결'을 충족한다.
+    {"functions", "common"(없으면 None), "requirements", "questions", "issues", "note": 안내 줄}. 형식·ID가 틀리면 RerunError.
     """
     if stage not in ("data_modeler", "function_designer"):
         raise RerunError("--design은 data_modeler·function_designer 단계 옵션입니다 (확정한 기능 명세).")
@@ -169,16 +170,35 @@ def load_submitted_design(path: Path, base: dict, stage: str) -> dict:
     missing: list[str] = []
     if confirms:
         functions, common, missing = confirm_rules(functions, common or {}, confirms)
+    issues, confirmed = confirm_evidence(base.get("issues") or [], data.get("confirm_issues"))
     dumped = [f.model_dump(mode="json") for f in functions]
     changed, added, removed = changed_functions(base.get("functions") or [], dumped)
     differ = sum(q.answer.strip() != q.recommended.strip() for q in answered)
     return {"functions": dumped, "common": common or None,
             "requirements": [r.model_dump(mode="json") for r in requirements],
-            "questions": [q.model_dump(mode="json") for q in questions],
+            "questions": [q.model_dump(mode="json") for q in questions], "issues": issues,
             "note": f"기능 명세: 화면에서 확정한 명세 사용 (기능 {len(dumped)}개 · 기준 대비 바뀜 {len(changed)} · "
                     f"새 {len(added)} · 지움 {len(removed)})"
                     + (f" · 확인 질문 답 {len(answered)}건 코드로 반영 (추천과 다른 답 {differ}건)" if answered else "")
-                    + (" · " + confirm_note(len(confirms), missing) if confirms else "")}
+                    + (" · " + confirm_note(len(confirms), missing) if confirms else "")
+                    + (f" · 원문 확인한 근거 지적 {confirmed}건 해결" if confirmed else "")}
+
+
+def confirm_evidence(issues: list[dict], ids) -> tuple[list[dict], int]:
+    """사람이 원문을 확인한 근거 지적(EVIDENCE_NOT_FOUND)을 해결로 바꾼다 (LLM 없음). 다른 종류·없는 ID는 건너뛴다.
+    처리 표기가 HUMAN_EVIDENCE로 시작해 다음 실행의 근거 검사가 다시 열지 않는다. → (새 이슈 목록, 바꾼 수)"""
+    from app.agents.flow.nodes import HUMAN_EVIDENCE
+    if ids is None:
+        return issues, 0
+    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+        raise RerunError('원문 확인한 지적은 ["ISS-0001", …] 형식이어야 합니다.')
+    wanted, out, count = set(ids), [], 0
+    for i in issues:
+        if i.get("issue_id") in wanted and i.get("kind") == "EVIDENCE_NOT_FOUND" and i.get("status") != "RESOLVED":
+            i = {**i, "status": "RESOLVED", "resolution": HUMAN_EVIDENCE}
+            count += 1
+        out.append(i)
+    return out, count
 
 
 def load_edited_functions(path: Path, base: dict) -> list[dict]:
