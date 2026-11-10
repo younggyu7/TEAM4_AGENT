@@ -43,7 +43,7 @@ from app.agents.tools.model_edits import ReworkSummary, apply_user_edits
 from app.agents.tools.model_validator import to_identifier
 from app.agents.tools.trace_diff import REQ_FIELDS
 from app.agents.storage import get_store
-from app.agents.tools.versions import load_versions, version_key
+from app.agents.tools.versions import find_version, load_versions, version_key
 
 STAGES: dict[str, dict] = {
     "requirements_analyst": {
@@ -374,6 +374,28 @@ def read_design(project: str, version: str) -> dict | None:
     """그 버전의 design.json (없으면 None)."""
     text = get_store().read(project, version, "design.json")
     return None if text is None else json.loads(text)
+
+
+def reviewed_model(project: str, label: str) -> dict | None:
+    """마지막으로 의미 검토를 받은 데이터 모델: label에서 이전 ERD 버전으로 거슬러 올라가며 판단 기록에 의미 검토가 있는 버전.
+    사람이 고친 ERD만 저장한 버전은 의미 검토를 하지 않아 기록이 없다. 못 찾으면 None."""
+    seen = set()
+    while label and label not in seen:
+        seen.add(label)
+        design = read_design(project, label) or {}
+        if any(d.get("action") == "semantic_reviewer" for d in design.get("decisions") or []):
+            return _stored_model(project, label).model_dump(mode="json") if _stored_model(project, label) else None
+        record = find_version(project, label) or {}
+        label = str(record["parent"]) if record.get("stage") == "data_modeler" and record.get("parent") else ""
+    return None
+
+
+def changed_entities(before: dict, after: dict) -> list[str]:
+    """before 모델과 비교해 바뀌거나 새로 생긴 엔티티 ID (사람이 고쳤다는 표시 user_edited는 비교하지 않는다)"""
+    def body(e: dict) -> dict:
+        return {k: v for k, v in e.items() if k != "user_edited"}
+    old = {e["entity_id"]: body(e) for e in before.get("entities") or []}
+    return [e["entity_id"] for e in after.get("entities") or [] if old.get(e["entity_id"]) != body(e)]
 
 
 def changed_requirements(before: list[dict], after: list[dict]) -> list[str]:

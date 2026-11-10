@@ -76,9 +76,10 @@ class ModelReviewOut(BaseModel):
     findings: list[ModelFinding]
 
 
-def run(state: AgentState) -> dict:
-    """의미 검토 Agent 노드: 바뀐 산출물 부분만 LLM으로 검토하고 SEM_* 이슈를 갱신한다."""
-    parts = semantic_parts(state)
+def run(state: AgentState, parts: list[str] | None = None) -> dict:
+    """의미 검토 Agent 노드: 바뀐 산출물 부분만 LLM으로 검토하고 SEM_* 이슈를 갱신한다.
+    parts를 주면 그 부분만 (ERD 최종 확정: 사람이 고친 테이블만 semantic_recheck 범위로 다시 검토)."""
+    parts = parts or semantic_parts(state)
     requirements = load(state, "requirements", Requirement)
     functions = load(state, "functions", FunctionSpec)
     model = get_data_model(state)

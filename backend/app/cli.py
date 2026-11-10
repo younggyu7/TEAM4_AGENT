@@ -742,6 +742,10 @@ def _review(args) -> int:
         for e in db.errors[:10]:
             print(f"  - {e}")
         return 2
+    rechecked = _final_semantic(state, project, base, model)
+    if rechecked:
+        _final_step(state, "semantic_reviewer", "ERD 최종 확정 → 의미 검토 뒤 사람이 고친 테이블만 다시 의미 검토", rechecked)
+    issues = state["issues"]
     remarks = [i for i in issues if i["kind"].startswith("SEM_")]
     left = sum(1 for i in remarks if i["status"] == "OPEN" and not i.get("resolution"))
     _final_step(state, "check_completion", "ERD 최종 확정 → 사람이 정한 의미 검토 지적 처리",
@@ -776,6 +780,37 @@ def _review(args) -> int:
     print(f"최종본 v{version} → {store.version_location(project, version)} (산출물 {len(files)}개)")
     print(f"LLM 호출 {usage.get('calls', 0)}회 · 토큰 in {usage.get('input_tokens', 0):,} / out {usage.get('output_tokens', 0):,}")
     return 0
+
+
+def _final_semantic(state: dict, project: str, base: str, model: dict) -> str:
+    """ERD 최종 확정: 마지막 의미 검토 뒤 사람이 고친(바뀐·새) 테이블만 다시 의미 검토한다 (그 밖은 ERD를 만들 때 검토함).
+    고친 테이블의 '반영함' 지적도 반영됐는지 다시 본다 — 남아 있으면 처리 전으로 돌아가고, 새 지적은 처리 전으로 더한다.
+    고친 테이블이 없거나 의미 검토가 꺼져 있으면 LLM을 부르지 않는다. 판단 기록에 남길 결과 줄 (안 했으면 빈 값)"""
+    from app.agents.flow.rerun import changed_entities, reviewed_model
+    from app.agents.roles import semantic_reviewer
+    from app.agents.roles.coordinator import semantic_enabled
+
+    if not semantic_enabled(state):
+        return ""
+    before = reviewed_model(project, base)
+    changed = changed_entities(before, model) if before else []
+    if not changed:
+        return ""
+    targets = lambda i: {t.strip() for t in i["target_id"].split(",")}   # noqa: E731
+    claimed = [i["issue_id"] for i in state["issues"] if i["kind"].startswith("SEM_MODEL_")
+               and (i.get("resolution") or "").startswith("반영함") and targets(i) & set(changed)]
+    open_before = {i["issue_id"] for i in state["issues"] if i["kind"].startswith("SEM_") and i["status"] != "RESOLVED"}
+    out = semantic_reviewer.run({**state, "semantic_recheck": {"entities": changed, "issues": claimed}}, parts=["model"])
+    if out["semantic_review"]["failed"]:
+        print("  의미 검토(고친 테이블) 요청 실패 — 이전 지적과 처리를 그대로 둡니다")
+        return f"고친 테이블 {len(changed)}개 다시 검토 실패 (이전 지적 유지)"
+    state["issues"], state["llm_usage"] = out["issues"], out["llm_usage"]
+    now = [i for i in state["issues"] if i["kind"].startswith("SEM_") and i["status"] != "RESOLVED"]
+    again = sum(1 for i in now if i["issue_id"] in claimed)
+    new = sum(1 for i in now if i["issue_id"] not in open_before and i["issue_id"] not in claimed)
+    names = ", ".join(changed[:5]) + (f" 외 {len(changed) - 5}개" if len(changed) > 5 else "")
+    print(f"  의미 검토: 사람이 고친 테이블 {len(changed)}개({names})만 다시 검토 → 새 지적 {new}건, '반영함'인데 남은 지적 {again}건")
+    return f"고친 테이블 {len(changed)}개({names}) → 새 지적 {new}건, '반영함'인데 남은 지적 {again}건"
 
 
 def _final_step(state: dict, action: str, reason: str, result: str) -> None:

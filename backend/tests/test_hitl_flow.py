@@ -6,7 +6,7 @@ from fake_llm import FakeLLM
 from app import cli
 from app.agents.flow.state import finding, reconcile_issues
 from app.agents.llm import client as llm_module
-from app.agents.tools.versions import find_version
+from app.agents.tools.versions import find_version, load_versions
 from app.core.config import Settings, get_settings, override_settings
 
 
@@ -268,3 +268,37 @@ def test_human_confirmed_evidence_stays_resolved_in_later_versions(sample_doc, c
     model.write_text(json.dumps(edited, ensure_ascii=False), encoding="utf-8")
     assert cli.main(["rerun", "data_modeler", "sample", "--from", "v1.1", "--data-model", str(model)]) == 0
     assert evidence("1.2")[1], "다음 버전에서도 충족"
+
+
+def test_final_confirmation_reviews_only_tables_people_edited(sample_doc):
+    """ERD 최종 확정: 의미 검토 뒤 사람이 고친 테이블만 다시 의미 검토한다 (고친 게 없으면 LLM을 부르지 않는다).
+    새로 나온 지적은 처리 전으로 최종본의 의미 검토 지적에 더해진다."""
+    _use(FakeLLM(broken_fk=False))
+    assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer"]) == 0   # v1 → ERD v1.1 (의미 검토 함)
+    erd = next(v["design_version"] for v in load_versions("sample")
+               if v.get("stage") != "final" and (_folder(v["design_version"]) / "data_model.json").exists())
+
+    fake = _use(FakeLLM(broken_fk=False))
+    assert cli.main(["review", "sample", f"v{erd}"]) == 0
+    assert fake.calls["ModelReviewOut"] == 0, "고친 테이블이 없으면 다시 검토하지 않는다"
+
+    edited = json.loads((_folder(erd) / "data_model.json").read_text(encoding="utf-8"))
+    target = next(e for e in edited["entities"] if e["entity_id"] == "service_request")
+    target["label"] += " (사람이 고침)"
+    path = get_settings().output_dir / "model.json"
+    path.write_text(json.dumps(edited, ensure_ascii=False), encoding="utf-8")
+    _use(FakeLLM(broken_fk=False))
+    assert cli.main(["rerun", "data_modeler", "sample", "--from", f"v{erd}", "--data-model", str(path)]) == 0
+    saved = max((v for v in load_versions("sample")
+                 if v.get("stage") == "data_modeler"), key=lambda v: [int(x) for x in v["design_version"].split(".")])["design_version"]
+
+    fake = _use(FakeLLM(broken_fk=False))
+    assert cli.main(["review", "sample", f"v{saved}"]) == 0
+    assert fake.calls["ModelReviewOut"] == 1, "고친 테이블만 한 번"
+    sent = fake.users["ModelReviewOut"][0]
+    others = [e["entity_id"] for e in edited["entities"] if e["entity_id"] != "service_request"]
+    assert "service_request" in sent and not any(f"- {o} (" in sent for o in others), "고친 테이블만 보낸다"
+    final = _design(f"{saved}.1")
+    step = next(d for d in final["decisions"] if d["action"] == "semantic_reviewer" and d.get("mode") == "final")
+    assert "고친 테이블 1개(service_request)" in step["result"]
+    assert any(i["kind"].startswith("SEM_MODEL_") and "service_request" in i["target_id"] for i in final["issues"])

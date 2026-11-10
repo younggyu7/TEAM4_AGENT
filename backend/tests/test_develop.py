@@ -821,3 +821,29 @@ def test_layout_and_menu_files_are_always_generated(sample_doc):
     app = files["frontend/src/App.tsx"]
     assert "<Cards group={m.group}" not in app and "applyLayout(design.menu, layout)" in app, "홈에 모든 업무 카드를 나열하지 않는다"
     assert scaffold.menu_file("공통") != scaffold.menu_file("기타") and scaffold.menu_file("SFR-001") == "SFR_001"
+
+
+def test_two_required_when_rules_on_one_column_get_distinct_constraint_names():
+    """같은 컬럼에 조건부 필수가 둘이면 제약 이름이 같아 DB가 거부했다 (mock_회사 v1.1 최종 확정 실패).
+    이름이 겹치면 _2를 붙이고, 내용이 같은 조건은 하나만 둔다. 실제 PostgreSQL에 적용된다."""
+    from app.agents.tools.db_validator import validate_ddl
+    from app.agents.tools.ddl import render_script
+    from app.core.config import DEFAULT_VALIDATION_DB_URL
+    from app.schemas.data_model import RequiredWhen
+
+    pk = {"primary_key": True, "nullable": False, "data_type": "bigint"}
+    plan = _entity("asset_inspection_plan", {"name": "plan_id", **pk}, {"name": "status", "length": 20, "nullable": False},
+                   {"name": "doc_type", "length": 20, "nullable": False}, {"name": "electronic_document_id", "data_type": "bigint"})
+    rule = {"column": "electronic_document_id", "when_column": "doc_type", "when_values": ["E"]}
+    plan.required_when = [RequiredWhen.model_validate(x) for x in (
+        {"column": "electronic_document_id", "when_column": "status", "when_values": ["APPROVED"]}, rule, rule)]
+    model = _model(plan)
+    sql = render_script(model, "1")
+    assert sql.count("CONSTRAINT ck_asset_inspection_plan_electronic_document_id_req ") == 1
+    assert sql.count("CONSTRAINT ck_asset_inspection_plan_electronic_document_id_req_2 ") == 1
+    assert "_req_3" not in sql, "내용이 같은 조건은 하나만"
+    result = validate_ddl(model, "1", "t-dup", DEFAULT_VALIDATION_DB_URL)
+    if result.engine != "postgresql":
+        import pytest
+        pytest.skip("검증용 PostgreSQL이 없음 (SQLite는 제약 이름 중복을 거부하지 않는다)")
+    assert result.passed, result.errors

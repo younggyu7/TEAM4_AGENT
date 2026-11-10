@@ -157,7 +157,7 @@ def _create_table(model: DataModel, e: Entity, dialect: Dialect) -> str:
         if dialect == "sqlite" and (ppk := _parent_pk(model, a)):
             lines.append(f"    CONSTRAINT {_cname('fk', e.entity_id, a.name)} FOREIGN KEY ({qd(a.name)}) "
                          f"REFERENCES {qd(a.references)} ({qd(ppk.name)})")
-    lines += _group_constraints(e, dialect)
+    lines = _distinct_constraints(lines + _group_constraints(e, dialect))
     tail, head = ")", ""
     if dialect == "mysql":
         text = _comment(e.label, e.description)
@@ -168,6 +168,27 @@ def _create_table(model: DataModel, e: Entity, dialect: Dialect) -> str:
         lines = [x for x in lines if x.strip() not in dropped]
         head = "".join(f"-- MySQL에서 뺀 제약 (자동 번호 컬럼을 가리키는 CHECK): {x}\n" for x in dropped)
     return f"{head}CREATE TABLE {qd(e.entity_id)} (\n" + ",\n".join(lines) + f"\n{tail};"
+
+
+def _distinct_constraints(lines: list[str]) -> list[str]:
+    """한 테이블 안의 제약 이름을 겹치지 않게 한다 (같은 컬럼에 조건부 필수가 둘이면 이름이 같아 DB가 거부한다).
+    내용까지 같은 제약은 하나만 두고, 이름만 같으면 뒤의 것에 _2, _3을 붙인다 (겹치지 않는 이름은 그대로)."""
+    out, names, seen = [], set(), set()
+    for line in lines:
+        m = re.match(r"(\s*CONSTRAINT )(\S+)( .*)", line)
+        if not m:
+            out.append(line)
+            continue
+        if line in seen:
+            continue
+        seen.add(line)
+        name, n = m[2], 2
+        while name in names:
+            suffix = f"_{n}"
+            name, n = m[2][:63 - len(suffix)] + suffix, n + 1
+        names.add(name)
+        out.append(m[1] + name + m[3])
+    return out
 
 
 def _group_constraints(e: Entity, dialect: Dialect = "postgresql") -> list[str]:
