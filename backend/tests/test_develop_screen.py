@@ -70,6 +70,22 @@ def test_open_items_are_answered_at_final_approval(sample_doc):
     assert "FQ-901" in str(find_version("sample", final)["approval"]["resolved"])
     assert "보류 FQ-90" not in store.read("sample", final, "ACCEPTANCE_CRITERIA.md"), "개발 스펙에 반영"
 
+    # 승인 뒤: 승인한 항목을 그대로 보고, '수정'으로 답을 바꾸면 승인은 그대로 두고 개발 스펙을 다시 쓴다
+    shown = pm.get(f"/api/v1/projects/open-items?project=sample&version={final}&approved=true").json()
+    assert shown["editable"] and {i["id"] for i in shown["items"]} == set(ids), "승인 직전 항목 그대로"
+    changed = pm.post("/api/v1/projects/approval/answers", json={"project": "sample", "version": final,
+                                                                   "answers": {**{i["id"]: "직접 적은 답" for i in found if not i["recommended"]},
+                                                                               "FQ-901": "아니오", "FQ-902": "바꾼 답"}})
+    assert changed.status_code == 200
+    record = find_version("sample", final)
+    assert record["approval"]["decision"] == "approve" and len(record["approval"]["edits"]) == 1
+    assert {"id": "FQ-901", "title": "추천?", "answer": "아니오"} in record["approval"]["resolved"]
+    rules = next(f for f in json.loads(store.read("sample", final, "design.json"))["functions"]
+                 if f["function_id"] == fn["function_id"])["business_rules"]
+    assert "(결정 FQ-902) 바꾼 답" in rules and "(결정 FQ-902) 직접 적은 답" not in rules, "승인 직전 상태에서 새 답으로"
+    assert signed_in_client("developer").post("/api/v1/projects/approval/answers", json={"project": "sample", "version": final,
+                                              "answers": {i["id"]: "다른 답" for i in found if not i["recommended"]}}).status_code == 200, "PM·개발자 모두"
+
 
 def test_recheck_replaces_old_result_and_keeps_failure_log(sample_doc, monkeypatch):
     from app.services import preview

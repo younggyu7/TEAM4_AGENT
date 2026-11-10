@@ -679,6 +679,33 @@ def confirm_tech_stack(project: str, version: str, stack: str, parts: dict | Non
     return {**dev_spec, "written": len(files)}
 
 
+PRE_APPROVAL = "design.pre_approval.json"   # 처음 승인하기 직전의 design.json (승인 뒤 '수정'에서 답을 다시 고르는 출발점)
+
+
+def keep_pre_approval(project: str, version: str) -> None:
+    """처음 승인할 때 승인 직전 design.json을 남긴다 (이미 있으면 그대로: 수정 지시 뒤 다시 승인해도 처음 상태가 기준)."""
+    store = get_store()
+    if not store.exists(project, version, PRE_APPROVAL) and (text := store.read(project, version, "design.json")) is not None:
+        store.write(project, version, PRE_APPROVAL, text)
+
+
+def pre_approval_items(project: str, version: str) -> list[dict] | None:
+    """승인 직전 상태의 남은 확인 항목 (승인 뒤 '수정' 화면). 승인 직전 기록이 없는 예전 승인이면 None"""
+    text = get_store().read(project, version, PRE_APPROVAL)
+    return open_items.items(json.loads(text)) if text is not None else None
+
+
+def reanswer_open_items(project: str, version: str, answers: dict[str, str]) -> list[dict]:
+    """승인한 최종본의 확인 항목 답을 바꾼다: 승인 직전 design.json으로 되돌리고 새 답으로 다시 반영해 개발 스펙 10개를 다시 쓴다 (LLM 없음).
+    승인 직전 기록이 없으면 ValueError. → 반영 기록 [{id, title, answer}]"""
+    store = get_store()
+    text = store.read(project, version, PRE_APPROVAL)
+    if text is None:
+        raise ValueError("예전에 승인한 최종본이라 승인 직전 기록이 없어 답을 바꿀 수 없습니다. '승인 거두고 수정 지시'를 쓰세요.")
+    store.write(project, version, "design.json", text)
+    return resolve_open_items(project, version, answers)
+
+
 def resolve_open_items(project: str, version: str, answers: dict[str, str]) -> list[dict]:
     """최종 승인 전 남은 확인 항목에 답을 반영하고 같은 최종본의 개발 스펙 10개를 다시 쓴다 (LLM 없음). → 반영 기록 (남은 항목이 없으면 빈 목록)
     답도 추천도 없는 항목이 있으면 ValueError (아무것도 쓰지 않는다)"""

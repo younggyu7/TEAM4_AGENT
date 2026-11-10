@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.agents.tools import open_items
-from app.agents.tools.exporter import resolve_open_items
+from app.agents.tools.exporter import keep_pre_approval, pre_approval_items, reanswer_open_items, resolve_open_items
 from app.agents.tools.versions import find_version, update_version
 from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
@@ -157,10 +157,43 @@ def reject_request(body: RejectRequest, member: users.Member = Depends(current_u
 
 
 @router.get("/projects/open-items", summary="최종 승인 전 남은 확인 항목 (LLM 없음)")
-def get_open_items(project: str, version: str, _: users.Member = Depends(current_user)):
+def get_open_items(project: str, version: str, approved: bool = False, _: users.Member = Depends(current_user)):
+    """approved=true: 승인한 최종본의 승인 직전 항목 (승인 뒤 '수정'). 승인 직전 기록이 없으면 editable=False"""
     project, version = _project(project), guards.version(version)
     _record(project, version)
+    if approved:
+        found = pre_approval_items(project, version)
+        return {"items": found or [], "editable": found is not None}
     return {"items": open_items.items(output_store.read_design(project, version) or {})}
+
+
+class Reanswer(BaseModel):
+    project: str
+    version: str
+    answers: dict[str, str] = Field(default_factory=dict)
+
+
+@router.post("/projects/approval/answers", summary="승인한 최종본의 확인 항목 답 바꾸기 (승인 유지, 개발 스펙 다시 쓰기)")
+def reanswer(body: Reanswer, member: users.Member = Depends(current_user)):
+    if not allowed(member.role, "final_decide"):
+        raise Forbidden(denied_message("final_decide"))
+    project, version = _project(body.project), guards.version(body.version)
+    record = _record(project, version)
+    approval = record.get("approval") or {}
+    if approval.get("decision") != "approve":
+        raise BadRequest("최종 승인한 최종본에서만 승인한 답을 바꿉니다.")
+    _no_running_job(body.project)
+    try:
+        resolved = reanswer_open_items(project, version, body.answers)
+    except ValueError as e:
+        raise BadRequest(str(e)) from e
+    edit = {"at": datetime.now().isoformat(timespec="seconds"), "by": {"id": member.id, "name": member.name, "role": member.role}}
+    changed = {**approval, "resolved": resolved, "edits": [*(approval.get("edits") or []), edit]}
+    history = list(record.get("approvals") or [])
+    if history:
+        history[-1] = changed
+    update_version(project, version, approval=changed, approvals=history or [changed])
+    return {"approval": changed}
 
 
 @router.post("/projects/approval", summary="최종본 승인 / 수정 지시 (PM)")
@@ -178,6 +211,7 @@ def decide(body: Approval, member: users.Member = Depends(current_user)):
     if not changes:
         _no_running_job(body.project)
         try:   # 남은 확인 항목을 고른 답(없으면 추천안)으로 정하고 개발 스펙을 다시 쓴다. 답이 없는 항목이 있으면 승인하지 않는다
+            keep_pre_approval(project, version)   # 승인 뒤 '수정'에서 답을 다시 고를 출발점
             resolved = resolve_open_items(project, version, body.answers)
         except ValueError as e:
             raise BadRequest(str(e)) from e
