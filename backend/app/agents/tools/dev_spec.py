@@ -162,7 +162,13 @@ class Spec:
         if s["basis"] == "원문":
             return f"{s['backend']} (원문)"
         if s["basis"] == "확정":
-            return f"{s['backend']} (확정 — 기능 명세에서 고름 {s['question']})" if s.get("from_answer") else f"{s['backend']} (확정 {s['question']})"
+            if s.get("from_answer"):
+                return f"{s['backend']} (확정 — 기능 명세에서 고름 {s['question']})"
+            if s.get("overrides"):
+                ids = ", ".join(dict.fromkeys(i for _, _, refs in s["source"] for i in refs))
+                return (f"{s['backend']} (확정 — 개발 범위 확정에서 사람이 바꿈. 업로드 문서에는 '{s['overrides']}'로 명시됨"
+                        f"{f' ({ids})' if ids else ''} — 사람이 정한 값을 따른다)")
+            return f"{s['backend']} (확정 {s['question']})"
         return f"{s['backend']} (가정 — 추천안, 확인 필요 {s['question']})" if s["question"] else f"{s['backend']} (가정)"
 
 
@@ -431,6 +437,8 @@ def _architecture_md(spec: Spec) -> str:
     if spec.stack["basis"] != "원문":
         rows.insert(0, ["백엔드 (언어·프레임워크·DB)", spec.stack_text(), spec.stack["question"] or "-"])
     out += ["## 2. 기술 스택", "", table(["구분", "내용", "근거"], rows), "",
+            *([f"- 주의: 업로드 문서는 '{spec.stack['overrides']}'를 정했지만, 개발 범위 확정에서 사람이 1행의 스택으로 바꿨다. "
+               "1행을 따르고, 원문 행은 고객 문서의 근거로만 본다.", ""] if spec.stack.get("overrides") else []),
             "- DDL(`schema.sql`)은 PostgreSQL 16 기준으로 검증했다. 원문이 다른 DBMS를 정했으면 DDL을 그 DBMS 문법으로 옮긴다.", ""]
     groups: dict[str, list[FunctionSpec]] = {}
     for f in spec.functions:

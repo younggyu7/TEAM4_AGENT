@@ -243,9 +243,24 @@ def test_stack_chosen_on_the_final_page_rewrites_the_spec_without_llm(sample_doc
     assert client.post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "stack": " "}).status_code == 400
 
 
-def test_stack_cannot_override_the_source(sample_doc):
+def test_stack_can_override_the_source_on_the_final_page_and_keeps_the_evidence(sample_doc):
+    """원문이 정한 스택도 개발 범위 확정에서 바꿀 수 있다. 개발 스펙(AI 개발 입력)에 업로드 문서 내용을 근거·경고로 남기고,
+    화면 상태는 '확정'(바꿈) + 업로드 문서 경고. 최종 승인한 뒤에는 바꿀 수 없다."""
+    from app.agents.tools import stacks
+    from app.agents.tools.versions import update_version
     from conftest import signed_in_client
 
-    _final(sample_doc, FakeLLM(broken_fk=False))   # 가짜 아키텍처 요약은 원문이 Python을 정한 것으로 둔다
-    r = signed_in_client().post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "stack": "Java"})
-    assert r.status_code == 400 and "원문이 기술 스택을 정했습니다" in r.json()["detail"]
+    out = _final(sample_doc, FakeLLM(broken_fk=False))   # 가짜 아키텍처 요약은 원문이 Python을 정한 것으로 둔다
+    client = signed_in_client()
+    parts = {"frontend": "react", "backend": "spring", "database": "postgresql"}
+    r = client.post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "parts": parts})
+    assert r.status_code == 200 and r.json()["dev_spec"]["stack_basis"] == "확정"
+    agents = (out / "AGENTS.md").read_text(encoding="utf-8")
+    assert f"{stacks.compose(parts)} (확정 — 개발 범위 확정에서 사람이 바꿈. 업로드 문서에는 'Python'로 명시됨" in agents
+    assert "주의: 업로드 문서는 'Python'를 정했지만" in (out / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    status = client.get("/api/v1/projects/stack?project=sample&version=1.1").json()
+    assert status["basis"] == "확정" and status["changed"] and status["stack"] == stacks.compose(parts)
+
+    update_version("sample", "1.1", approval={"decision": "approve", "at": "2026-11-10T00:00:00", "by": {"id": 1, "name": "PM"}})
+    again = client.post("/api/v1/projects/tech-stack", json={"project": "sample", "version": "1.1", "parts": parts})
+    assert again.status_code == 409 and "최종 승인한" in again.json()["detail"]

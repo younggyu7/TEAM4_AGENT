@@ -663,7 +663,7 @@ def confirm_tech_stack(project: str, version: str, stack: str, parts: dict | Non
 
     같은 최종본 안에서 개발 스펙 문서와 design.json(TQ-001 답·meta.dev_spec)만 바꾼다. 설계 산출물(기능 명세·ERD·DDL·API 설계)은
     그대로다. 정한 값은 버전 기록에도 tech_stack으로 남긴다 (개발 AI에 넘길 때 서버에 명시된 값).
-    원문이 스택을 정한 버전, 개발 스펙이 없는 버전이면 ValueError."""
+    원문이 스택을 정한 버전도 바꿀 수 있다 (개발 스펙에 '업로드 문서에는 …로 명시됨'을 남긴다). 개발 스펙이 없는 버전이면 ValueError."""
     store = get_store()
     text = store.read(project, version, "design.json")
     design = json.loads(text) if text else {}
@@ -672,9 +672,7 @@ def confirm_tech_stack(project: str, version: str, stack: str, parts: dict | Non
         raise ValueError(f"v{version}에는 개발 스펙이 없습니다 ('ERD 최종 확정'으로 만든 최종본에서 정하세요).")
     model = DataModel.model_validate_json(store.read(project, version, "data_model.json") or "{}")
     questions = answer_stack([Question.model_validate(q) for q in design.get("questions") or []], stack)
-    result = tech_stack(api, questions, chosen=True)   # 최종 산출물 화면에서 고른 값 → 확정
-    if result["basis"] == "원문":
-        raise ValueError(f"원문이 기술 스택을 정했습니다 ({result['backend']}). 원문과 다른 스택은 정할 수 없습니다.")
+    result = tech_stack(api, questions, chosen=True)   # 최종 산출물 화면에서 고른 값 → 확정 (원문보다 우선)
     dev_spec, files = _rewrite_dev_spec(project, version, design, model, questions, result)
     update_version(project, version, tech_stack={"stack": result["backend"], "basis": result["basis"],
                                                  **({"parts": parts} if parts else {})})

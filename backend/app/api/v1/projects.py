@@ -24,7 +24,7 @@ from app.agents.storage import get_store
 from app.agents.tools import stacks
 from app.agents.llm.client import LLMError
 from app.agents.tools.exporter import confirm_tech_stack, fill_dev_spec
-from app.agents.tools.versions import display_name, save_project_info
+from app.agents.tools.versions import display_name, find_version, save_project_info
 from app.api.v1.deps import _no_running_job, _project, current_user, ensure
 from app.core import guards
 from app.core.auth import role_label, role_of
@@ -108,6 +108,8 @@ def set_tech_stack(body: TechStackUpdate, member: users.Member = Depends(current
         raise BadRequest("기술 스택은 1~200자로 적어 주세요.")
     if not output_store.has_version(project, version):
         raise NotFound(f"v{version}이 없습니다.")
+    if ((find_version(project, version) or {}).get("approval") or {}).get("decision") == "approve":
+        raise Conflict("최종 승인한 최종본의 기술 스택은 바꿀 수 없습니다 (이미 만든 코드와 스펙이 어긋납니다). 승인을 거두고 바꾸세요.")
     _no_running_job(body.project)
     try:
         return {"dev_spec": confirm_tech_stack(project, version, stack, body.parts)}

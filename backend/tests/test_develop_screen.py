@@ -158,6 +158,36 @@ def test_stack_is_chosen_in_three_parts_and_warns_when_there_is_no_template():
     assert stacks.status({"questions": [], "requirements": [{"title": "로그인", "description": "회원 로그인"}]})["basis"] == "없음"
 
 
+def test_stack_status_reads_the_source_from_the_final_architecture_and_korean_words():
+    """개발 범위 확정 화면: 최종 확정의 아키텍처 요약(api_design 안)이 찾은 원문 스택을 '미정'으로 보이지 않는다.
+    한글 표기·수용 기준도 원문으로 보고 근거를 돌려준다. 기능 명세에서 다르게 고르면 업로드 문서 값을 경고한다."""
+    pending = {"question_id": "TQ-001", "status": "PENDING"}
+    arch = {"summary": "", "stack_in_source": [{"layer": "프레임워크", "value": "Spring Framework", "requirement_ids": ["COR-1"]},
+                                                {"layer": "DBMS", "value": "MySQL", "requirement_ids": ["COR-1"]}]}
+    final = stacks.status({"questions": [pending], "requirements": [], "api_design": {"architecture": arch}})
+    assert final["basis"] == "원문" and final["parts"]["database"] == "mysql" and final["source"]["stack"] == "Spring Framework · MySQL"
+    answered = {**pending, "status": "ANSWERED", "answer": stacks.compose({"frontend": "react", "backend": "fastapi", "database": "postgresql"})}
+    kept = stacks.status({"questions": [answered], "requirements": [], "api_design": {"architecture": arch}})
+    assert kept["basis"] == "원문" and "업로드 문서에는" in kept["conflict"] and "따릅니다" in kept["conflict"]
+
+    korean = [{"requirement_id": "SFR-9", "title": "개발 환경", "description": "화면은 리액트", "acceptance_criteria": ["서버는 스프링 부트로 개발"]}]
+    found = stacks.status({"questions": [pending], "requirements": korean})
+    assert found["basis"] == "원문" and found["parts"]["backend"] == "spring" and found["source"]["evidence"][0]["id"] == "SFR-9"
+    from app.agents.roles.api_designer import stack_question
+    from app.schemas.requirement import Requirement
+    req = Requirement.model_validate({"requirement_id": "SFR-9", "type": "NON_FUNCTIONAL", "scope": "SYSTEM", "category": "제약", "title": "개발 환경",
+                                      "description": "화면은 리액트", "acceptance_criteria": ["서버는 스프링 부트로 개발"]})
+    assert stack_question([req], [], ask=True) is None, "원문이 한글로 정했으면 TQ-001을 묻지 않는다"
+
+    only_screen = [{"requirement_id": "N1", "title": "화면", "description": "화면은 Vue.js"}]
+    asked = stacks.status({"questions": [pending], "requirements": only_screen})
+    assert asked["basis"] == "미정" and asked["source"]["parts"] == {"frontend": "vue"}, "서버가 없으면 묻되 화면 값은 알려 준다"
+    picked = stacks.status({"questions": [answered], "requirements": only_screen})
+    assert picked["basis"] == "확정" and "화면 Vue 3" in picked["conflict"]
+    web = [{"title": "웹 품질", "description": "전자정부 웹사이트 품질관리 지침 준수, 자바스크립트 화면"}]
+    assert stacks.status({"questions": [pending], "requirements": web})["source"] is None, "지침·자바스크립트는 서버 스택이 아니다"
+
+
 def test_git_settings_hide_tokens_and_push_one_repo(tmp_path, monkeypatch):
     """원격은 하나 (화면·백엔드·DB를 한 저장소에, 로컬 bare 저장소로). 토큰은 암호화해 두고 화면에는 있는지만 보낸다.
     올리는 것은 고른 브랜치 dev·main (빌드 결과·패키지·생성기 기록은 커밋되지 않음). 자세한 경우는 test_repo.py"""

@@ -33,6 +33,7 @@ from app.schemas.document import RequirementSource
 from app.schemas.function import FunctionSpec
 from app.schemas.requirement import Question, Requirement
 from app.agents.flow.state import AgentState, dump, finding, get_data_model, issues_of, load, merge_usage, reconcile_issues
+from app.agents.tools import stacks
 from app.agents.tools.api_shape import collection as _collection
 from app.agents.tools.model_validator import to_identifier
 
@@ -51,9 +52,8 @@ STACK_NOTES = (
     "웹 화면과 같은 언어(TypeScript)로 맞출 때",
 )
 STACK_LAYERS = ("언어", "프레임워크")   # 이 층을 원문이 정했으면 묻지 않는다
-# 기능 명세 초안에서 원문이 언어·프레임워크를 정했는지 보는 단어 (LLM 없이 기술 스택 질문을 낼지 정한다)
-STACK_WORDS = re.compile(r"java|spring|전자\s*정부|egov|python|django|fastapi|flask|node\.?js|nest\.?js|typescript"
-                         r"|\.net|c#|php|laravel|ruby on rails|kotlin", re.I)
+# 기능 명세 초안에서 원문이 언어·프레임워크를 정했는지 보는 단어 (LLM 없이 기술 스택 질문을 낼지 정한다. 화면 상태와 같은 규칙)
+STACK_WORDS = stacks.SOURCE_BACKEND
 
 API_PROMPT = load_prompt("api_designer/api")
 
@@ -487,7 +487,7 @@ def stack_question(requirements: list[Requirement], questions: list[Question], a
     원문에 이름이 있으면 묻지 않고, 최종 확정의 아키텍처 요약이 원문 스택을 찾는다."""
     if any(q.question_id == STACK_QUESTION for q in questions):
         return None
-    if any(STACK_WORDS.search(f"{r.title} {r.description}") for r in requirements):
+    if any(STACK_WORDS.search(stacks.requirement_text(r)) for r in requirements if r.status != "EXCLUDED"):
         return None
     notes = "\n".join(f"{i}. {o} — {n}" for i, (o, n) in enumerate(zip(STACK_OPTIONS, STACK_NOTES), start=1))
     context = ("원문에서 개발 언어·프레임워크를 찾지 못했습니다. 화면·서버·DB를 하나씩 골라 주세요. 기능 명세를 확정하면 스택도 확정되고, "
@@ -533,21 +533,25 @@ def answer_stack(questions: list[Question], answer: str) -> list[Question]:
 
 
 def tech_stack(design: dict | None, questions: list[Question], chosen: bool = False) -> dict:
-    """개발 스펙에 쓸 기술 스택: 원문이 정했으면 원문, 최종 산출물 화면에서 골랐으면(chosen) 확정,
-    아니면 가정 (기능 명세에서 답한 값이 있으면 그 값, 없으면 추천안). 기능 명세의 답은 '먼저 넣어 둔 값'일 뿐 확정이 아니다.
+    """개발 스펙에 쓸 기술 스택: 최종 산출물 화면에서 골랐으면(chosen) 확정 (원문이 정했어도 사람이 바꾼 값을 따른다),
+    아니면 원문이 정했으면 원문, 아니면 가정 (기능 명세에서 답한 값이 있으면 그 값, 없으면 추천안).
 
     {"backend": 백엔드 스택, "basis": 원문|확정|가정|없음, "question": 질문 ID, "from_answer": 기능 명세 답인지,
-     "source": [(층, 원문 표현, 근거 ID)]}
+     "source": [(층, 원문 표현, 근거 ID)], "overrides": 사람이 바꿔서 따르지 않는 원문 스택 (없으면 생략)}
     """
     arch = (design or {}).get("architecture")
     if not arch:
         return {"backend": "", "basis": "없음", "question": "", "source": []}
     a = ArchitectureOut.model_validate(arch)
     source = [(m.layer, m.value, m.requirement_ids) for m in a.stack_in_source]
-    if any(m.layer in STACK_LAYERS for m in a.stack_in_source):
-        return {"backend": " · ".join(m.value for m in a.stack_in_source if m.layer in STACK_LAYERS), "basis": "원문",
-                "question": "", "source": source}
     q = next((q for q in questions if q.question_id == STACK_QUESTION), None)
+    if any(m.layer in STACK_LAYERS for m in a.stack_in_source):
+        named = " · ".join(m.value for m in a.stack_in_source if m.layer in STACK_LAYERS)
+        if chosen and q and q.status == "ANSWERED" and q.answer:
+            # 개발 범위 확정에서 사람이 바꿨다: 고른 값을 따르고 원문 스택은 근거로 남긴다 (개발 스펙에 경고)
+            return {"backend": q.answer, "basis": "확정", "question": q.question_id, "from_answer": False, "source": source,
+                    "overrides": named}
+        return {"backend": named, "basis": "원문", "question": "", "source": source}
     if q and q.status == "ANSWERED" and q.answer:
         # 기능 명세에서 고른 값이 확정이다 (기능 명세를 확정할 때 함께 확정된다)
         return {"backend": q.answer, "basis": "확정", "question": q.question_id, "from_answer": not chosen, "source": source}
