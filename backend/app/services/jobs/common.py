@@ -25,6 +25,7 @@ from app.agents.storage import get_store
 from app.core.database import database_enabled, session_scope
 from app.repositories import job_repository
 from app.core.security import redact
+from app.agents.tools.versions import update_version
 from app.services.output_store import version_key, version_labels
 
 # backend 폴더 (CLI를 이 폴더에서 실행한다). 이 파일은 app/services/jobs/ 안에 있다
@@ -191,6 +192,7 @@ class _Runner:
             get_store().write(self.project, newest, "functions.submitted.md", self.submitted_md)
         failed, checks = _run_findings(self.project, newest)
         self.job.warnings, self.job.checks = [*_llm_errors(self.job.log), *self.pre, *failed], checks
+        _record_elapsed(self.job, self.project, newest)
         if self.on_done:   # 다시 내보내기처럼 한 작업이 버전을 둘(기능 명세 v2 + ERD v2.1) 만들면 둘 다 (제목·만든 사람)
             for label in sorted(created, key=version_key):
                 self.on_done(label)
@@ -211,6 +213,7 @@ class _Runner:
             data = {}
         failed = data.get("failed") or []
         self.job.warnings = [*_llm_errors(self.job.log), *([f"의미 검토 실패(미검증): {', '.join(failed)}"] if failed else [])]
+        _record_elapsed(self.job, self.project, newest)
         if self.on_done:
             self.on_done(newest)
         self._finish("done", f"최종본 v{newest}을 만들었습니다: 의미 검토 지적 {len(data.get('remarks') or [])}건의 처리를 남김")
@@ -228,6 +231,22 @@ class _Runner:
             f.unlink(missing_ok=True)
         from app.services import slack   # 새 버전이 생기면 알림이 바뀐다 (최종본 → 최종 승인 대기 등) → Slack으로 바로
         slack.kick()
+
+
+def elapsed_seconds(job: Job) -> int:
+    """작업이 시작한 뒤 지금까지 걸린 시간(초)"""
+    try:
+        return max(int((datetime.now() - datetime.fromisoformat(job.started_at)).total_seconds()), 0)
+    except ValueError:
+        return 0
+
+
+def _record_elapsed(job: Job, project: str, version: str) -> None:
+    """만든 버전의 기록에 이 작업이 걸린 시간(초)을 남긴다 (화면 토큰 사용량 카드). 한 작업이 버전 둘을 만들면 마지막 버전에만"""
+    try:
+        update_version(project, version, elapsed=elapsed_seconds(job))
+    except Exception as e:  # noqa: BLE001 — 기록 실패가 작업 결과를 바꾸지 않게
+        log.warning("[걸린 시간] 남기지 못함 %s v%s: %s", project, version, e)
 
 
 def _new_job(**kw) -> Job:

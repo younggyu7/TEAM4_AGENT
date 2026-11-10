@@ -65,6 +65,9 @@ def build_trace_links(requirements: list[Requirement], functions: list[FunctionS
     return links
 
 
+HUMAN_CONFIRMED = "사람이 확인함"
+
+
 def run(state: AgentState) -> dict:
     """추적 검토 Agent 노드: 추적 관계를 만들고 기능 명세 → ERD 누락(엔티티 없는 기능, 상태 컬럼 없음 등)을 이슈로 보고한다."""
     requirements = load(state, "requirements", Requirement)
@@ -108,8 +111,9 @@ def run(state: AgentState) -> dict:
                                 + ", ".join(unlinked[:15]) + (" …" if len(unlinked) > 15 else ""),
                                 raised_by=by))
 
-    issues = reconcile_issues(issues_of(state), findings, lambda k: k.startswith("TRACE_"),
-                              get_settings().fix_attempts)
+    # 사람이 ERD 화면에서 확인한 지적은 다시 검사해도 열지 않는다 (처리는 rerun.DISPOSITIONS 'confirmed')
+    issues = reconcile_issues(issues_of(state), findings, lambda k: k.startswith("TRACE_"), get_settings().fix_attempts,
+                              keep=lambda i: i.status == "RESOLVED" and i.resolution.startswith(HUMAN_CONFIRMED))
     errors = sum(f.severity == "ERROR" for f in findings)
     log.info("[검토] 추적 링크 %d개, 검토 이슈 %d건 (오류 %d)", len(links), len(findings), errors)
     r = rev(state)

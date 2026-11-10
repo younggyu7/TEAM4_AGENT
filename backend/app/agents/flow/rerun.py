@@ -240,11 +240,13 @@ def load_confirm_rules(path: Path) -> list[dict]:
 
 
 # ERD 화면에서 사람이 고르는 검토 지적 처리 → (이슈 상태, 처리 표기)
-DISPOSITIONS = {"applied": ("RESOLVED", "반영함"), "not_issue": ("RESOLVED", "문제 아님"), "later": ("UNRESOLVED", "미해결로 둠")}
+DISPOSITIONS = {"applied": ("RESOLVED", "반영함"), "not_issue": ("RESOLVED", "문제 아님"), "later": ("UNRESOLVED", "미해결로 둠"),
+                # 추적 검토 지적(TRACE_*)을 ERD 화면 '반영함'으로 확인함 → 다음 추적 검토가 다시 열지 않는다 (trace_reviewer.HUMAN_CONFIRMED)
+                "confirmed": ("RESOLVED", "사람이 확인함")}
 
 
 def load_dispositions(path: Path) -> dict[str, dict]:
-    """--dispositions 파일({이슈 ID: {"choice": applied|not_issue|later, "note": 메모}})을 읽는다."""
+    """--dispositions 파일({이슈 ID: {"choice": applied|not_issue|later|confirmed, "note": 메모}})을 읽는다."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:

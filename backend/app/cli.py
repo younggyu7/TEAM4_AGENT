@@ -764,6 +764,7 @@ def _review(args) -> int:
     except LLMFatalError as e:
         print(f"LLM 오류로 멈췄습니다: {e}")
         return 4
+    state["completion"] = refresh_completion(state)
     version = claim_next_version(project, base)
     files = export_design({**state, "design_version": version}, version)
     files += export_semantic_review(state, project, version)
@@ -780,6 +781,15 @@ def _review(args) -> int:
     print(f"최종본 v{version} → {store.version_location(project, version)} (산출물 {len(files)}개)")
     print(f"LLM 호출 {usage.get('calls', 0)}회 · 토큰 in {usage.get('input_tokens', 0):,} / out {usage.get('output_tokens', 0):,}")
     return 0
+
+
+def refresh_completion(state: dict) -> dict:
+    """ERD 최종 확정: 이 단계에서 다시 검사한 조건(원문 근거·기능→데이터 추적·모델 무결성)을 최신 이슈로 다시 매긴다.
+    ERD 버전의 완료 조건을 그대로 쓰면 사람이 확인·해결한 지적도 최종본에서 미충족으로 남는다. 나머지 조건은 그대로 둔다."""
+    from app.agents.flow.nodes import refreshed_checks
+    completion = dict(state.get("completion") or {})
+    checks = refreshed_checks(state, completion.get("checks") or [])
+    return {**completion, "checks": checks, "satisfied": all(c["passed"] for c in checks)} if checks else completion
 
 
 def _final_semantic(state: dict, project: str, base: str, model: dict) -> str:

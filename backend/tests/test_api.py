@@ -510,3 +510,18 @@ def test_unmet_completion_is_a_check_not_a_failure():
     design["decisions"].append({"step": 4, "action": "data_modeler", "result": "LLM 호출 실패 (재시도 소진)"})
     assert findings(design)[0] == ["#4 data_modeler: LLM 호출 실패 (재시도 소진)"]
 
+
+
+def test_finished_job_records_how_long_it_took_on_the_version():
+    """작업이 끝나면 만든 버전 기록에 걸린 시간(초)을 남긴다 (화면 토큰 사용량 카드의 '걸린 시간')."""
+    from datetime import datetime, timedelta
+
+    from app.agents.tools.versions import find_version, save_version
+    from app.services.jobs.common import Job, _record_elapsed, elapsed_seconds
+
+    save_version("timing", {"design_version": "1", "stage": "full"})
+    job = Job(id="job-t", status="running", project="timing", base="", source="run", message="",
+              started_at=(datetime.now() - timedelta(seconds=192)).isoformat(timespec="seconds"))
+    assert 191 <= elapsed_seconds(job) <= 194
+    _record_elapsed(job, "timing", "1")
+    assert 191 <= find_version("timing", "1")["elapsed"] <= 194

@@ -368,6 +368,26 @@ def check_completion(state: AgentState) -> dict:
     return {"completion": completion, "decisions": with_result(state, result)}
 
 
+def refreshed_checks(state: AgentState, checks: list[dict]) -> list[dict]:
+    """완료 조건 중 이슈만으로 정해지는 것(원문 근거·기능→데이터 추적·모델 무결성)을 지금 이슈로 다시 매긴다.
+    '해당 없음'으로 통과한 조건은 그대로 둔다 (ERD 최종 확정에서 다시 판정할 때)."""
+    issues = issues_of(state)
+
+    def left(prefix: str, severity: str | None = None) -> int:
+        return sum(1 for i in issues if i.kind.startswith(prefix) and i.status != "RESOLVED"
+                   and (severity is None or i.severity == severity))
+    fresh = {"원문 근거 연결": (not left("EVIDENCE_NOT_FOUND"), f"근거 미확인 {left('EVIDENCE_NOT_FOUND')}건"),
+             "기능→데이터 추적": (not left("TRACE_FUNC_WITHOUT_ENTITY"), f"엔티티 미연결 기능 {left('TRACE_FUNC_WITHOUT_ENTITY')}건"),
+             "데이터 모델 무결성": (not left("MODEL_", "ERROR"), f"모델 오류 {left('MODEL_', 'ERROR')}건")}
+    out = []
+    for c in checks:
+        if c.get("name") in fresh and not str(c.get("detail", "")).startswith("해당 없음"):
+            passed, detail = fresh[c["name"]]
+            c = {**c, "passed": passed, "detail": detail}
+        out.append(c)
+    return out
+
+
 def _review_detail(state: AgentState, semantic_pending: bool) -> str:
     """'검토 최신화' 조건의 상세: 추적 검토와 의미 검토가 최신 산출물을 봤는지, 의미 검토 지적 수."""
     if review_stale(state):

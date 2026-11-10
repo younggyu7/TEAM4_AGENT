@@ -302,3 +302,45 @@ def test_final_confirmation_reviews_only_tables_people_edited(sample_doc):
     step = next(d for d in final["decisions"] if d["action"] == "semantic_reviewer" and d.get("mode") == "final")
     assert "고친 테이블 1개(service_request)" in step["result"]
     assert any(i["kind"].startswith("SEM_MODEL_") and "service_request" in i["target_id"] for i in final["issues"])
+
+
+def test_confirmed_trace_issue_turns_the_final_completion_green(sample_doc):
+    """ERD 화면에서 '반영함'으로 확인한 추적 지적(기능에 테이블 없음)은 최종 확정에 'confirmed'로 넘어가 해결되고,
+    최종본의 완료 조건 '기능→데이터 추적'이 다시 매겨져 충족된다 (확인하지 않으면 그대로 미충족)."""
+    def trace(version):
+        d = _design(version)
+        check = next(c for c in d["completion"]["checks"] if c["name"] == "기능→데이터 추적")
+        return [i for i in d["issues"] if i["kind"] == "TRACE_FUNC_WITHOUT_ENTITY" and i["status"] != "RESOLVED"], check["passed"]
+
+    from app.agents.flow.state import finding
+
+    _use(FakeLLM(broken_fk=False))
+    assert cli.main(["run", str(sample_doc), "--project", "sample", "--defer"]) == 0
+    saved = next(v["design_version"] for v in load_versions("sample") if (_folder(v["design_version"]) / "data_model.json").exists())
+    # 사람이 그 기능의 테이블 연결을 지운 ERD (추적 지적이 남고 완료 조건 미충족)
+    design = _design(saved)
+    fid = next(f["function_id"] for f in design["functions"] if f.get("data_objects"))
+    model = json.loads((_folder(saved) / "data_model.json").read_text(encoding="utf-8"))
+    for e in model["entities"]:
+        e["function_ids"] = [x for x in e["function_ids"] if x != fid]
+    (_folder(saved) / "data_model.json").write_text(json.dumps(model, ensure_ascii=False), encoding="utf-8")
+    issue = finding("TRACE_FUNC_WITHOUT_ENTITY", "ERROR", f"{fid}의 데이터를 저장할 엔티티가 없음", "data_modeler", fid, "trace_reviewer")
+    design["issues"].append(issue.model_copy(update={"issue_id": "ISS-9001", "status": "OPEN"}).model_dump())
+    for c in design["completion"]["checks"]:
+        if c["name"] == "기능→데이터 추적":
+            c.update(passed=False, detail="엔티티 미연결 기능 1건")
+    (_folder(saved) / "design.json").write_text(json.dumps(design, ensure_ascii=False), encoding="utf-8")
+    issues, passed = trace(saved)
+    assert issues and not passed
+
+    _use(FakeLLM(broken_fk=False))
+    assert cli.main(["review", "sample", f"v{saved}"]) == 0
+    assert not trace(f"{saved}.1")[1], "확인하지 않으면 최종본도 미충족"
+
+    confirm = get_settings().output_dir / "dispositions.json"
+    confirm.write_text(json.dumps({i["issue_id"]: {"choice": "confirmed", "note": ""} for i in issues}), encoding="utf-8")
+    _use(FakeLLM(broken_fk=False))
+    assert cli.main(["review", "sample", f"v{saved}", "--dispositions", str(confirm)]) == 0
+    left, passed = trace(f"{saved}.2")
+    assert passed and not left
+    assert any(i["kind"] == "TRACE_FUNC_WITHOUT_ENTITY" and i["resolution"] == "사람이 확인함" for i in _design(f"{saved}.2")["issues"])

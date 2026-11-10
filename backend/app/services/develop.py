@@ -29,7 +29,7 @@ from pathlib import Path
 from app.agents.tools.versions import find_version, update_version
 from app.core.auth import DEVELOPER
 from app.core.exceptions import BadRequest, NotFound
-from app.services.jobs.common import Job, _new_job, _path_arg, _Runner
+from app.services.jobs.common import Job, _new_job, _path_arg, _Runner, elapsed_seconds
 
 PREVIEW = ".preview"      # 코드 폴더 안의 미리보기 빌드·실행 파일 (git에 올리지 않는다)
 
@@ -161,6 +161,7 @@ class _DevelopRunner(_Runner):
                        "build": self.build, "ai": self.ai, "logic": self.ai.get("mode") == "logic", "mock": built,
                        "backend": (self.out / "backend").is_dir(), "summary": summary, "check": check,
                        "usage": self.usage(), "commit": commit["commit"], "branch": commit["branch"],
+                       "elapsed": elapsed_seconds(self.job),
                        "log": [line for line in self.job.log if line.lstrip().startswith(("새로 쓴", "사람이 고쳐", "기능 구현(LLM)", "스펙 v"))][-6:]}
             update_version(self.project, self.version, develop=develop, developments=[*(record.get("developments") or []), develop])
             self.job.new_version = self.version
