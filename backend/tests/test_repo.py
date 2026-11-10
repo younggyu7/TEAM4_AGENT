@@ -157,6 +157,24 @@ def test_regenerate_conflict_with_human_change_is_409_and_gen_is_protected(sampl
     assert listed["gen"]["protected"] and listed["gen"]["ahead"] == 1
 
 
+def test_develop_failure_reaches_developers_with_the_error(monkeypatch):
+    """개발이 실패하면 오류 줄을 붙여 개발자 모두(시작한 사람 포함)에게 웹 알림으로, Slack에도 같은 내용으로 보낸다"""
+    from app.services import directives, slack
+
+    sent = []
+    monkeypatch.setattr(slack, "develop_finished", lambda *a: sent.append(a))
+    member = _member("developer")
+    job = jobs.Job(id="d", project=P, base="1.1.1", source="develop", status="running", message="")
+    runner = develop._DevelopRunner(job, P, "1.1.1", False, {}, member, develop.app_dir(P))
+    runner._push("화면 빌드 중")
+    runner._push("Error: Cannot find module './kit' (src/pages/FnA.tsx)")
+    runner._finish("failed", "작업 중 오류가 났습니다: 빌드 실패")
+    event = [e for e in directives._notice_data(P)["events"] if e["kind"] == "develop_failed"][-1]
+    assert "Cannot find module" in event["detail"] and event["roles"] == ["developer"] and "by" not in event, "시작한 사람에게도 보인다"
+    assert sent[-1][3] is False and "Cannot find module" in sent[-1][4]
+    assert develop.error_lines(["ok", "빌드 완료", "fatal: 실패"]) == ["fatal: 실패"]
+
+
 def test_runner_records_develop_commit(monkeypatch):
     """_DevelopRunner: 처음엔 코드 폴더에 쓰고 자동 확인 전에 gen·dev에 커밋한다.
     다시 개발하면 gen 작업 폴더에 쓰고 gen 커밋 + 합치기 요청, 자동 확인(dev를 띄움)은 건너뛴다"""

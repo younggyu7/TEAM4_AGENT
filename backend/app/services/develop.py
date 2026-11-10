@@ -15,6 +15,7 @@ gen 작업 폴더는 사람이 고치지 않으므로 생성 결과가 그대로
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 import shutil
@@ -26,6 +27,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.agents.tools.versions import find_version, update_version
+from app.core.auth import DEVELOPER
 from app.core.exceptions import BadRequest, NotFound
 from app.services.jobs.common import Job, _new_job, _path_arg, _Runner
 
@@ -99,6 +101,15 @@ def _hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else ""
 
 
+log = logging.getLogger(__name__)
+ERROR_LINE = re.compile(r"오류|실패|못했|Error|Exception|Traceback|FAILED|fatal|denied", re.I)
+
+
+def error_lines(lines: list[str], limit: int = 6) -> list[str]:
+    """작업 기록에서 오류로 보이는 마지막 줄들 (알림에 붙인다)"""
+    return [line[:300] for line in [x for x in lines if ERROR_LINE.search(x)][-limit:]]
+
+
 class _DevelopRunner(_Runner):
     """develop CLI → 화면 빌드 → 버전 기록. 새 설계 버전을 만들지 않으므로 _Runner의 '새 버전 찾기'를 쓰지 않는다"""
 
@@ -109,8 +120,16 @@ class _DevelopRunner(_Runner):
 
     def _finish(self, status: str, message: str) -> None:
         super()._finish(status, message)
-        from app.services import slack
-        slack.develop_finished(self.project, self.version, self.member, status == "done", message)
+        from app.services import directives, slack
+        detail = message
+        if status != "done":   # 실패: 무엇이 잘못됐는지 기록의 오류 줄을 붙여 개발자 모두에게 알린다 (시작한 사람에게도 보이게 by를 남기지 않음)
+            detail = "\n".join([message, *error_lines(self.job.log)])[:1500]
+            try:
+                directives.add_event(self.project, "develop_failed", f"최종본 v{self.version} 최종 개발 실패 ({self.member.name}님이 시작)",
+                                     detail, "develop", self.version, {DEVELOPER})
+            except Exception as e:  # noqa: BLE001 - 알림 실패가 작업 결과를 바꾸지 않게
+                log.warning("[알림] 개발 실패 알림을 남기지 못함: %s", e)
+        slack.develop_finished(self.project, self.version, self.member, status == "done", detail)
 
     def _sh(self, cmd: list[str], cwd: Path, env: dict | None = None) -> int:
         self._push(f"$ {' '.join(cmd)}")
