@@ -1,0 +1,1 @@
+{"schema": "RedesignScopeOut", "model": "claude-sonnet-5-5", "seconds": 3.5, "tokens": [23654, 29, 0, 3102], "response": {"entity_names": ["survey", "execution_budget", "execution_budget_month"], "new_entities": []}}

@@ -1,0 +1,1 @@
+{"schema": "ConfirmOut", "model": "claude-sonnet-5-5", "seconds": 2.6, "tokens": [53010, 144, 0, 10123], "response": {"questions": [], "resolutions": [{"item_id": "C1", "rule": "연동결재를 지원할 주요 결재양식의 범위는 발주처가 제공하는 양식 목록에 포함된 양식으로 한정하며, 목록이 제공되기 전에는 연동결재 대상 양식을 시스템에서 등록·관리하는 방식으로 진행한다."}], "must_review": []}}

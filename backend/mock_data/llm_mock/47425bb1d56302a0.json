@@ -1,0 +1,1 @@
+{"schema": "ConfirmOut", "model": "claude-sonnet-5-5", "seconds": 2.5, "tokens": [88535, 91, 0, 10135], "response": {"questions": [], "resolutions": [{"item_id": "C1", "rule": "설문 진행상태 허용값은 별도 정의가 없으므로 진행 전, 진행 중, 종료 세 가지로 관리한다."}], "must_review": []}}

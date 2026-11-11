@@ -1,0 +1,1 @@
+{"schema": "RedesignScopeOut", "model": "claude-sonnet-5-5", "seconds": 2.9, "tokens": [21041, 52, 0, 3102], "response": {"entity_names": ["resource_reservation", "card_transaction", "cash_receipt", "tax_invoice", "asset_scan_log", "partner_account"], "new_entities": []}}

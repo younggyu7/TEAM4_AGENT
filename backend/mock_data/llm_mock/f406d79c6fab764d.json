@@ -1,0 +1,1 @@
+{"schema": "ConfirmOut", "model": "claude-sonnet-5-5", "seconds": 3.0, "tokens": [90940, 158, 0, 10261], "response": {"questions": [], "resolutions": [{"item_id": "C1", "rule": "증빙 유형은 통장·카드·현금영수증·전자세금계산서 네 값으로 관리하며, 공통 분류값이 변경되면 그 값을 따른다."}, {"item_id": "C2", "rule": "공개범위는 전체·부서·개인 세 값만 허용하며, 공통 분류값이 변경되면 그 값을 따른다."}], "must_review": []}}
