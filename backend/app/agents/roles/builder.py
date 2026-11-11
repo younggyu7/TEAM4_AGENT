@@ -371,15 +371,33 @@ def _path_matches(called: list[str], spec: list[str]) -> bool:
     return len(called) == len(spec) and all(a == b or "{}" in (a, b) for a, b in zip(called, spec))
 
 
+# 형을 적지 않은 파라미터의 NULL 검사 (:id IS NULL): PostgreSQL이 $1의 형을 정하지 못해 실행할 때 500이 난다
+UNTYPED_NULL = re.compile(r"(?<![\w:]):([A-Za-z_]\w*)\s+IS\s+(?:NOT\s+)?NULL\b", re.I)
+# 서버 오류(500)를 직접 던짐: 구현을 미룬 자리다 (화면에서 누르면 항상 실패)
+THROWS_500 = re.compile(r"\bApiError\(\s*500\b")
+
+
+def runtime_traps(code: str) -> list[str]:
+    """컴파일은 되지만 실행하면 늘 500이 나는 코드 (세 틀 공통)"""
+    out = [f"SQL ':{name} IS NULL'은 PostgreSQL이 파라미터 형을 정하지 못해 실행 오류가 난다. "
+           f"CAST(:{name} AS bigint) IS NULL처럼 이 파라미터가 나오는 모든 자리에 형을 적는다"
+           for name in dict.fromkeys(UNTYPED_NULL.findall(code))]
+    if THROWS_500.search(code):
+        out.append("ApiError(500, …)를 직접 던짐: 구현을 미루지 않는다. 정해지지 않은 값·형식은 가정으로 정해 구현하고 "
+                   "(파일 맨 앞 상수, 주석에 '가정'), 처리할 수 없는 입력·설정·상태는 API 표의 4xx 오류(없으면 409 INVALID_STATE)로 거절한다")
+    return out
+
+
 def check_server(spec: Spec, code: str, cls: str, ops: list[dict], tables: set[str]) -> list[str]:
-    """서버 코드 검사: Spring은 Java 컨트롤러, FastAPI는 Python 모듈, NestJS는 TypeScript 컨트롤러. 셋 다 SQL 조각 공백도 본다"""
+    """서버 코드 검사: Spring은 Java 컨트롤러, FastAPI는 Python 모듈, NestJS는 TypeScript 컨트롤러.
+    셋 다 SQL 조각 공백과 실행하면 늘 500이 나는 코드(형 없는 NULL 검사·직접 던진 500)도 본다"""
     if _nest(spec):
         errors = builder_nestjs.check_module(code, cls, ops, tables, _cramped)
     elif _python(spec):
         errors = builder_fastapi.check_module(code, ops, tables, _cramped)
     else:
         errors = check_controller(code, cls, ops, tables)
-    return errors + glued_sql(code)
+    return errors + glued_sql(code) + runtime_traps(code)
 
 
 def recheck(spec: Spec, f: FunctionSpec, ops: list[dict], record: dict, tables: set[str]) -> list[str]:

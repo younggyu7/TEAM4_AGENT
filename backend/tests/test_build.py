@@ -94,6 +94,19 @@ def test_contract_violations_are_caught():
         "승인·반려를 변수 하나로 부르는 경로는 스펙 경로와 맞는다"
 
 
+def test_code_that_always_fails_at_runtime_is_caught():
+    """EC2 mock_회사: 형 없는 ':id IS NULL'(PostgreSQL 42P08)과 구현을 미루고 던진 500은 실행하면 늘 500이다"""
+    untyped = "db.query(`SELECT 1 FROM budget_item bi WHERE (:budgetItemId IS NULL OR bi.budget_item_id = CAST(:budgetItemId AS bigint))`, { budgetItemId })"
+    errors = builder.runtime_traps(untyped)
+    assert len(errors) == 1 and "CAST(:budgetItemId AS bigint) IS NULL" in errors[0]
+    assert builder.runtime_traps(untyped.replace("(:budgetItemId IS NULL", "(CAST(:budgetItemId AS bigint) IS NULL")) == []
+    assert builder.runtime_traps("WHERE :x::bigint IS NULL OR x IS NOT NULL AND a.b IS NULL") == [], "형을 적었거나 컬럼이면 괜찮다"
+    assert builder.runtime_traps("WHERE (:status is not null)") != [], "소문자·IS NOT NULL도"
+    later = "throw new ApiError(500, 'INTERNAL_ERROR', '연차정보 양식을 만들 수 없습니다.');"
+    assert any("구현을 미루지 않는다" in e for e in builder.runtime_traps(later))
+    assert builder.runtime_traps("throw new ApiError(409, 'INVALID_STATE', '…')") == []
+
+
 def test_build_replaces_generated_code_only_for_built_functions_and_is_not_asked_twice(sample_doc):
     out, spec = _spec(sample_doc)
     fid = spec.functions[0].function_id
