@@ -516,7 +516,8 @@ def adopt(project: str, branch: str, keep: list[str], member) -> dict:
             raise Conflict("dev 작업 폴더에 커밋하지 않은 변경이 있어 채택하지 않습니다 (서버 코드 폴더를 확인하세요).")
         before = git(app, "rev-parse", "HEAD").strip()
         try:
-            git(app, "merge", "--no-ff", "--no-commit", "-s", "ours", branch)
+            # --no-commit이어도 git은 합치기 전에 사용자 정보를 확인한다 (전역 user.name이 없는 서버·CI)
+            git(app, "merge", "--no-ff", "--no-commit", "-s", "ours", branch, who=(member.name, member.email))
             gone = [f["path"] for f in plan["files"] if f["status"] == "D" and f["path"] not in keep_set]
             if gone:
                 git(app, "rm", "-q", "--", *gone)
