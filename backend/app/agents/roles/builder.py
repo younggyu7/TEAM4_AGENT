@@ -375,6 +375,22 @@ def _path_matches(called: list[str], spec: list[str]) -> bool:
 UNTYPED_NULL = re.compile(r"(?<![\w:]):([A-Za-z_]\w*)\s+IS\s+(?:NOT\s+)?NULL\b", re.I)
 # 서버 오류(500)를 직접 던짐: 구현을 미룬 자리다 (화면에서 누르면 항상 실패)
 THROWS_500 = re.compile(r"\bApiError\(\s*500\b")
+# 문자열 리터럴: 파이썬 세 따옴표, 템플릿(`…`), 큰따옴표, 작은따옴표 (따옴표 종류를 함께 돌려준다)
+STRING_LITERAL = re.compile(r'("""|`)(.*?)\1|(["\'])((?:\\.|(?!\3)[^\\\n])*)\3', re.S)
+SQL_WORD = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE)\b", re.I)
+# DB 확장(pgcrypto) 암호화 함수: 앱 DB에는 확장을 설치하지 않아 'function decrypt(bytea, bytea, unknown) does not exist'
+DB_CRYPTO = re.compile(r"(?<![\w.])(pgp_sym_decrypt|pgp_sym_encrypt|pgp_pub_decrypt|pgp_pub_encrypt|decrypt_iv|encrypt_iv"
+                       r"|decrypt|encrypt|gen_salt|crypt|digest|hmac|gen_random_bytes)\s*\(", re.I)
+
+
+def _sql_literals(code: str) -> list[tuple[str, str]]:
+    """SQL로 보이는 문자열 리터럴 (따옴표, 내용)"""
+    out = []
+    for m in STRING_LITERAL.finditer(code):
+        quote, text = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+        if SQL_WORD.search(text):
+            out.append((quote, text))
+    return out
 
 
 def runtime_traps(code: str) -> list[str]:
@@ -382,6 +398,14 @@ def runtime_traps(code: str) -> list[str]:
     out = [f"SQL ':{name} IS NULL'은 PostgreSQL이 파라미터 형을 정하지 못해 실행 오류가 난다. "
            f"CAST(:{name} AS bigint) IS NULL처럼 이 파라미터가 나오는 모든 자리에 형을 적는다"
            for name in dict.fromkeys(UNTYPED_NULL.findall(code))]
+    sqls = _sql_literals(code)
+    for name in dict.fromkeys(m.group(1).lower() for _, text in sqls for m in DB_CRYPTO.finditer(text)):
+        out.append(f"SQL에서 DB 확장 암호화 함수 {name}()를 씀: 앱 DB에는 pgcrypto 확장이 없어 실행하면 오류가 난다 (예시 데이터도 "
+                   "암호화돼 있지 않다). 암호화·복호화를 SQL에서 하지 말고 컬럼 값을 그대로 읽고 쓴다 (화면에 가려 보일 값은 "
+                   "SQL 문자열 함수나 코드로 가리고, 주석에 '가정: 암호화는 운영 DB 설정에서'로 남긴다)")
+    if any("${" in text for quote, text in sqls if quote in ("'", '"')):
+        out.append("따옴표('…'·\"…\") SQL 문자열 안에 ${…}를 씀: 값이 들어가지 않고 '$' 그대로 DB에 가서 문법 오류가 난다. "
+                   "값은 :이름 바인딩으로 넘긴다 (컬럼·정렬 이름처럼 SQL 조각이면 정해진 목록에서 골라 이어 붙인다)")
     if THROWS_500.search(code):
         out.append("ApiError(500, …)를 직접 던짐: 구현을 미루지 않는다. 정해지지 않은 값·형식은 가정으로 정해 구현하고 "
                    "(파일 맨 앞 상수, 주석에 '가정'), 처리할 수 없는 입력·설정·상태는 API 표의 4xx 오류(없으면 409 INVALID_STATE)로 거절한다")

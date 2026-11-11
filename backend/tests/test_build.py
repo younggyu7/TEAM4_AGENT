@@ -107,6 +107,19 @@ def test_code_that_always_fails_at_runtime_is_caught():
     assert builder.runtime_traps("throw new ApiError(409, 'INVALID_STATE', '…')") == []
 
 
+def test_db_crypto_functions_and_uninterpolated_placeholders_in_sql_are_caught():
+    """EC2 자동 확인 500: 앱 DB에 없는 pgcrypto decrypt()(42883)와 따옴표 문자열 안의 ${…}('$' 문법 오류 42601)"""
+    crypto = "const rows = await db.query(`SELECT c.card_id, decrypt(c.card_no, :key, 'aes') AS no FROM credit_card c`, { key });"
+    errors = builder.runtime_traps(crypto)
+    assert len(errors) == 1 and "decrypt()" in errors[0] and "pgcrypto" in errors[0]
+    assert builder.runtime_traps('sql = """\n  SELECT pgp_sym_decrypt(card_no, :k) FROM credit_card\n"""') != [], "파이썬 세 따옴표도"
+    assert builder.runtime_traps("const hash = createHash('sha256').update(x).digest('hex');") == [], "SQL이 아닌 코드의 digest()는 괜찮다"
+    quoted = "await db.query('SELECT * FROM asset_inspection_plan WHERE plan_year = ${year}', {});"
+    assert any(":이름 바인딩" in e for e in builder.runtime_traps(quoted))
+    assert builder.runtime_traps("await db.query(`SELECT * FROM asset_inspection_plan p WHERE ${where}`, params);") == [], \
+        "템플릿 문자열의 ${…}는 값이 들어간다"
+
+
 def test_build_replaces_generated_code_only_for_built_functions_and_is_not_asked_twice(sample_doc):
     out, spec = _spec(sample_doc)
     fid = spec.functions[0].function_id
