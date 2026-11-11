@@ -1,6 +1,6 @@
 # TRD
 
-- 버전·최종 수정일: 2.4 · 2026-11-06
+- 버전·최종 수정일: 2.5 · 2026-11-11
 - 상태: 검토 중 (현재 코드 구조로 다시 씀)
 - 파일별 설명: [PROJECT_STRUCTURE.md](../../PROJECT_STRUCTURE.md) · 실행·API·설정: [프로젝트 README](../../README.md) · 변경 기록: [IMPLEMENTATION_STATUS_FOR_FASTAPI.md](../../IMPLEMENTATION_STATUS_FOR_FASTAPI.md)
 
@@ -29,6 +29,7 @@ LLM이 걸리는 작업(몇 분)은 서버 안에서 돌리지 않고 같은 코
 | Agent | `app/agents/roles/` 9개 | 조정·문서 분석·요구사항·요구사항 검토·기능 명세·데이터 설계·추적 검토·의미 검토·API 설계. API 설계는 조정 Agent에 넣지 않고 `review` 명령에서만 부른다. 의미 검토는 ERD 단계에서 조정 Agent가 부르고, 데이터 지적은 데이터 모델 Agent `semantic` 모드로 넘긴다 |
 | 프롬프트 | `app/agents/prompts/<Agent>/<이름>.md` | `load_prompt()`로 읽는다. 코드에 프롬프트 문자열을 두지 않는다 |
 | LLM | `app/agents/llm/` (포트 `LLMClient`) | Anthropic·OpenAI·manual 어댑터, 구조화 출력, 병렬 호출, 사용량 집계 |
+| 시연용 녹화·재생 (검토 중) | `app/agents/llm/client.py` `MockClient`, `.env` `LLM_MODE`·`LLM_MOCK_DIR`·`LLM_REPLAY_DELAY` | `normal`(기본, 실제 호출) / `record`(실제 호출하며 응답·토큰·걸린 시간을 `<요청 해시>.json`으로, 모델 설정을 `model.json`으로 저장) / `replay`(같은 요청이면 저장 응답으로 답하고 녹화 때 토큰을 보고, 걸린 시간 × `LLM_REPLAY_DELAY`(호출당 최대 8초)만 기다림. 없는 요청은 실제로 부르고 녹화). 키는 manual과 같은 해시(스키마·system·shared+user)라 모델과 무관하고, replay는 모델 설정을 `model.json` 값으로 고정해(화면·CLI 선택 무시) 사용량·금액이 녹화 때와 같다. 작업·Slack·Docker·Git은 그대로 실제로 동작. 녹화와 같은 커밋·프로젝트 이름·문서·답 순서여야 맞는다 |
 | 산출물 저장 | `app/agents/storage/` (포트 `ArtifactStore`) | `DATABASE_URL`이 있으면 PostgreSQL 어댑터, 없으면 로컬 폴더 어댑터 |
 | 서비스 DB | `app/models/`(테이블), `app/repositories/`(트랜잭션), `app/core/database.py`, `alembic/` | PostgreSQL 16 (루트 `compose.yaml`의 `db`, 볼륨 `team4_agent_pgdata`). 버전 번호는 프로젝트 행 잠금으로 발급 |
 | 실행 체크포인트 | LangGraph `PostgresSaver` (DB 없으면 `SqliteSaver`) | rerun·review·resume는 기준 버전을 만든 실행의 마지막 상태에서 시작 |

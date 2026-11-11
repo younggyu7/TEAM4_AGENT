@@ -351,6 +351,9 @@ def start_develop(*, project: str, version: str, build: bool, model: str, effort
     if layout:
         args += ["--layout", layout]
     if build or logic:
+        s = get_settings()
+        if s.llm_mode == "replay" and model:   # 시연: 고른 모델 대신 녹화한 모델로 기록 (사용량·금액이 녹화 때와 같게)
+            model = s.anthropic_model if s.llm_provider == "anthropic" else s.openai_model
         args.append("--build" if build else "--logic")
         if model:
             args += ["--provider", "anthropic" if model.startswith("claude") else "openai", "--model", model]

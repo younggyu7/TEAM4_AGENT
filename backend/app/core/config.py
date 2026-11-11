@@ -1,6 +1,7 @@
 """실행 설정. 환경변수(프로젝트 루트 TEAM4_AGENT/.env)를 읽고, CLI 인자로 일부를 덮어쓴다."""
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -54,6 +55,28 @@ def _bool(name: str, default: bool) -> bool:
 
 
 SEMANTIC_REVIEW_MODES = ("auto", "erd", "off")
+LLM_MODES = ("normal", "record", "replay")
+# replay에서 녹화 때 값으로 고정하는 설정 (화면·CLI에서 고른 모델 대신 녹화한 모델로 사용량·금액을 보인다)
+MOCK_MODEL_KEYS = ("llm_provider", "anthropic_model", "anthropic_effort", "openai_model", "openai_reasoning_effort")
+
+
+def _llm_mode() -> str:
+    """LLM_MODE: normal(실제 서비스) / record(mock 만들기) / replay(mock으로 시연)."""
+    value = os.getenv("LLM_MODE", "").strip().lower() or "normal"
+    if value not in LLM_MODES:
+        raise ValueError(f"LLM_MODE는 {'·'.join(LLM_MODES)} 중 하나입니다: {value}")
+    return value
+
+
+def _pin_mock_model(s: "Settings") -> "Settings":
+    """replay면 녹화 때 모델 설정(mock 폴더의 model.json)으로 고정한다. 파일이 없으면 그대로."""
+    if s.llm_mode != "replay":
+        return s
+    try:
+        saved = json.loads((s.llm_mock_dir / "model.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return s
+    return replace(s, **{k: saved[k] for k in MOCK_MODEL_KEYS if saved.get(k)})
 
 
 def _semantic_review_mode(default: str) -> str:
@@ -99,6 +122,9 @@ class Settings:
     data_dir: Path = Path("data")                          # 입력 문서 폴더 (parse 기본 대상, run에서 이름만 줘도 찾음)
     output_dir: Path = Path("output")
     llm_exchange_dir: Path = Path("output/llm_exchange")   # manual 공급자 요청·응답 파일
+    llm_mode: str = "normal"                             # normal: 실제 호출 / record: 실제 호출하며 응답을 mock 폴더에 저장 / replay: 저장한 응답으로 답함 (시연용, 없는 요청만 실제 호출)
+    llm_mock_dir: Path = Path("output/llm_mock")         # record·replay 모드의 응답 파일 폴더
+    llm_replay_delay: float = 0.05                       # replay에서 녹화 때 걸린 시간의 몇 배를 기다릴지 (호출 1건당 최대 8초. 0이면 바로 답함)
     database_url: str = ""                              # 서비스 DB (PostgreSQL). 비우면 output 폴더·SQLite 체크포인트 (로컬·테스트)
     validation_db_url: str = DEFAULT_VALIDATION_DB_URL   # 빈 문자열이면 SQLite로만 검증
     keep_validation_schema: bool = False
@@ -154,6 +180,9 @@ class Settings:
             data_dir=_dir("DATA_DIR", "data"),
             output_dir=_dir("OUTPUT_DIR", "output"),
             llm_exchange_dir=_dir("LLM_EXCHANGE_DIR", "output/llm_exchange"),
+            llm_mode=_llm_mode(),
+            llm_mock_dir=_dir("LLM_MOCK_DIR", "output/llm_mock"),
+            llm_replay_delay=float(os.getenv("LLM_REPLAY_DELAY", "").strip() or cls.llm_replay_delay),
             database_url=os.getenv("DATABASE_URL", "").strip(),
             validation_db_url=_validation_db_url(),
             keep_validation_schema=_bool("KEEP_VALIDATION_SCHEMA", False),
@@ -198,13 +227,13 @@ def get_settings() -> Settings:
     """현재 설정 (처음 한 번 환경변수에서 읽어 재사용)."""
     global _settings
     if _settings is None:
-        _settings = Settings.from_env()
+        _settings = _pin_mock_model(Settings.from_env())
     return _settings
 
 
 def override_settings(**changes) -> Settings:
-    """CLI 인자 등으로 설정 일부를 바꾼다. None 값은 무시한다."""
+    """CLI 인자 등으로 설정 일부를 바꾼다. None 값은 무시한다 (replay의 모델 설정은 녹화 때 값 그대로)."""
     global _settings
     changes = {k: v for k, v in changes.items() if v is not None}
-    _settings = replace(get_settings(), **changes)
+    _settings = _pin_mock_model(replace(get_settings(), **changes))
     return _settings

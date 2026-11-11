@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Iterable, TypeVar
@@ -301,6 +302,67 @@ def pending_requests(exchange_dir: Path) -> list[Path]:
                   if not (exchange_dir / p.name.replace(".request.md", ".response.json")).exists())
 
 
+REPLAY_MAX_WAIT = 8.0   # replay에서 호출 1건당 최대 대기 (초)
+
+
+class MockClient(LLMClient):
+    """시연용 녹화·재생 (LLM_MODE). 키는 ManualClient와 같은 요청 해시라 같은 요청이면 같은 응답 파일이다.
+
+    record: 실제 공급자를 부르고 응답·토큰·걸린 시간을 mock 폴더의 <키>.json에, 모델 설정을 model.json에 쓴다.
+    replay: <키>.json이 있으면 녹화 때 토큰을 그대로 보고하고(사용량·금액 표시) 걸린 시간의 일부만 기다린 뒤 답한다.
+            없으면 실제로 부르고 녹화해 둔다 (클릭 순서가 조금 달라도 시연이 멈추지 않게).
+    """
+
+    def __init__(self, inner: Callable[[], LLMClient], mode: str, mock_dir: Path, delay: float, provider: str, model: str):
+        super().__init__(model)
+        self._make, self._inner = inner, None
+        self.mode, self.dir, self.delay = mode, mock_dir, delay
+        self.provider = provider
+        self.caches_prompts = provider == "anthropic"   # 묶음 요청 순서가 녹화 때와 같아야 키가 맞는다
+
+    def inner(self) -> LLMClient:
+        """실제 공급자 클라이언트 (replay에서 응답이 모두 있으면 만들지 않는다)."""
+        with self._lock:
+            if self._inner is None:
+                self._inner = self._make()
+            return self._inner
+
+    def _call(self, system, user, schema, max_tokens, reduce_effort=False, shared="", effort=""):
+        """replay면 저장한 응답, 아니면 실제 호출 후 저장."""
+        key = ManualClient.request_key(system, _join(shared, user), schema)
+        path = self.dir / f"{key}.json"
+        if self.mode == "replay" and path.exists():
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            time.sleep(min(saved.get("seconds", 0) * self.delay, REPLAY_MAX_WAIT))
+            return schema.model_validate(saved["response"]), *saved["tokens"]
+        if self.mode == "replay":
+            log.warning("mock에 없는 요청(%s, %s) → 실제 LLM 호출", schema.__name__, key)
+        start = time.monotonic()
+        result, *tokens = self.inner()._call(system, user, schema, max_tokens, reduce_effort=reduce_effort,
+                                            shared=shared, effort=effort)
+        tokens = [*tokens, 0, 0][:4]
+        self._save(path, {"schema": schema.__name__, "model": self.model, "seconds": round(time.monotonic() - start, 1),
+                          "tokens": tokens, "response": result.model_dump(mode="json")})
+        return result, *tokens
+
+    def _save(self, path: Path, data: dict) -> None:
+        """응답 파일을 쓴다 (병렬 호출이 같은 파일을 반쯤 읽지 않게 임시 파일 → 이름 바꾸기)."""
+        self.dir.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(path)
+
+
+def _mock_model_file(s, provider: str) -> None:
+    """녹화한 모델 설정을 model.json에 쓴다 (replay가 이 값으로 고정해 사용량·금액을 녹화 때와 같게 보인다)."""
+    from app.core.config import MOCK_MODEL_KEYS
+
+    s.llm_mock_dir.mkdir(parents=True, exist_ok=True)
+    keys = [k for k in MOCK_MODEL_KEYS if k == "llm_provider" or k.startswith(provider)]
+    data = {k: provider if k == "llm_provider" else getattr(s, k) for k in keys}
+    (s.llm_mock_dir / "model.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 _llm: LLMClient | None = None
 
 
@@ -349,14 +411,26 @@ def _create_from_settings() -> LLMClient:
     provider = resolve_provider()
     if provider == "manual":
         client: LLMClient = ManualClient(s.llm_exchange_dir)
-    elif provider == "anthropic":
-        client = AnthropicClient(s.anthropic_model, s.anthropic_effort)
-    elif provider == "openai":
-        client = OpenAIClient(s.openai_model, s.openai_reasoning_effort)
-    else:
+    elif provider not in ("anthropic", "openai"):
         raise RuntimeError(f"알 수 없는 LLM_PROVIDER: {provider}")
+    elif s.llm_mode == "normal":
+        client = _provider_client(s, provider)
+    else:
+        if s.llm_mode == "record":
+            _mock_model_file(s, provider)
+        model = s.anthropic_model if provider == "anthropic" else s.openai_model
+        client = MockClient(lambda: _provider_client(s, provider), s.llm_mode, s.llm_mock_dir, s.llm_replay_delay,
+                            provider, model)
+        log.info("LLM 모드: %s (mock 폴더 %s)", s.llm_mode, s.llm_mock_dir)
     log.info("LLM: %s / %s", client.provider, client.model)
     return client
+
+
+def _provider_client(s, provider: str) -> LLMClient:
+    """공급자별 실제 클라이언트."""
+    if provider == "anthropic":
+        return AnthropicClient(s.anthropic_model, s.anthropic_effort)
+    return OpenAIClient(s.openai_model, s.openai_reasoning_effort)
 
 
 def run_parallel(fn: Callable[[R], T], items: Iterable[R]) -> list[tuple[R, T | None, Exception | None]]:
