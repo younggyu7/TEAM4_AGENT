@@ -105,6 +105,12 @@ def test_code_that_always_fails_at_runtime_is_caught():
     later = "throw new ApiError(500, 'INTERNAL_ERROR', '연차정보 양식을 만들 수 없습니다.');"
     assert any("구현을 미루지 않는다" in e for e in builder.runtime_traps(later))
     assert builder.runtime_traps("throw new ApiError(409, 'INVALID_STATE', '…')") == []
+    # EC2 /server-capacities: 명세에 없는 모니터링 연동을 '연결 전에는 502'로 던져 자동 확인에서 늘 서버 오류
+    gateway = "throw new ApiError(502, 'SERVER_CAPACITY_UNAVAILABLE', '서버 모니터링 정보를 가져오지 못했습니다.');"
+    errors = builder.runtime_traps(gateway)
+    assert len(errors) == 1 and "ApiError(502" in errors[0] and "빈 목록" in errors[0]
+    assert builder.runtime_traps("raise ApiError(503, 'UNAVAILABLE', '…')") != [], "파이썬·다른 5xx도"
+    assert builder.runtime_traps("throw new ApiError(501, 'NOT_IMPLEMENTED', '…')") == [], "501은 자동 확인이 '구현 대기'로 센다"
 
 
 def test_db_crypto_functions_and_uninterpolated_placeholders_in_sql_are_caught():

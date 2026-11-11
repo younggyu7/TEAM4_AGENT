@@ -373,8 +373,9 @@ def _path_matches(called: list[str], spec: list[str]) -> bool:
 
 # 형을 적지 않은 파라미터의 NULL 검사 (:id IS NULL): PostgreSQL이 $1의 형을 정하지 못해 실행할 때 500이 난다
 UNTYPED_NULL = re.compile(r"(?<![\w:]):([A-Za-z_]\w*)\s+IS\s+(?:NOT\s+)?NULL\b", re.I)
-# 서버 오류(500)를 직접 던짐: 구현을 미룬 자리다 (화면에서 누르면 항상 실패)
-THROWS_500 = re.compile(r"\bApiError\(\s*500\b")
+# 서버 오류(5xx)를 직접 던짐: 구현을 미룬 자리다 (화면에서 누르면 항상 실패).
+# 501(구현 대기)만 자동 확인이 따로 센다. 502·503은 '외부 연동이 명세에 없음'을 실패로 던진 코드다 (EC2 /server-capacities)
+THROWS_5XX = re.compile(r"\bApiError\(\s*(5(?!01\b)\d\d)\b")
 # 문자열 리터럴: 파이썬 세 따옴표, 템플릿(`…`), 큰따옴표, 작은따옴표 (따옴표 종류를 함께 돌려준다)
 STRING_LITERAL = re.compile(r'("""|`)(.*?)\1|(["\'])((?:\\.|(?!\3)[^\\\n])*)\3', re.S)
 SQL_WORD = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE)\b", re.I)
@@ -406,15 +407,16 @@ def runtime_traps(code: str) -> list[str]:
     if any("${" in text for quote, text in sqls if quote in ("'", '"')):
         out.append("따옴표('…'·\"…\") SQL 문자열 안에 ${…}를 씀: 값이 들어가지 않고 '$' 그대로 DB에 가서 문법 오류가 난다. "
                    "값은 :이름 바인딩으로 넘긴다 (컬럼·정렬 이름처럼 SQL 조각이면 정해진 목록에서 골라 이어 붙인다)")
-    if THROWS_500.search(code):
-        out.append("ApiError(500, …)를 직접 던짐: 구현을 미루지 않는다. 정해지지 않은 값·형식은 가정으로 정해 구현하고 "
-                   "(파일 맨 앞 상수, 주석에 '가정'), 처리할 수 없는 입력·설정·상태는 API 표의 4xx 오류(없으면 409 INVALID_STATE)로 거절한다")
+    for status in dict.fromkeys(THROWS_5XX.findall(code)):
+        out.append(f"ApiError({status}, …)를 직접 던짐: 구현을 미루지 않는다. 정해지지 않은 값·형식은 가정으로 정해 구현하고 "
+                   "(파일 맨 앞 상수, 주석에 '가정'), 명세에 없는 외부 연동(모니터링·메일 등)은 실패로 던지지 말고 가정으로 빈 목록·기본값을 "
+                   "돌려주며, 처리할 수 없는 입력·설정·상태는 API 표의 4xx 오류(없으면 409 INVALID_STATE)로 거절한다")
     return out
 
 
 def check_server(spec: Spec, code: str, cls: str, ops: list[dict], tables: set[str]) -> list[str]:
     """서버 코드 검사: Spring은 Java 컨트롤러, FastAPI는 Python 모듈, NestJS는 TypeScript 컨트롤러.
-    셋 다 SQL 조각 공백과 실행하면 늘 500이 나는 코드(형 없는 NULL 검사·직접 던진 500)도 본다"""
+    셋 다 SQL 조각 공백과 실행하면 늘 500이 나는 코드(형 없는 NULL 검사·직접 던진 5xx)도 본다"""
     if _nest(spec):
         errors = builder_nestjs.check_module(code, cls, ops, tables, _cramped)
     elif _python(spec):
