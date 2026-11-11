@@ -1,4 +1,5 @@
 """실행 설정. 환경변수(프로젝트 루트 TEAM4_AGENT/.env)를 읽고, CLI 인자로 일부를 덮어쓴다."""
+
 from __future__ import annotations
 
 import json
@@ -8,8 +9,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-BACKEND_ROOT = Path(__file__).resolve().parents[2]   # backend/
-PROJECT_ROOT = BACKEND_ROOT.parent                    # TEAM4_AGENT/ (.env·compose.yaml·Dockerfile)
+BACKEND_ROOT = Path(__file__).resolve().parents[2]  # backend/
+PROJECT_ROOT = BACKEND_ROOT.parent  # TEAM4_AGENT/ (.env·compose.yaml·Dockerfile)
 
 # 이미 있는 환경변수(docker env_file·셸에서 준 값)가 우선. 루트에 .env가 없으면(docker 이미지 안) 환경변수만 쓴다
 load_dotenv(PROJECT_ROOT / ".env")
@@ -94,6 +95,7 @@ def _semantic_review_mode(default: str) -> str:
 @dataclass(frozen=True)
 class Settings:
     """실행 설정. .env 값으로 만들고 CLI 인자로 일부를 덮어쓴다."""
+
     llm_provider: str = "auto"
     openai_model: str = "gpt-5.4-mini"
     openai_reasoning_effort: str = "low"
@@ -101,52 +103,80 @@ class Settings:
     anthropic_effort: str = "high"
     llm_concurrency: int = 4
     req_batch_size: int = 3
-    req_fill_gaps: bool = True                           # 추출 뒤 요구사항에 담기지 않은 원문 목록 항목을 코드로 찾아 그 단위만 한 번 더 추출 (빠진 항목 채우기)
-    req_fill_min_items: int = 2                          # 담기지 않은 항목이 이만큼 이상인 단위만 채운다 (1개만 빠진 단위는 요구사항 검토 Agent의 보충이 맡는다)
+    req_fill_gaps: bool = (
+        True  # 추출 뒤 요구사항에 담기지 않은 원문 목록 항목을 코드로 찾아 그 단위만 한 번 더 추출 (빠진 항목 채우기)
+    )
+    req_fill_min_items: int = (
+        2  # 담기지 않은 항목이 이만큼 이상인 단위만 채운다 (1개만 빠진 단위는 요구사항 검토 Agent의 보충이 맡는다)
+    )
     func_group_size: int = 12
-    func_common_decisions: bool = True                   # 기능 명세 전에 공통 결정(용어·분류값·공통 규칙)을 먼저 정함
-    func_effort: str = ""                                # 기능 명세 그룹·확인 질문 요청의 생각 수준 (빈 값이면 ANTHROPIC_EFFORT·OPENAI_REASONING_EFFORT)
-    auto_assume: bool = True                             # 추천안이 있는 확인 대상은 꼭 확인할 것(범위·권한·핵심 데이터·금액·삭제/보존)만 묻고 나머지는 추천안으로 적용 ('(가정)' 표시). false면 아래 '(가정)' 한도 방식
-    ask_choices_only: bool = True                        # 예/아니오로 확인만 하는 것은 묻지 않고 추천안대로 확정, 고객이 서로 다른 안 중에서 골라야 하는 것만 질문 (영역 묶음 질문 대신)
-    func_assumption_limit: float = 0.1                   # 기능 명세 '(가정)' 규칙 한도 (전체 업무 규칙 대비). 넘으면 질문으로 정한다. 1이면 묻지 않음
-    func_rule_bundle: bool = True                        # 질문 없이 남은 영향이 작은 '(확인 필요)' 규칙을 영역마다 질문 하나로 묶는다
-    func_rule_trim: bool = True                          # 고객이 정할 내용이 없는 '(가정)'·'(확인 필요)' 규칙(되풀이·중복)을 뺀다
-    func_basis_check: bool = True                        # 표시 없는 규칙을 원문과 대조해 근거가 없으면 '(가정)'을 붙인다
-    func_max_questions: int = 12                         # 기능 명세 확인 질문 상한 (한도를 넘어 덮지 못한 것은 '(확인 필요)'로 남아 사람이 확인)
+    func_common_decisions: bool = True  # 기능 명세 전에 공통 결정(용어·분류값·공통 규칙)을 먼저 정함
+    func_effort: str = (
+        ""  # 기능 명세 그룹·확인 질문 요청의 생각 수준 (빈 값이면 ANTHROPIC_EFFORT·OPENAI_REASONING_EFFORT)
+    )
+    auto_assume: bool = (
+        True  # 추천안이 있는 확인 대상은 꼭 확인할 것(범위·권한·핵심 데이터·금액·삭제/보존)만 묻고 나머지는 추천안으로 적용 ('(가정)' 표시). false면 아래 '(가정)' 한도 방식
+    )
+    ask_choices_only: bool = (
+        True  # 예/아니오로 확인만 하는 것은 묻지 않고 추천안대로 확정, 고객이 서로 다른 안 중에서 골라야 하는 것만 질문 (영역 묶음 질문 대신)
+    )
+    func_assumption_limit: float = (
+        0.1  # 기능 명세 '(가정)' 규칙 한도 (전체 업무 규칙 대비). 넘으면 질문으로 정한다. 1이면 묻지 않음
+    )
+    func_rule_bundle: bool = True  # 질문 없이 남은 영향이 작은 '(확인 필요)' 규칙을 영역마다 질문 하나로 묶는다
+    func_rule_trim: bool = True  # 고객이 정할 내용이 없는 '(가정)'·'(확인 필요)' 규칙(되풀이·중복)을 뺀다
+    func_basis_check: bool = True  # 표시 없는 규칙을 원문과 대조해 근거가 없으면 '(가정)'을 붙인다
+    func_max_questions: int = (
+        12  # 기능 명세 확인 질문 상한 (한도를 넘어 덮지 못한 것은 '(확인 필요)'로 남아 사람이 확인)
+    )
     attr_batch_size: int = 5
     max_steps: int = 40
-    max_fix_attempts: int = 2                            # Agent 실패·이슈 자동 수정 횟수 (아래 단계별 값이 0이면 이 값)
-    func_fix_attempts: int = 0                           # 기능 명세: 누락 요구사항 채우기·실패 재시도 횟수 (0이면 max_fix_attempts)
-    model_fix_attempts: int = 0                          # 데이터 설계: 모델 오류 수정·연결 보완·의미 검토 지적 보완·실패 재시도 횟수 (0이면 max_fix_attempts)
+    max_fix_attempts: int = 2  # Agent 실패·이슈 자동 수정 횟수 (아래 단계별 값이 0이면 이 값)
+    func_fix_attempts: int = 0  # 기능 명세: 누락 요구사항 채우기·실패 재시도 횟수 (0이면 max_fix_attempts)
+    model_fix_attempts: int = (
+        0  # 데이터 설계: 모델 오류 수정·연결 보완·의미 검토 지적 보완·실패 재시도 횟수 (0이면 max_fix_attempts)
+    )
     max_db_attempts: int = 2
-    data_dir: Path = Path("data")                          # 입력 문서 폴더 (parse 기본 대상, run에서 이름만 줘도 찾음)
+    data_dir: Path = Path("data")  # 입력 문서 폴더 (parse 기본 대상, run에서 이름만 줘도 찾음)
     output_dir: Path = Path("output")
-    llm_exchange_dir: Path = Path("output/llm_exchange")   # manual 공급자 요청·응답 파일
-    llm_mode: str = "normal"                             # normal: 실제 호출 / record: 실제 호출하며 응답을 mock 폴더에 저장 / replay: 저장한 응답으로 답함 (시연용, 없는 요청만 실제 호출)
-    llm_mock_dir: Path = Path("output/llm_mock")         # record·replay 모드의 응답 파일 폴더
-    llm_replay_delay: float = 0.05                       # replay에서 녹화 때 걸린 시간의 몇 배를 기다릴지 (호출 1건당 최대 8초. 0이면 바로 답함)
-    database_url: str = ""                              # 서비스 DB (PostgreSQL). 비우면 output 폴더·SQLite 체크포인트 (로컬·테스트)
-    validation_db_url: str = DEFAULT_VALIDATION_DB_URL   # 빈 문자열이면 SQLite로만 검증
+    llm_exchange_dir: Path = Path("output/llm_exchange")  # manual 공급자 요청·응답 파일
+    llm_mode: str = (
+        "normal"  # normal: 실제 호출 / record: 실제 호출하며 응답을 mock 폴더에 저장 / replay: 저장한 응답으로 답함 (시연용, 없는 요청만 실제 호출)
+    )
+    llm_mock_dir: Path = Path("mock_data/llm_mock")  # record·replay 모드의 응답 파일 폴더
+    llm_replay_delay: float = (
+        0.05  # replay에서 녹화 때 걸린 시간의 몇 배를 기다릴지 (호출 1건당 최대 8초. 0이면 바로 답함)
+    )
+    database_url: str = ""  # 서비스 DB (PostgreSQL). 비우면 output 폴더·SQLite 체크포인트 (로컬·테스트)
+    validation_db_url: str = DEFAULT_VALIDATION_DB_URL  # 빈 문자열이면 SQLite로만 검증
     keep_validation_schema: bool = False
-    semantic_review: bool = True                         # 의미 검토 Agent 실행 여부 (run --no-semantic-review로 끔)
-    semantic_review_mode: str = "auto"                   # auto: 산출물이 바뀔 때마다 / erd: ERD 만들 때 데이터 모델만 / off
-    semantic_review_attempts: int = 0                    # 의미 검토 실패 시 시도 횟수 (0이면 max_fix_attempts)
-    requirement_review: bool = True                      # 요구사항 검토 Agent(원문 대조·충돌 검토) 실행 여부
-    req_review_batch: int = 12                           # 원문 대조 요청 1건에 넣는 원문 단위 수 (보내는 내용이 작아 크게)
-    req_review_coverage: float = 0.6                     # 원문 문장이 요구사항에 '담김'으로 보는 겹침 비율 (이보다 낮은 문장만 누락 검사로 보냄)
-    req_review_effort: str = "low"                       # 요구사항 검토 요청의 생각 수준 (대조·판정 위주라 낮게. 빈 값이면 실행 설정)
-    api_design: bool = True                              # API 설계 Agent(개발 스펙의 API·아키텍처) 실행 여부 ('ERD 최종 확정' 때만)
-    api_fix_attempts: int = 1                            # API 검사 오류(없는 컬럼·API 없는 기능)를 그 기능만 다시 설계하는 횟수 (0이면 max_fix_attempts)
-    api_batch_size: int = 6                              # API 설계 요청 1건에 넣는 기능 수
-    api_effort: str = ""                                 # API 설계·아키텍처 요청의 생각 수준 (빈 값이면 실행 설정)
-    seed_test_accounts: bool = False                     # [임시] 서버 시작 때 시연용 계정(TEST_ACCOUNTS 10개) 중 DB에 없는 것만 만든다 (.env 기본 켬)
-    log_level: str = "INFO"                              # API 서버 로그 수준
-    cors_origins: tuple[str, ...] = DEFAULT_CORS_ORIGINS  # 브라우저 요청을 허용할 프론트 주소 (로컬 Vite 개발 서버는 proxy라 없어도 됨)
-    behavior_max_questions: int = 5                      # 상태 전환·자동 처리에서 낼 고객 확인 질문 상한 (BQ-…)
-    dev_effort: str = "medium"                           # 개발 단계(업무 로직 채우기) 요청의 생각 수준 (빈 값이면 실행 설정)
-    slack_bot_token: str = ""                            # 팀 Slack 워크스페이스 봇 토큰 (xoxb-…). 비우면 Slack 알림을 끈다 (services/slack.py)
-    slack_sync_seconds: int = 30                         # '나에게 온 알림'을 프로젝트 Slack 채널에 올릴 것이 있는지 확인하는 주기 (초)
-    app_base_url: str = "http://localhost:5173"          # Slack 메시지의 '화면에서 열기' 링크가 가리킬 프론트 주소
+    semantic_review: bool = True  # 의미 검토 Agent 실행 여부 (run --no-semantic-review로 끔)
+    semantic_review_mode: str = "auto"  # auto: 산출물이 바뀔 때마다 / erd: ERD 만들 때 데이터 모델만 / off
+    semantic_review_attempts: int = 0  # 의미 검토 실패 시 시도 횟수 (0이면 max_fix_attempts)
+    requirement_review: bool = True  # 요구사항 검토 Agent(원문 대조·충돌 검토) 실행 여부
+    req_review_batch: int = 12  # 원문 대조 요청 1건에 넣는 원문 단위 수 (보내는 내용이 작아 크게)
+    req_review_coverage: float = (
+        0.6  # 원문 문장이 요구사항에 '담김'으로 보는 겹침 비율 (이보다 낮은 문장만 누락 검사로 보냄)
+    )
+    req_review_effort: str = "low"  # 요구사항 검토 요청의 생각 수준 (대조·판정 위주라 낮게. 빈 값이면 실행 설정)
+    api_design: bool = True  # API 설계 Agent(개발 스펙의 API·아키텍처) 실행 여부 ('ERD 최종 확정' 때만)
+    api_fix_attempts: int = (
+        1  # API 검사 오류(없는 컬럼·API 없는 기능)를 그 기능만 다시 설계하는 횟수 (0이면 max_fix_attempts)
+    )
+    api_batch_size: int = 6  # API 설계 요청 1건에 넣는 기능 수
+    api_effort: str = ""  # API 설계·아키텍처 요청의 생각 수준 (빈 값이면 실행 설정)
+    seed_test_accounts: bool = (
+        False  # [임시] 서버 시작 때 시연용 계정(TEST_ACCOUNTS 10개) 중 DB에 없는 것만 만든다 (.env 기본 켬)
+    )
+    log_level: str = "INFO"  # API 서버 로그 수준
+    cors_origins: tuple[str, ...] = (
+        DEFAULT_CORS_ORIGINS  # 브라우저 요청을 허용할 프론트 주소 (로컬 Vite 개발 서버는 proxy라 없어도 됨)
+    )
+    behavior_max_questions: int = 5  # 상태 전환·자동 처리에서 낼 고객 확인 질문 상한 (BQ-…)
+    dev_effort: str = "medium"  # 개발 단계(업무 로직 채우기) 요청의 생각 수준 (빈 값이면 실행 설정)
+    slack_bot_token: str = ""  # 팀 Slack 워크스페이스 봇 토큰 (xoxb-…). 비우면 Slack 알림을 끈다 (services/slack.py)
+    slack_sync_seconds: int = 30  # '나에게 온 알림'을 프로젝트 Slack 채널에 올릴 것이 있는지 확인하는 주기 (초)
+    app_base_url: str = "http://localhost:5173"  # Slack 메시지의 '화면에서 열기' 링크가 가리킬 프론트 주소
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -181,7 +211,7 @@ class Settings:
             output_dir=_dir("OUTPUT_DIR", "output"),
             llm_exchange_dir=_dir("LLM_EXCHANGE_DIR", "output/llm_exchange"),
             llm_mode=_llm_mode(),
-            llm_mock_dir=_dir("LLM_MOCK_DIR", "output/llm_mock"),
+            llm_mock_dir=_dir("LLM_MOCK_DIR", "mock_data/llm_mock"),
             llm_replay_delay=float(os.getenv("LLM_REPLAY_DELAY", "").strip() or cls.llm_replay_delay),
             database_url=os.getenv("DATABASE_URL", "").strip(),
             validation_db_url=_validation_db_url(),
@@ -197,7 +227,8 @@ class Settings:
             api_fix_attempts=_int("API_FIX_ATTEMPTS", cls.api_fix_attempts),
             api_batch_size=_int("API_BATCH_SIZE", cls.api_batch_size),
             api_effort=os.getenv("API_EFFORT", "").strip().lower(),
-            seed_test_accounts=os.getenv("SEED_TEST_ACCOUNTS", "true").strip().lower() not in ("false", "0", "no", "off"),
+            seed_test_accounts=os.getenv("SEED_TEST_ACCOUNTS", "true").strip().lower()
+            not in ("false", "0", "no", "off"),
             log_level=os.getenv("LOG_LEVEL", "").strip().upper() or cls.log_level,
             cors_origins=tuple(o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip())
             or DEFAULT_CORS_ORIGINS,
@@ -210,8 +241,12 @@ class Settings:
 
     def fix_attempts(self, agent: str) -> int:
         """그 Agent의 반복 실패·이슈 자동 수정 한도. 단계별 값(FUNC·MODEL_FIX_ATTEMPTS 등)이 0이면 MAX_FIX_ATTEMPTS."""
-        limit = {"function_designer": self.func_fix_attempts, "data_modeler": self.model_fix_attempts,
-                 "semantic_reviewer": self.semantic_review_attempts, "api_designer": self.api_fix_attempts}.get(agent, 0)
+        limit = {
+            "function_designer": self.func_fix_attempts,
+            "data_modeler": self.model_fix_attempts,
+            "semantic_reviewer": self.semantic_review_attempts,
+            "api_designer": self.api_fix_attempts,
+        }.get(agent, 0)
         return limit or self.max_fix_attempts
 
     @property
